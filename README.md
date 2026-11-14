@@ -1,46 +1,95 @@
-# Leukerbad Hackathon 2026 — Rehab & Elderly Care
+<div align="center">
 
-[![Leukerbad Robotics Hackathon 2026](https://img.shields.io/badge/Leukerbad_Robotics_Hackathon-2026-0b7285)](#)
-[![Track: Elderly Care & Rehabilitation](https://img.shields.io/badge/track-Elderly_Care_%26_Rehabilitation-2f9e44)](#the-idea)
-[![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](./SETUP.md)
+<img src="docs/images/logo.svg" alt="Flex'N Sense" width="460">
+
+# Force-Limited Finger Tether
+
+**Robot-assisted finger rehabilitation after hand surgery, with a force cap the clinician sets remotely.**<br>
+By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
+
+[![Leukerbad Robotics Hackathon 2026](https://img.shields.io/badge/Leukerbad_Robotics_Hackathon-2026-0b7285)](https://luma.com/event/evt-7RecqicPQUegOIG)
+[![Track: Elderly Care & Rehabilitation](https://img.shields.io/badge/track-Elderly_Care_%26_Rehabilitation-2f9e44)](#the-hackathon)
 [![LeRobot SO-101](https://img.shields.io/badge/LeRobot-SO--101-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/docs/lerobot/so101)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](./SETUP.md)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)](./gauge_reader)
 [![Tests: 168 passing](https://img.shields.io/badge/tests-168_passing-success)](./tests)
-[![Status: prototype](https://img.shields.io/badge/status-prototype-orange)](./ROADMAP.md)
+[![Status: prototype](https://img.shields.io/badge/status-prototype-orange)](#status)
 
-Project for the **Leukerbad Robotics Hackathon 2026** (Nov 14–16, 2026, Leukerbad, Switzerland), **Elderly Care & Rehabilitation** track.
+![Arm A holds the hand, the finger pulls on a PESOLA spring scale held by arm B, a camera reads grams, the clinician sets the cap remotely](docs/images/concept.svg)
 
-## The idea
+</div>
 
-A **force-limited tether** for rehabilitating fingers after hand surgery, built from two LeRobot SO-101 arms, with a clinician supervising remotely.
+## Contents
 
-- **Arm A** holds and stabilizes the patient's hand in a fixed pose. No policy — a hardcoded position.
-- **Arm B** is connected to one of the patient's fingers through a **PESOLA spring scale** (600 g range, 5 g graduations, red indicator sliding along a linear printed scale).
+- [The hackathon](#the-hackathon)
+- [Team](#team)
+- [The problem](#the-problem)
+- [Our solution](#our-solution)
+- [How it works](#how-it-works)
+- [Status](#status)
+- [Getting started](#getting-started)
+- [Repository layout](#repository-layout)
+- [Documentation and contributing](#documentation-and-contributing)
+- [Acknowledgements](#acknowledgements)
 
-The patient moves the finger. Arm B stays put, acting as an anchor, so the spring stretches and the force rises. Once the force reaches that patient's prescribed threshold (e.g. 200 g), arm B **yields**: it moves slowly in the direction of the finger so the spring stretches no further, capping the force at the threshold.
+## The hackathon
 
-The clinician sets the threshold and watches the session remotely.
+- **Event:** [Leukerbad Robotics Hackathon 2026](https://luma.com/event/evt-7RecqicPQUegOIG) (Robotics, XR and AI)
+- **When:** 14–16 November 2026
+- **Where:** Sportarena Leukerbad, Valais, Switzerland
+- **Challenge:** Elderly Care & Rehabilitation, one of four alongside Autonomous Urban Services, Resilient & Safe City and Sustainable City
+- **Our hardware:** two LeRobot SO-101 arms, a PESOLA 600 g spring scale and a camera
 
-![Force-limited finger tether: arm A holds the hand, the finger pulls on the PESOLA scale held by arm B, a camera reads grams, the clinician sets the cap remotely](docs/images/concept.svg)
+## Team
 
-Dynamic finger splints in hand therapy work in the 0–450 g range, so a 200 g cap sits in a clinically sensible band. The device category this belongs to is **CPM (continuous passive motion)**, used after hand surgery to prevent capsular and tendon adhesions.
+We are **Flex'N Sense**, a team of five.
 
-## How force is measured without a force sensor
+| Name | Role | GitHub |
+|---|---|---|
+| _to be added_ | | |
+| _to be added_ | | |
+| _to be added_ | | |
+| _to be added_ | | |
+| _to be added_ | | |
 
-The kit has no force/torque sensor, but there are two independent signals:
+## The problem
 
-1. **Camera + PESOLA** — a vision model locates the red indicator against the printed scale and converts its position to grams. Physical ground truth, ~30 Hz, but fragile (specular glare off the aluminium tube, occlusion, motion blur).
-2. **Servo current** — the Feetech STS3215 motors expose `Present_Load` (register 60) and `Present_Current` (register 69, ×6.5 → mA), readable through LeRobot's motor bus. Fast and robust, but unitless.
+After hand surgery, fingers have to be moved early and regularly to prevent tendons and joint capsules from sticking (adhesions). This is the job of **CPM, continuous passive motion**. The force matters: dynamic finger splints in hand therapy work in the **0–450 g** range, and too much force on a healing finger does harm. Therapists cannot be present for every session, and the kit available here has **no force sensor**.
 
-The plan is to **calibrate (2) against (1)**, run the control loop on servo current for speed and stability, and keep the camera as independent verification and as the gram readout shown to the clinician. See [docs/force-calibration.md](./docs/force-calibration.md).
+## Our solution
 
-This has a real risk attached: the follower servos are geared 1/345, and friction in a highly geared drivetrain produces a dead zone and hysteresis that may swamp a 200 g signal. The calibration experiment is designed to find that out on day one, before anything is built on top of it.
+A **force-limited tether** built from two SO-101 arms, with a clinician supervising remotely:
 
-## Control
+1. **Arm A** holds the patient's hand still in a fixed pose (a hard-coded position, no policy).
+2. **Arm B** is tied to one finger through a **PESOLA spring scale** (0–600 g, 5 g per line, a red indicator on a linear printed scale).
+3. The patient moves the finger. Arm B stays put as an anchor, so the spring stretches and the force rises.
+4. When the force reaches the patient's prescribed cap (e.g. **200 g**), arm B **yields**: it moves slowly with the finger so the spring stretches no further.
+5. The **clinician** sets the cap and watches the session remotely, and can stop it.
 
-Admittance control with a deadband — clinically, *assist-as-needed*:
+![Force over time: it rises while the finger moves, stays at the 200 g cap while arm B yields, and drops when the finger relaxes](docs/images/force-cap.svg)
 
-```
+## How it works
+
+### Measuring force without a force sensor
+
+Two independent signals:
+
+| Signal | How | Strength | Weakness |
+|---|---|---|---|
+| **Camera + PESOLA** | Read the red indicator against the printed scale and convert its position to grams (the gauge reader) | Physical ground truth, ~30 Hz | Glare, occlusion, motion blur |
+| **Servo current** | Feetech STS3215 `Present_Load` (register 60) and `Present_Current` (register 69, ×6.5 → mA) via LeRobot's motor bus | Fast and robust | Unitless; gearbox friction |
+
+The plan: **calibrate the servo current against the camera**, run the control loop on current for speed, and keep the camera as an independent check and as the gram readout the clinician sees ([docs/force-calibration.md](./docs/force-calibration.md)). The risk: the 1/345 gearbox may add a dead zone and hysteresis larger than a 200 g signal. The day-one calibration experiment finds out before anything is built on top of it.
+
+**Gauge reader.** Two red dots drawn on the PESOLA's tube act as fixed references. Each frame, the camera finds the three red spots in a row (dot, marker, dot); the marker's position *between* the dots is a fraction that does not change when the scale moves, turns or comes closer, and calibration turns it into grams. When a dot is covered, it reports a reason instead of a number. Details: [docs/scale-reader.md](./docs/scale-reader.md).
+
+![Gauge reader: find the red spots, the outer two are the dots and the middle one the marker, the marker's fraction between the dots becomes grams](docs/images/gauge-reader.svg)
+
+### Control
+
+Admittance control with a deadband, clinically *assist-as-needed*:
+
+```python
 F = estimate_force()            # calibrated servo current, filtered
 if F < F_threshold:
     hold_position()             # the arm is the anchor
@@ -50,65 +99,82 @@ else:
     move(v, direction_that_reduces_F)
 ```
 
-This is deliberately **not** a learned policy. ACT and Diffusion Policy execute action chunks open-loop and cannot react to contact forces mid-chunk, which is the exact failure mode a device pulling on a post-surgical finger must not have. They also need 50–200 demonstrations and ~16 GB of VRAM to train, against a 4 GB laptop GPU and two days. RL from scratch is out for the same reason.
+This is deliberately **not** a learned policy. ACT and Diffusion Policy execute action chunks open-loop and cannot react to contact forces mid-chunk, the exact failure a device pulling on a post-surgical finger must not have. They also need 50–200 demonstrations and ~16 GB of VRAM, against a 4 GB laptop GPU and two days. RL from scratch is out for the same reason.
 
-![Force over time: it rises while the finger moves, stays at the 200 g cap while arm B yields, and drops when the finger relaxes](docs/images/force-cap.svg)
+### Safety
 
-## Where the learning actually is
+Force limits on the patient are enforced **independently of the main control loop**:
+
+- a torque/current cap written to the servo registers, in force even if the control process dies;
+- software position limits on how far arm B can travel;
+- a vision watchdog: on lost detection, low confidence or dropped frames, **release tension and stop**, never hold;
+- low maximum velocity throughout;
+- a physical e-stop within reach of the patient and the operator;
+- the spring itself acts as a mechanical fuse.
+
+### Where the learning is
 
 - The **vision model** that reads the PESOLA scale.
-- **Hand keypoint tracking** (MediaPipe or WiLoR) to measure finger range of motion during the session.
-- **Per-patient threshold adaptation** from the patient's response within a session — a lightweight online estimator, not deep RL.
-- The **force–displacement curve** recorded across the session, which yields joint stiffness. Stiffness derived from force–displacement curves is a published quantitative biomarker of post-surgical tendon adhesion, so the device measures recovery rather than only exercising it. This is the clinical deliverable the remote clinician watches evolve between sessions.
+- **Hand keypoint tracking** (MediaPipe or WiLoR) to measure the finger's range of motion.
+- **Per-patient cap adaptation** from the patient's response within a session: a lightweight online estimator, not deep RL.
+- The **force–displacement curve** across the session, which yields joint stiffness, a published biomarker of post-surgical tendon adhesion. The device measures recovery, not only exercises it; this is what the clinician watches evolve between sessions.
 
-## Safety
+## Status
 
-Patient-contact force limits are enforced **independently of the primary control loop**:
+The work is split into the subtasks of [ROADMAP.md](./ROADMAP.md), one branch and one PR each.
 
-- Torque/current cap written to the servo registers, in force even if the control process dies.
-- Software position limits bounding how far arm B can travel.
-- Vision watchdog — on lost detection, low confidence, or dropped frames, **release tension and stop**, never hold.
-- Low maximum velocity throughout.
-- Physical e-stop within reach of both the patient and the operator.
-- The spring itself acts as a mechanical fuse.
+| # | Subtask | Branch | Status |
+|---|---|---|---|
+| 1 | Force calibration: can servo current stand in for a force sensor? | `feature/force-calibration` | 🟡 in progress ([#4](https://github.com/anatissera/leukerbad-hackathon/pull/4)) |
+| 2 | Gauge reader: PESOLA → grams + confidence from a camera | `feature/gauge-reader` | ✅ merged ([#5](https://github.com/anatissera/leukerbad-hackathon/pull/5)) |
+| 3 | Admittance controller + safety layer | `feature/admittance-control` | ⚪ planned |
+| 4 | Simulation rig (MuJoCo SO-101 + spring) | `feature/sim-rig` | ⚪ planned |
+| 5 | Hand tracking / range of motion | `feature/hand-tracking` | ⚪ planned |
+| 6 | Session metrics: force–displacement, stiffness | `feature/session-metrics` | ⚪ planned |
+| 7 | Remote clinician dashboard | `feature/remote-dashboard` | ⚪ planned |
 
-## Code layout
-
-```
-lib/              shared helpers for any script (robot arms, force calibration, gauge reader)
-  camera.py       open a camera by number or name ("iphone") or a video file; warm-up; python -m lib.camera lists cameras
-  env.py          read settings from the environment or .env (CAMERA_INDEX, ROBOT_PORT, ...)
-  filters.py      1D Kalman filter with outlier gate and "steady" flag (any noisy signal, e.g. servo current)
-  geometry.py     a line in an image: project points, distances along it
-gauge_reader/     roadmap item 2: read the PESOLA scale through a camera (python -m gauge_reader)
-scripts/          robot and calibration scripts (force calibration)
-tests/lib/, tests/gauge_reader/
-docs/             guides; docs/scale-reader.md for the gauge reader
-```
-
-```python
-from lib.camera import open_source
-from lib.filters import ReadingFilter
-
-src, filt = open_source(camera="iphone"), ReadingFilter(measurement_std_g=2.0)
-ok, frame, ts, idx = src.read()
-smooth = filt.update(reading, ts)            # .grams (smoothed value), .stable, .velocity_g_s
-```
-
-## Gauge reader (camera → grams)
-
-Roadmap item 2, in `gauge_reader/`, built on `lib/`. Two red dots on the PESOLA tube act as fixed references; the red indicator's position between them (a fraction) is converted to grams, so the reading survives the scale moving, turning or changing distance. Each frame yields grams, a steady flag and a reason when no reading is possible (dot covered, scale not found) — the confidence signal for the watchdog.
+## Getting started
 
 ```bash
+git clone https://github.com/anatissera/leukerbad-hackathon.git && cd leukerbad-hackathon
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
-.venv/bin/python -m gauge_reader.launcher      # control panel: camera, calibrate, run
-.venv/bin/python -m gauge_reader --help         # command line: cameras, calibrate, run, evaluate
-.venv/bin/python -m pytest -q                   # 168 tests, no camera needed
+.venv/bin/python -m pytest -q                   # all tests, no camera or robot needed
+.venv/bin/python -m gauge_reader.launcher      # gauge reader control panel: camera, calibrate, run
 ```
 
-![Gauge reader: find the red spots, the outer two are the dots and the middle one the marker, the marker's fraction between the dots becomes grams](docs/images/gauge-reader.svg)
+Robot arms (LeRobot install, motor IDs, calibration, `.env`): [SETUP.md](./SETUP.md).
 
-Setup, calibration, how it works and precision: [docs/scale-reader.md](./docs/scale-reader.md).
+## Repository layout
+
+```
+lib/              shared helpers for any script: camera, .env settings, Kalman filter, geometry
+gauge_reader/     subtask 2: read the PESOLA scale through a camera (python -m gauge_reader)
+scripts/          robot and calibration scripts (force calibration)
+tests/            tests per package: tests/lib/, tests/gauge_reader/
+docs/             guides and diagrams
+```
+
+Reusable code goes in `lib/`, for example:
+
+```python
+from lib.camera import open_source       # cameras by number or name ("iphone"), or video files
+from lib.filters import ReadingFilter    # smooth any noisy signal, with a "steady" flag
+
+src, filt = open_source(camera="iphone"), ReadingFilter()
+ok, frame, ts, idx = src.read()
+```
+
+## Documentation and contributing
+
+| Document | What it covers |
+|---|---|
+| [ROADMAP.md](./ROADMAP.md) | The subtasks, their order and branches |
+| [SETUP.md](./SETUP.md) | Python, LeRobot, motors and `.env` |
+| [docs/force-calibration.md](./docs/force-calibration.md) | The servo-current calibration experiment |
+| [docs/scale-reader.md](./docs/scale-reader.md) | The gauge reader: setup, calibration, precision, troubleshooting |
+| [AGENTS.md](./AGENTS.md) | Git workflow, branch naming, rules for contributors and coding agents |
+
+`main` is protected: work on the roadmap branch and open a PR. Commits and PRs do not credit AI tools (see [AGENTS.md](./AGENTS.md)).
 
 ## Dashboard (Next.js app)
 
@@ -128,6 +194,6 @@ pnpm dev                        # http://localhost:3000
 - (from `dashboard/`) `pnpm build && pnpm start` runs the production build; `pnpm lint` runs ESLint.
 
 ## Where to start
+## Acknowledgements
 
-[ROADMAP.md](./ROADMAP.md) lists the subtasks and the branch for each.
-[SETUP.md](./SETUP.md) covers environment setup, [AGENTS.md](./AGENTS.md) the git workflow.
+Built at the Leukerbad Robotics Hackathon 2026, co-organized by the Edelweiss Innovation & Intelligence Institute (EIII), HerCode, AI Team, EuroTech Federation and TUM-XR. Thanks to the organizers, mentors and hardware partners.
