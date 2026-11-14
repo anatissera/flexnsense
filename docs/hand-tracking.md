@@ -57,11 +57,26 @@ curl -L -o models/hand_landmarker.task \
 ```bash
 python -m hand_tracking run                                 # live window, one hand
 python -m hand_tracking run --csv recordings/session.csv     # + log one row per frame
+python -m hand_tracking run --jsonl recordings/frames.jsonl  # + one HandFrame per line
 python -m hand_tracking run --headless --video clip.mp4 --csv out.csv   # no camera needed
 ```
 
 `q` quits the window. CSV columns: `time_s, frame, found, thumb, index, middle, ring, pinky`
 (the last five in degrees, blank when no hand is found that frame).
+
+### With WiLoR instead
+
+```bash
+python -m hand_tracking run --source wilor --jsonl out.jsonl --wilor-root ../WiLoR
+```
+
+Same flags, same CSV columns, same overlay: only `--source` changes, and the JSONL gains the
+`mano` block. WiLoR needs its own checkout, its checkpoint and a CUDA environment, which is why
+it is opt-in rather than the default; set `WILOR_ROOT` in `.env` to skip `--wilor-root`. Add
+`--no-fast` to run fp32 without layer dropping, which is slower but needs less memory at load.
+
+Note that the WiLoR checkout brings its own conda environment (torch, CUDA), so in practice that
+command runs from there rather than from `.venv`.
 
 ## The angle
 
@@ -82,11 +97,14 @@ so it is unit-tested directly with synthetic points, no camera needed).
 Everything a tracker knows about one frame goes out in a single shape, so that swapping MediaPipe
 for WiLoR changes nothing downstream. It is declared twice, and the two have to agree:
 
-- `hand_tracking/frame.py`, used by anything in Python (a WiLoR backend emits this).
+- `hand_tracking/frame.py`, used by anything in Python.
 - `dashboard/app/lib/handFrame.ts`, used by the in-browser MediaPipe tracker.
 
 `tests/hand_tracking/test_frame.py` reads the TypeScript file and fails if the two drift apart, and
 also checks every joint name against the committed MuJoCo model.
+
+Three sources emit it today: `hand_tracking/mediapipe_source.py`, `hand_tracking/wilor_source.py`,
+and the dashboard's `HandTracker.tsx`.
 
 ```jsonc
 {
@@ -102,7 +120,7 @@ also checks every joint name against the committed MuJoCo model.
     "handPose":     [[0.1, 0.2, 0.3], ...],  // 15 x 3 axis-angle, radians, full 3 DOF per joint
     "globalOrient": [0.4, 0.5, 0.6],         // hand orientation in camera space
     "betas":        [0.0, ...]               // 10 MANO shape coefficients
-  }
+  }                                  // handPose is in MANO's joint order, not the 21-point one
 }
 ```
 
@@ -117,10 +135,38 @@ In the dashboard, pass `onFrame` to `<HandTracker>` to receive one of these per 
 five fingertips are drawn larger and in amber over the other landmarks, so what the angles are
 derived from is visible while tracking.
 
+### Why the two sources line up without a conversion layer
+
+WiLoR's MANO wrapper remaps its joints into OpenPose order (`mano_to_openpose` in
+`wilor/models/mano_wrapper.py`), and OpenPose's 21-point hand layout is the same one MediaPipe
+uses: wrist, then thumb, index, middle, ring and pinky, four landmarks each, base to tip. So
+`pred_keypoints_3d` indexes exactly like MediaPipe's landmarks, and the same function computes
+the angles for both (`hand_tracking/pose.py`, mirrored by `landmarksToPose` in the dashboard).
+This was checked against the actual index list rather than assumed.
+
+Two things still differ by source and are handled on the way out:
+
+- WiLoR runs left hands through the network mirrored, so x is flipped back on the keypoints and
+  on the camera translation, the same way WiLoR's own `demo.py` does it.
+- WiLoR predicts rotation **matrices**; MANO's own parameterisation is axis-angle, so a frame
+  converts back to axis-angle, which is more compact and what a consumer of MANO expects.
+
+One trap worth naming: that OpenPose remap applies to the **joints**, not to the pose parameters.
+`mano.handPose` stays in MANO's own order (index, middle, pinky, ring, thumb, three joints each),
+so indexing it like the 21-point layout gives the wrong finger. `landmarks` and `world` are the
+remapped ones.
+
+`landmarks[i].z` is the one field whose meaning is source specific: MediaPipe gives a relative
+depth, WiLoR the camera-space depth in metres. Only x and y are contractual there, and `world`
+is what anything quantitative should read.
+
 ## Known limits
 
-- One hand at a time by default (`--max-hands` to change it); with two hands in frame, only the
-  first detection's angles are used.
+- One hand at a time by default with MediaPipe (`--max-hands` to change it). WiLoR reports every
+  hand its detector finds and writes a JSONL line for each, but the CSV and the on-screen angles
+  only ever describe the first one.
+- No tracking across frames: a hand is matched to nothing in the previous frame, so with more
+  than one hand in view, which one is "first" can swap between frames.
 - A bare angle at one joint, not a full ROM protocol: it does not know the finger's end-of-range,
   does not distinguish active from passive motion, and is not itself the stiffness curve (that
   is roadmap item 6, which combines this with the force reading).

@@ -116,7 +116,7 @@ Force limits on the patient are enforced **independently of the main control loo
 ### Where the learning is
 
 - The **vision model** that reads the PESOLA scale.
-- **Hand keypoint tracking** (MediaPipe or WiLoR) to measure the finger's range of motion.
+- **Hand keypoint tracking** to measure the finger's range of motion: MediaPipe live, WiLoR for precision capture (it adds MANO joint rotations). Both emit the same `HandFrame`, see [docs/hand-tracking.md](./docs/hand-tracking.md).
 - **Per-patient cap adaptation** from the patient's response within a session: a lightweight online estimator, not deep RL.
 - The **force–displacement curve** across the session, which yields joint stiffness, a published biomarker of post-surgical tendon adhesion. The device measures recovery, not only exercises it; this is what the clinician watches evolve between sessions.
 
@@ -142,6 +142,7 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requi
 .venv/bin/python -m pytest -q                   # all tests, no camera or robot needed
 .venv/bin/python -m gauge_reader.launcher      # gauge reader control panel: camera, calibrate, run
 .venv/bin/python -m hand_tracking run           # finger flexion angles, live window (downloads the model once)
+.venv/bin/python -m hand_tracking run --jsonl frames.jsonl   # + the full per-frame HandFrame
 ```
 
 Robot arms (LeRobot install, motor IDs, calibration, `.env`): [SETUP.md](./SETUP.md).
