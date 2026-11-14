@@ -148,6 +148,7 @@ export default function SimApp() {
 
   const curlRef = useRef<{ joint: string; pip: string; flex: string[]; ext: string[]; target: number } | null>(null);
   const healthRef = useRef<Record<string, number>>({});
+  const forceRef = useRef<{ n: number } | null>(null);
   const runToken = useRef(0);
 
   // Chat tool-call targets: highlight set + screen anchors for floating callouts.
@@ -232,6 +233,7 @@ export default function SimApp() {
   const stop = useCallback(() => {
     runToken.current++;
     curlRef.current = null;
+    forceRef.current = null;
     setLive(null);
   }, []);
   useEffect(() => stop, [stop]);
@@ -267,8 +269,11 @@ export default function SimApp() {
         if (now - lastSnap > 100) { lastSnap = now; setSnap(analyzer.snapshot()); }
         // Smooth the (noisy) displacement, then map displacement -> MCP angle target.
         let acc = 0;
+        let facc = 0;
         let cnt = 0;
-        for (let k = Math.max(i - 5, 0); k <= Math.min(i + 5, tr.x.length - 1); k++) { acc += tr.x[k] - tr.x[0]; cnt++; }
+        for (let k = Math.max(i - 5, 0); k <= Math.min(i + 5, tr.x.length - 1); k++) { acc += tr.x[k] - tr.x[0]; facc += tr.F[k] - tr.F[0]; cnt++; }
+        // Fingertip force (N), smoothed and baseline-zeroed, drawn as an arrow at the fingertip.
+        forceRef.current = { n: Math.max(facc / cnt, 0) };
         const u = Math.min(Math.max(acc / cnt / refOf(tr.finger).rom, 0), 1);
         curlRef.current = { joint: "mcp2_flexion_r", pip: "pm2_flexion_r", flex: [m.fds ?? "", m.fdp ?? ""].filter(Boolean), ext: m.ext, target: MAX_MCP * u };
         if (now - lastUi > 60) { lastUi = now; setSel(tr.finger); setLive({ finger: tr.finger, t: tt }); }
@@ -325,7 +330,7 @@ export default function SimApp() {
   return (
     <FocusCtx.Provider value={focusSec}>
     <div className="relative h-full w-full">
-      <MyoViewerClient curl={curlRef} health={healthRef} highlight={highlightRef} anchors={anchorsRef} />
+      <MyoViewerClient curl={curlRef} health={healthRef} highlight={highlightRef} anchors={anchorsRef} force={forceRef} />
       <MuscleCallout callouts={callouts} anchors={anchorsRef} study={study} week={week} onClose={closeCallout} />
       <ChatPanel context={chatContext} onTool={onTool} />
       <aside className="panel absolute bottom-4 right-4 top-4 w-[470px] max-w-[calc(100%-2rem)] space-y-4 overflow-y-auto">

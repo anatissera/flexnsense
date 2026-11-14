@@ -33,6 +33,7 @@ type Controls = {
   extensor: number;
   paused: boolean;
   reset: boolean;
+  showForce: boolean;
 };
 
 export type MuscleDrive = Record<string, number>;
@@ -54,17 +55,25 @@ export type ViewerHooks = {
    * and live activation of every muscle in `wanted` into `pos` each frame.
    */
   anchors?: RefObject<{ wanted: Set<string>; pos: Record<string, MuscleAnchor> }>;
+  /** Fingertip force (N) during a live curl; drawn as an arrow at the index fingertip. Null hides it. */
+  force?: RefObject<{ n: number } | null>;
 };
+// Force arrow: length grows linearly with force, from the index fingertip, pointing out along the finger in the xy-plane.
+const FORCE_ARROW_MIN = 0.008; // m
+const FORCE_ARROW_PER_N = 0.0022; // m per newton (28 N peak is about 7 cm)
+const FORCE_HEAD_WIDTH = 0.007; // m
 export type MuscleAnchor = { x: number; y: number; visible: boolean; act: number };
 
-export default function MyoViewer({ drive, curl, health, highlight, anchors }: ViewerHooks = {}) {
+export default function MyoViewer({ drive, curl, health, highlight, anchors, force: forceRef }: ViewerHooks = {}) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctl = useRef<Controls>({
     flexor: 0,
     extensor: 0,
     paused: false,
     reset: false,
+    showForce: true,
   });
+  const [showForce, setShowForce] = useState(true);
   const [status, setStatus] = useState("Loading MuJoCo…");
   // ?grasp starts with the Grasp preset applied (handy for screenshots).
   // The viewer is client-only (ssr: false), so reading location here is safe.
@@ -256,8 +265,19 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors }: V
       const flexIdx = names.flatMap((n, i) => (FLEXOR.test(n) ? [i] : []));
       const extIdx = names.flatMap((n, i) => (EXTENSOR.test(n) ? [i] : []));
 
+      const tipSite = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE.value, "IFtip_r");
+      const forceArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(), 0.05, 0xff6b6b, 0.012, FORCE_HEAD_WIDTH);
+      const midBody = model.body("midph2_r").id;
+      const forceDir = new THREE.Vector3();
+      forceArrow.visible = false;
+      forceArrow.renderOrder = 10;
+      for (const m of [forceArrow.line.material, forceArrow.cone.material] as THREE.Material[]) {
+        m.depthTest = false;
+      }
+      scene.add(forceArrow);
+
       const target = new THREE.Vector3();
-      const tb = model.body("capitate_r").id;
+      const tb =model.body("capitate_r").id;
       target.set(data.xpos[3 * tb], data.xpos[3 * tb + 1], data.xpos[3 * tb + 2]);
       camera.position.copy(target).add(new THREE.Vector3(0.0, -0.3, 0.38)); // from above: palm faces up
       const orbit = new OrbitControls(camera, renderer.domElement);
@@ -449,6 +469,23 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors }: V
             if (m.instanceColor) m.instanceColor.needsUpdate = true;
           }
         }
+        const fv = forceRef?.current;
+        if (fv && tipSite >= 0 && c.showForce) {
+          const len = FORCE_ARROW_MIN + FORCE_ARROW_PER_N * Math.max(fv.n, 0);
+          forceArrow.position.set(
+            data.site_xpos[3 * tipSite], data.site_xpos[3 * tipSite + 1], data.site_xpos[3 * tipSite + 2],
+          );
+          // Outward along the finger (middle phalanx -> tip), flattened to the xy-plane: the
+          // resisting pull opposes the curl.
+          forceDir.set(
+            data.site_xpos[3 * tipSite] - data.xpos[3 * midBody],
+            data.site_xpos[3 * tipSite + 1] - data.xpos[3 * midBody + 1],
+            0,
+          );
+          if (forceDir.lengthSq() > 1e-10) forceArrow.setDirection(forceDir.normalize());
+          forceArrow.setLength(len, Math.min(0.012, len * 0.4), FORCE_HEAD_WIDTH);
+          forceArrow.visible = true;
+        } else forceArrow.visible = false;
         orbit.update();
         renderer.render(scene, camera);
       };
@@ -463,6 +500,8 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors }: V
           L.segs.dispose();
           L.joints.dispose();
         }
+        scene.remove(forceArrow);
+        forceArrow.dispose();
         segGeo.dispose();
         jointGeo.dispose();
         tubeMat.dispose();
@@ -483,7 +522,7 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors }: V
       cancelled = true;
       cleanup();
     };
-  }, [startGrasp, drive, curl, health, highlight, anchors]);
+  }, [startGrasp, drive, curl, health, highlight, anchors, forceRef]);
 
   const set = (patch: Partial<Controls>) => Object.assign(ctl.current, patch);
 
@@ -496,7 +535,7 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors }: V
         </div>
       )}
       <div className="panel absolute left-4 top-4 w-64 space-y-3">
-        <div className="t-title">MyoHand (MuJoCo WASM)</div>
+        <div className="t-title">MyoHand</div>
         <ul className="space-y-1.5">
           {[
             ...HIGHLIGHT.map((g) => ({ label: g.label, color: g.rest })),
@@ -529,6 +568,13 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors }: V
             className="w-full"
             onChange={(e) => { const v = +e.target.value; setExtensor(v); set({ extensor: v }); }}
           />
+        </label>
+        <label className="t-body flex items-center gap-2">
+          <input
+            type="checkbox" checked={showForce}
+            onChange={(e) => { setShowForce(e.target.checked); set({ showForce: e.target.checked }); }}
+          />
+          Show force vector
         </label>
         <div className="flex gap-2">
           <button
