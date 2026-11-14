@@ -130,7 +130,7 @@ The work is split into the subtasks of [ROADMAP.md](./ROADMAP.md), one branch an
 | 2 | Gauge reader: PESOLA → grams + confidence from a camera | `feature/gauge-reader` | ✅ merged ([#5](https://github.com/anatissera/leukerbad-hackathon/pull/5)) |
 | 3 | Admittance controller + safety layer | `feature/admittance-control` | ⚪ planned |
 | 4 | Simulation rig (MuJoCo SO-101 + spring) | `feature/sim-rig` | ⚪ planned |
-| 5 | Hand tracking / range of motion | `feature/hand-tracking` | 🟡 in progress ([#15](https://github.com/anatissera/leukerbad-hackathon/pull/15)) |
+| 5 | Hand tracking / range of motion | `feature/hand-tracking` | 🟡 in progress ([#16](https://github.com/anatissera/leukerbad-hackathon/pull/16)) |
 | 6 | Session metrics: force–displacement, stiffness | `feature/session-metrics` | ⚪ planned |
 | 7 | Remote clinician dashboard | `feature/remote-dashboard` | ⚪ planned |
 
