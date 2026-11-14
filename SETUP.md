@@ -59,6 +59,14 @@ lerobot-calibrate --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.
 
 Repeat with `--teleop.type=so101_leader` for the leader arm if used for teleoperation.
 
+Or, once `ROBOT_PORT` / `LEADER_PORT` are set in `.env`, use the project's wrapper so you don't have to retype ports:
+
+```bash
+python scripts/calibrate.py follower
+python scripts/calibrate.py leader
+python scripts/calibrate.py both
+```
+
 Full reference: [LeRobot SO-101 docs](https://huggingface.co/docs/lerobot/so101).
 
 ## 6. Environment variables
