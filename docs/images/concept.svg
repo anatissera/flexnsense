@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 460" width="960" height="460" role="img" aria-labelledby="t d">
+  <title id="t">Force-limited finger tether</title>
+  <desc id="d">Arm A holds the patient's hand. The finger is tied to a PESOLA spring scale whose other end is held by arm B. A camera reads the scale in grams. When the force reaches the clinician's threshold, arm B yields so the force stays capped. The clinician supervises remotely.</desc>
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #1f2933; }
+    .h { font-size: 22px; font-weight: 700; }
+    .s { font-size: 13px; fill: #52606d; }
+    .b { font-size: 14px; font-weight: 600; }
+    .m { font-size: 12px; fill: #52606d; }
+    .arm { stroke: #3e4c59; stroke-width: 16; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    .joint { fill: #f5f7fa; stroke: #3e4c59; stroke-width: 4; }
+    .base { fill: #3e4c59; }
+    .tick { stroke: #7b8794; stroke-width: 1.5; }
+    .red { fill: #e12d39; }
+    .view { stroke: #7b8794; stroke-width: 1.5; stroke-dasharray: 5 5; fill: none; }
+    .net { stroke: #2186eb; stroke-width: 2; stroke-dasharray: 6 5; fill: none; }
+  </style>
+  <rect x="1" y="1" width="958" height="458" rx="16" fill="#ffffff" stroke="#e4e7eb" stroke-width="2"/>
+  <text class="h" x="32" y="46">Force-limited finger tether</text>
+  <text class="s" x="32" y="70">Two SO-101 arms, a PESOLA spring scale and a camera · the clinician sets the force cap remotely</text>
+
+  <!-- camera -->
+  <rect x="455" y="110" width="76" height="46" rx="9" fill="#323f4b"/>
+  <circle cx="493" cy="133" r="13" fill="#9aa5b1" stroke="#f5f7fa" stroke-width="3"/>
+  <rect x="470" y="102" width="22" height="10" rx="3" fill="#323f4b"/>
+  <path class="view" d="M470,156 L410,236 M516,156 L660,236"/>
+  <text class="b" x="548" y="126">Camera</text>
+  <text class="m" x="548" y="144">reads the scale in grams</text>
+  <rect x="548" y="152" width="74" height="26" rx="13" fill="#e3f9e5" stroke="#3ebd93"/>
+  <text class="b" x="562" y="170" style="fill:#0e7c58">180 g</text>
+
+  <!-- arm A holding the hand -->
+  <rect class="base" x="58" y="370" width="92" height="22" rx="6"/>
+  <path class="arm" d="M104,370 L104,300 L160,250 L214,262"/>
+  <circle class="joint" cx="104" cy="300" r="9"/><circle class="joint" cx="160" cy="250" r="9"/>
+  <text class="b" x="58" y="418">Arm A</text>
+  <text class="m" x="58" y="436">holds the hand still</text>
+
+  <!-- hand and finger -->
+  <rect x="210" y="232" width="86" height="62" rx="22" fill="#f6d5c1" stroke="#c99a7f" stroke-width="2"/>
+  <rect x="288" y="244" width="70" height="18" rx="9" fill="#f6d5c1" stroke="#c99a7f" stroke-width="2"/>
+  <text class="m" x="214" y="318">patient's finger</text>
+  <path d="M300,282 q22,10 44,0" stroke="#c99a7f" stroke-width="2" fill="none"/>
+  <path d="M318,214 L352,214" stroke="#2186eb" stroke-width="3" marker-end="url(#arrB)"/>
+  <defs>
+    <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2186eb"/></marker>
+    <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3ebd93"/></marker>
+  </defs>
+  <text class="m" x="300" y="206" style="fill:#2186eb">finger pulls</text>
+
+  <!-- tether to the scale -->
+  <path d="M358,253 L392,253" stroke="#52606d" stroke-width="2.5"/>
+  <!-- PESOLA scale -->
+  <rect x="392" y="236" width="276" height="34" rx="17" fill="#d9dee3" stroke="#9aa5b1" stroke-width="2"/>
+  <rect x="400" y="240" width="40" height="26" rx="6" fill="#5a3e85"/>
+  <g class="tick">
+    <path d="M462,246 v10"/><path d="M488,246 v6"/><path d="M514,246 v10"/><path d="M540,246 v6"/><path d="M566,246 v10"/><path d="M592,246 v6"/><path d="M618,246 v10"/>
+  </g>
+  <circle class="red" cx="452" cy="253" r="6"/>
+  <rect class="red" x="515" y="247" width="16" height="12" rx="4"/>
+  <circle class="red" cx="642" cy="253" r="6"/>
+  <text class="b" x="452" y="298">PESOLA spring scale</text>
+  <text class="m" x="452" y="316">0–600 g · two red dots + red marker</text>
+  <path d="M668,253 L716,253" stroke="#52606d" stroke-width="2.5"/>
+
+  <!-- arm B -->
+  <rect x="716" y="238" width="26" height="30" rx="5" fill="#3e4c59"/>
+  <path class="arm" d="M742,253 L800,262 L834,310 L834,370"/>
+  <circle class="joint" cx="800" cy="262" r="9"/><circle class="joint" cx="834" cy="310" r="9"/>
+  <rect class="base" x="788" y="370" width="92" height="22" rx="6"/>
+  <text class="b" x="760" y="418">Arm B</text>
+  <text class="m" x="760" y="436">anchors; yields at the cap</text>
+  <path d="M700,214 L740,214" stroke="#3ebd93" stroke-width="3" marker-end="url(#arrG)"/>
+  <text class="m" x="680" y="206" style="fill:#0e7c58">yields slowly</text>
+
+  <!-- clinician -->
+  <rect x="716" y="92" width="210" height="96" rx="12" fill="#ebf5ff" stroke="#2186eb" stroke-width="1.5"/>
+  <text class="b" x="732" y="118">Clinician (remote)</text>
+  <text class="m" x="732" y="140">sets the cap: 200 g</text>
+  <text class="m" x="732" y="158">watches force and range of motion</text>
+  <text class="m" x="732" y="176">can stop the session</text>
+  <path class="net" d="M624,165 L716,165"/>
+</svg>

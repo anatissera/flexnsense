@@ -1,3 +1,80 @@
+# Workflow
+
+`main` is protected: no direct pushes. All changes go through a branch and a Pull Request.
+
+1. Create a branch from `main`:
+   ```
+   git checkout main
+   git pull
+   git checkout -b your-branch-name
+   ```
+2. Commit and push the branch:
+   ```
+   git push -u origin your-branch-name
+   ```
+3. Open a Pull Request into `main` (GitHub web or `gh pr create`).
+4. Merge the PR from GitHub once reviewed/approved. Direct pushes to `main` are not allowed.
+
+## Branch naming
+
+One branch per subtask in [ROADMAP.md](./ROADMAP.md), using the name given there — `feature/force-calibration`, `feature/gauge-reader`, and so on. For anything outside the roadmap: `fix/...` or `docs/...`.
+
+## Scope
+
+Keep a branch to one roadmap item so PRs stay reviewable and two people can work in parallel without colliding.
+
+## No AI attribution
+
+Commits, pull requests, issues, code comments and docs must **not** credit an AI tool. In particular:
+
+- no `Co-Authored-By:` lines for an AI (Claude, Copilot, ChatGPT, …) in commit messages;
+- no "Generated with …" / "🤖" footers in PR descriptions or comments;
+- no mention of an AI assistant as an author anywhere in the repo.
+
+Write commit messages and PR descriptions as the human author would.
+
+# Guide for coding agents
+
+Read [README.md](./README.md) (the idea, safety rules, code layout) and [ROADMAP.md](./ROADMAP.md) (the subtasks) first.
+
+## Repository layout
+
+```
+lib/              shared helpers with no knowledge of any one device; use them from any script
+  camera.py       cameras by number or name ("iphone") or video files, warm-up, frame source
+  env.py          settings from the environment or .env (CAMERA_INDEX, ROBOT_PORT, LEADER_PORT, HF_TOKEN)
+  filters.py      1D Kalman filter with outlier gate and "steady" flag
+  geometry.py     line maths (Axis)
+gauge_reader/     roadmap item 2: read the PESOLA spring scale through a camera (python -m gauge_reader)
+scripts/          robot and calibration scripts (e.g. force calibration)
+tests/lib/, tests/gauge_reader/
+docs/             user-facing guides (docs/scale-reader.md, docs/force-calibration.md)
+```
+
+- Code that any script could reuse (camera, filtering, settings, maths) goes in `lib/`. Keep `lib/` free of device-specific logic.
+- Each roadmap item gets its own package or script folder, named after it, with its tests under `tests/<name>/`.
+
+## Setup and commands
+
+```bash
+uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
+.venv/bin/python -m pytest -q                 # all tests; must pass before every commit
+.venv/bin/python -m gauge_reader --help        # gauge reader CLI (cameras, calibrate, run, evaluate)
+.venv/bin/python -m gauge_reader.launcher      # gauge reader control panel
+.venv/bin/python -m lib.camera                 # list cameras (macOS)
+```
+
+LeRobot and the arm setup are described in [SETUP.md](./SETUP.md).
+
+## Rules
+
+- **Tests:** add or update tests with every change. Tests must run without a camera or robot: use the synthetic videos (`gauge_reader/synthetic/`) or fakes.
+- **Hardware:** never open a camera or move an arm from an automated step without the person at the keyboard knowing. Arm commands must respect the safety layer in the README (torque cap, position limits, watchdog, low velocity).
+- **Safety first:** a missing or low-confidence force reading must lead to "release and stop", never to a guess. Do not weaken safety limits to make a test pass.
+- **Never commit** `.env`, `config/scale_calib.json`, `recordings/` or `internal-docs/` (all git-ignored): they are per machine or private.
+- **Privacy:** never save full camera frames of a patient; log numbers, or crops of the device only.
+- **Docs:** when behaviour or commands change, update the README and the guide in `docs/` in the same PR.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know
