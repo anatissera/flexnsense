@@ -70,6 +70,7 @@ lib/              shared helpers with no knowledge of any one device; use them f
   filters.py      1D Kalman filter with outlier gate and "steady" flag
   geometry.py     line maths (Axis)
 gauge_reader/     roadmap item 2: read the PESOLA spring scale through a camera (python -m gauge_reader)
+dashboard/        Next.js web dashboard (own package.json; run pnpm from here)
 scripts/          robot and calibration scripts (e.g. force calibration)
 tests/lib/, tests/gauge_reader/
 docs/             user-facing guides (docs/scale-reader.md, docs/force-calibration.md)
@@ -103,7 +104,7 @@ LeRobot and the arm setup are described in [SETUP.md](./SETUP.md).
 
 ## This is NOT the Next.js you know
 
-This version has breaking changes - APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+This version has breaking changes - APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `dashboard/node_modules/next/dist/docs/` (the Next.js app lives in `dashboard/`; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
 This block is written and re-added by `next dev` - verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
