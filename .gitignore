@@ -61,3 +61,7 @@ internal-docs/
 # Gauge reader: per-machine calibration and session output
 config/scale_calib.json
 recordings/
+
+# NOT ignored, on purpose: config/calibration/*.json (the arm motor calibration).
+# It is tied to the physical servos, not to the laptop, so it is committed and shared -
+# see config/calibration/README.md.

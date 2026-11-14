@@ -97,6 +97,7 @@ LeRobot and the arm setup are described in [SETUP.md](./SETUP.md).
 - **Hardware:** never open a camera or move an arm from an automated step without the person at the keyboard knowing. Arm commands must respect the safety layer in the README (torque cap, position limits, watchdog, low velocity).
 - **Safety first:** a missing or low-confidence force reading must lead to "release and stop", never to a guess. Do not weaken safety limits to make a test pass.
 - **Never commit** `.env`, `config/scale_calib.json`, `recordings/` or `internal-docs/` (all git-ignored): they are per machine or private.
+- **Do commit** `config/calibration/*.json` (arm motor calibration): it is tied to the physical servos, not the laptop, so the team shares it. See `config/calibration/README.md`. Never hand-edit the numbers; recalibrate and commit the new file.
 - **Privacy:** never save full camera frames of a patient; log numbers, or crops of the device only.
 - **Docs:** when behaviour or commands change, update the README and the guide in `docs/` in the same PR.
 
