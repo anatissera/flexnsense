@@ -151,3 +151,16 @@ def test_stable_drops_on_first_frames_of_a_ramp():
         if r.stable and abs(r.grams - truth) > 3.0:
             bad.append((k, round(r.grams - truth, 2)))
     assert not bad, f"stable while lagging: {bad}"
+
+
+def test_newtons_matches_grams_conversion():
+    """FilteredReading.newtons is the gf -> N boundary conversion (lib/units.py), additive to .grams."""
+    from lib.filters import ReadingFilter
+    from lib.units import grams_force_to_newtons
+
+    f = ReadingFilter()
+    r = f.update(200.0, 0.0)
+    assert r.newtons == pytest.approx(grams_force_to_newtons(r.grams))
+
+    empty = f.update(None, 10.0)  # past max_gap_s with nothing else: state resets, grams is None
+    assert empty.grams is None and empty.newtons is None

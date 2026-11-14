@@ -35,11 +35,12 @@ from gauge_reader import overlay
 from lib import camera
 from lib.camera import FrameSource
 from lib.geometry import Axis
+from lib.units import grams_force_to_newtons
 
 DEFAULT_CALIB = "config/scale_calib.json"   # mirrors gauge_reader.calibration.DEFAULT_CALIB_PATH
 RECORDINGS_DIR = Path("recordings")
-CSV_COLUMNS = ["time_s", "frame", "found", "t_px", "raw_g", "grams", "stable", "std_g", "confidence",
-               "u", "sticker_dist_px", "reason"]    # last three: sticker mode only (empty / reason in fixed mode)
+CSV_COLUMNS = ["time_s", "frame", "found", "t_px", "raw_g", "grams", "newtons", "stable", "std_g",
+               "confidence", "u", "sticker_dist_px", "reason"]    # last three: sticker mode only
 MODES = ("stickers", "fixed")
 HISTORY = 15            # frames used for the median in tare / known-weight samples
 WINDOW = "scale reader"
@@ -73,6 +74,12 @@ class FrameResult:
         return getattr(self.reading, "grams", None)
 
     @property
+    def newtons(self) -> float | None:
+        """gf -> N at the boundary (lib/units.py); control code should read this, not .grams."""
+        g = self.grams
+        return None if g is None else grams_force_to_newtons(g)
+
+    @property
     def stable(self) -> bool:
         return bool(getattr(self.reading, "stable", False))
 
@@ -91,8 +98,8 @@ class FrameResult:
     def csv_row(self) -> list[str]:
         f = _f
         return [f"{self.time_s:.4f}", str(self.frame), str(int(self.found)), f(self.t_px), f(self.raw_g),
-                f(self.grams), str(int(self.stable)), f(self.std_g), f(self.detection.confidence),
-                f(self.u, 6), f(self.sticker_dist_px, 2), self.reason]
+                f(self.grams), f(self.newtons), str(int(self.stable)), f(self.std_g),
+                f(self.detection.confidence), f(self.u, 6), f(self.sticker_dist_px, 2), self.reason]
 
 
 class Pipeline:
@@ -212,6 +219,11 @@ class StickerFrameResult:
         """Filtered grams, only on found frames: while a sticker is hidden the filter's extrapolation is NOT a
         reading (it can be far off during a pull), so nothing is reported - see last_g."""
         return getattr(self.reading, "grams", None) if self.found else None
+
+    @property
+    def newtons(self) -> float | None:
+        g = self.grams
+        return None if g is None else grams_force_to_newtons(g)
 
     @property
     def stable(self) -> bool:

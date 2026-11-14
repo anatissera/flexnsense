@@ -39,6 +39,24 @@ No em dash (the long dash, Unicode U+2014) anywhere in this repo: not in the REA
 
 This is enforced in CI (`.github/workflows/no-em-dash.yml`). A PR containing one will not pass.
 
+## Units
+
+Grams-force (gf) below the boundary, newtons (N, SI) above it:
+
+- The PESOLA is graduated in grams, that's what a human reads off it, what the gauge reader calibrates
+  against, and what hand-therapy literature and dynamometers already use. Keep the instrument-facing
+  numbers (the gauge reader's `grams` field, the CSV's `grams`/`raw_g` columns, the calibration rig's
+  known weights) in grams-force. Do not rename these or change their meaning.
+- Everything past that boundary, control math, thresholds, any value the admittance controller or the
+  safety layer reads, any force or torque equation, is in newtons. `FilteredReading.newtons` and
+  `FrameResult.newtons` / `StickerFrameResult.newtons` (and the CSV's `newtons` column) already do the
+  conversion; read those, not `grams`, from control code.
+- The conversion lives in exactly one place, `lib/units.py` (`grams_force_to_newtons`,
+  `newtons_to_grams_force`, `STANDARD_GRAVITY_M_S2`). Never hardcode `9.80665`, `9.81` or `/ 1000`
+  anywhere else; import from there.
+- When writing a new doc or script that states a force value, give the newton figure first (it's what
+  the system runs on) with the gram figure alongside for intuition, e.g. "1.96 N (200 gf)".
+
 # Guide for coding agents
 
 Read [README.md](./README.md) (the idea, safety rules, code layout) and [ROADMAP.md](./ROADMAP.md) (the subtasks) first.
