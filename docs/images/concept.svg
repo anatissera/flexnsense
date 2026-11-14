@@ -36,17 +36,43 @@
   <text class="b" x="58" y="418">Arm A</text>
   <text class="m" x="58" y="436">holds the hand still</text>
 
-  <!-- hand and finger -->
-  <rect x="210" y="232" width="86" height="62" rx="22" fill="#f6d5c1" stroke="#c99a7f" stroke-width="2"/>
-  <rect x="288" y="244" width="70" height="18" rx="9" fill="#f6d5c1" stroke="#c99a7f" stroke-width="2"/>
-  <text class="m" x="214" y="318">patient's finger</text>
-  <path d="M300,282 q22,10 44,0" stroke="#c99a7f" stroke-width="2" fill="none"/>
-  <path d="M318,214 L352,214" stroke="#2186eb" stroke-width="3" marker-end="url(#arrB)"/>
-  <defs>
-    <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2186eb"/></marker>
-    <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3ebd93"/></marker>
-  </defs>
-  <text class="m" x="300" y="198" style="fill:#2186eb">finger pulls</text>
+<!-- hand and fingers -->
+<g fill="#f6d5c1" stroke="#c99a7f" stroke-width="2" stroke-linejoin="round">
+
+  <!-- 3 doigts tendus + plis des articulations -->
+  <rect x="260" y="295" width="109.5" height="13" rx="6.5"/>
+  <rect x="260" y="310" width="104.5" height="13" rx="6.5"/>
+  <rect x="260" y="325" width="98.5"  height="13" rx="6.5"/>
+  <path d="M325,298v7M347,298v7M323,313v7M343,313v7M320,328v7M338,328v7" stroke-width="1.5" fill="none"/>
+
+  <!-- fantôme : position de l'index s'il était tendu -->
+  <rect x="260" y="280" width="103.5" height="13" rx="6.5" fill="none" stroke-dasharray="4 3" stroke-opacity=".6"/>
+
+  <!-- index fléchi vers le haut : 3 phalanges, chacune tourne autour de son articulation -->
+  <g transform="translate(292,286.5) rotate(-28)">          <!-- MCP -->
+    <rect x="-32" y="-6.5" width="68.5" height="13" rx="6.5"/>
+    <g transform="translate(30,0) rotate(-60)">             <!-- PIP -->
+      <rect x="-6.5" y="-6.5" width="33" height="13" rx="6.5"/>
+      <circle r="2" fill="#c99a7f" stroke="none"/>
+      <g transform="translate(20,0) rotate(-38)">           <!-- DIP -->
+        <rect x="-6.5" y="-6.5" width="28" height="13" rx="6.5"/>
+        <circle r="2" fill="#c99a7f" stroke="none"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- pouce -->
+  <g transform="translate(236,288) rotate(-36)">
+    <rect x="-12" y="-7.5" width="45.5" height="15" rx="7.5"/>
+    <g transform="translate(26,0) rotate(-22)">
+      <rect x="-7.5" y="-7.5" width="35" height="15" rx="7.5"/>
+      <circle r="2" fill="#c99a7f" stroke="none"/>
+    </g>
+  </g>
+
+  <!-- dos de la main + poignet (dessiné en dernier pour masquer la racine des doigts) -->
+  <path d="M168,328 L206,332 Q210,340 224,340 L284,340 Q296,340 296,328 L296,290 Q296,278 284,278 L224,278 Q210,278 206,286 L168,290 Z"/>
+</g>
 
   <!-- tether to the scale -->
   <path d="M358,253 L392,253" stroke="#52606d" stroke-width="2.5"/>
