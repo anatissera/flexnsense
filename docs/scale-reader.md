@@ -29,7 +29,7 @@ The scale already has a red **marker** that slides along the slot as the load ch
 
 ```bash
 uv venv --python 3.12 .venv
-uv pip install --python .venv/bin/python -r requirements-vision.txt
+uv pip install --python .venv/bin/python -r requirements.txt
 ```
 
 ## Use it
@@ -37,7 +37,7 @@ uv pip install --python .venv/bin/python -r requirements-vision.txt
 Open the control panel:
 
 ```bash
-.venv/bin/python -m vision.launcher
+.venv/bin/python -m gauge_reader.launcher
 ```
 
 1. Pick the **camera** (an iPhone appears by name) and keep **Mode = Stickers**.
@@ -60,15 +60,15 @@ Optional: to double-check, hang a known weight during calibration, press **w** i
 The control panel runs these commands; they also work on their own:
 
 ```bash
-.venv/bin/python -m vision.scale_reader cameras                       # list cameras and their numbers
-.venv/bin/python -m vision.scale_reader calibrate --camera iphone     # sticker mode (default); --mode fixed for a clamped scale
-.venv/bin/python -m vision.scale_reader calibrate --resume            # reload the saved calibration: re-zero, add weights
-.venv/bin/python -m vision.scale_reader run --camera iphone           # live reading + CSV in recordings/
-.venv/bin/python -m vision.scale_reader run --headless --video clip.mp4 --csv out.csv
+.venv/bin/python -m gauge_reader cameras                       # list cameras and their numbers
+.venv/bin/python -m gauge_reader calibrate --camera iphone     # sticker mode (default); --mode fixed for a clamped scale
+.venv/bin/python -m gauge_reader calibrate --resume            # reload the saved calibration: re-zero, add weights
+.venv/bin/python -m gauge_reader run --camera iphone           # live reading + CSV in recordings/
+.venv/bin/python -m gauge_reader run --headless --video clip.mp4 --csv out.csv
 
 # tests without hardware: synthetic hand-held video with exact ground truth, then score it
-.venv/bin/python -m vision.synthetic_moving recordings/moving.mp4 --speed 2 --occlude-every 40
-.venv/bin/python -m vision.scale_reader evaluate --video recordings/moving.mp4
+.venv/bin/python -m gauge_reader.synthetic.moving recordings/moving.mp4 --speed 2 --occlude-every 40
+.venv/bin/python -m gauge_reader evaluate --video recordings/moving.mp4
 ```
 
 Keys in the camera window — calibrate: `SPACE` freeze, click 0 then 600, `ENTER` accept, `c` click the dots by hand, `z` zero, `w` known weight, `s` save, `m` mask, `q` quit. Run: `z` zero, `s` save, `SPACE` pause, `m` mask, `q` quit.
@@ -124,7 +124,7 @@ What *does* affect it:
 
 ### Smoothing: the Kalman filter
 
-Every frame gives a raw reading with a little noise. Before it is shown, it goes through a small **Kalman filter** (`vision/smoothing.py`; the method is explained step by step at [kalmanfilter.net](https://kalmanfilter.net/)). It tracks two numbers, the weight in grams and how fast it is changing in grams per second, and blends:
+Every frame gives a raw reading with a little noise. Before it is shown, it goes through a small **Kalman filter** (`lib/filters.py`; the method is explained step by step at [kalmanfilter.net](https://kalmanfilter.net/)). It tracks two numbers, the weight in grams and how fast it is changing in grams per second, and blends:
 
 - a **prediction**: "it was 250 g and rising 20 g/s, so now it should be about 251 g", and
 - the **new measurement**: "the camera says 252 g",
@@ -167,6 +167,23 @@ A bonus for rehab: the filter also estimates the **rate of pull** (grams per sec
 | Reads a few grams at 0 g | Press **z** with nothing on the scale (zero), then **s** to save. |
 | "Sticker hidden" often | Fingers cover a dot, or a dot leaves the picture. Hold the scale by its ends and keep it fully in view. |
 | Jumpy numbers | Use steady, even light; avoid moving shadows and strong reflections on the metal tube. |
+
+## Where the code is
+
+| File | Job |
+|---|---|
+| `gauge_reader/stickers.py` | Finds dot 1, dot 2 and the marker in each frame; returns the fraction u or a reason |
+| `gauge_reader/calibration.py` | Turns u (or pixels, in fixed mode) into grams; saves `config/scale_calib.json` |
+| `gauge_reader/detector.py` | Red mask and sub-pixel centres; the fixed-mode marker detector |
+| `gauge_reader/cli.py` | `python -m gauge_reader`: cameras, calibrate, run, evaluate |
+| `gauge_reader/launcher.py` | The control panel |
+| `gauge_reader/overlay.py` | Drawing on the video |
+| `gauge_reader/synthetic/` | Test videos with exact ground truth (still and hand-held) |
+| `lib/camera.py` | Shared: opens cameras (by number or name, e.g. `iphone`) and video files |
+| `lib/filters.py` | Shared: the Kalman filter and steady flag |
+| `lib/geometry.py`, `lib/env.py` | Shared: line maths; settings from `.env` |
+
+The `lib/` package knows nothing about the scale, so robot and calibration scripts can use the same camera and filter code.
 
 ## Privacy
 

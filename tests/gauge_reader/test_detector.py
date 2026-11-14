@@ -1,6 +1,6 @@
-"""Tests for vision.detector on synthetic frames (no camera).
+"""Tests for gauge_reader.detector on synthetic frames (no camera).
 
-Note on ground truth: vision.synthetic draws at supersampled coordinate SS*x and downsamples with INTER_AREA,
+Note on ground truth: gauge_reader.synthetic.still draws at supersampled coordinate SS*x and downsamples with INTER_AREA,
 so output pixel j's centre is at supersampled (SS*j + (SS-1)/2), i.e. every rendered feature sits
 (SS-1)/(2*SS) = 0.375 px up-left of `truth` in OpenCV pixel-centre coordinates. `RENDER_OFFSET` measures that
 offset once (detector-independent, on an axis-aligned frame) and snaps it to {0, (SS-1)/(2*SS)}, so these
@@ -13,10 +13,10 @@ import time
 import numpy as np
 import pytest
 
-from vision import synthetic
-from vision.detector import DetectorConfig, Detection, RedMarkerDetector, find_red_blobs, red_mask
-from vision.geometry import Axis
-from vision.synthetic import grams_to_t, render_scale_frame
+from gauge_reader import synthetic
+from gauge_reader.detector import DetectorConfig, Detection, RedMarkerDetector, find_red_blobs, red_mask
+from lib.geometry import Axis
+from gauge_reader.synthetic.still import grams_to_t, render_scale_frame
 
 
 def _measure_render_offset() -> float:

@@ -1,4 +1,4 @@
-"""Tests for vision.stickers: relative reading between two red reference stickers on a moving scale."""
+"""Tests for gauge_reader.stickers: relative reading between two red reference stickers on a moving scale."""
 from __future__ import annotations
 
 import time
@@ -6,8 +6,8 @@ import time
 import numpy as np
 import pytest
 
-from vision.stickers import StickerConfig, StickerTracker, find_stickers_near_line
-from vision.synthetic_moving import U0, U1, hand_held_poses, pull_profile, render_moving_frame
+from gauge_reader.stickers import StickerConfig, StickerTracker, find_stickers_near_line
+from gauge_reader.synthetic.moving import U0, U1, hand_held_poses, pull_profile, render_moving_frame
 
 G_PER_U = 600.0 / (U1 - U0)
 APP_CFG = dict(u_range=(U0 - 0.05, U1 + 0.05))   # what the app sets from calibration

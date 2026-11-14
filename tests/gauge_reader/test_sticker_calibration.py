@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pytest
 
-from vision.calibration import (
+from gauge_reader.calibration import (
     Calibration,
     FitReport,
     MIN_FIT_SPREAD_U,
@@ -11,7 +11,7 @@ from vision.calibration import (
     load_calibration,
     project_u,
 )
-from vision.synthetic_moving import U0, U1, render_moving_frame, u_of_grams
+from gauge_reader.synthetic.moving import U0, U1, render_moving_frame, u_of_grams
 
 
 def _truth(grams=0.0, **pose):

@@ -8,7 +8,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from vision.geometry import Axis
+from lib.geometry import Axis
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 

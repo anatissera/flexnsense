@@ -1,7 +1,7 @@
 """Synthetic frames of the Pesola 600 g scale with a red marker at a known position, for tests and offline tuning.
 
     frame, truth = render_scale_frame(312.0)              # one BGR frame + ground truth
-    python -m vision.synthetic recordings/synthetic.mp4   # a sweep video + truth CSV beside it
+    python -m gauge_reader.synthetic.still recordings/synthetic.mp4   # a sweep video + truth CSV beside it
 
 Geometry follows the datasheet: the 0..600 g scale is 100 mm long (6 g per mm), the tube is 12 mm wide.
 Drawing is done 4x supersampled with sub-pixel polygon fills, then downscaled, so marker positions are
@@ -16,7 +16,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from vision.geometry import Axis
+from lib.geometry import Axis
 
 SCALE_MM = 100.0          # 0 g line to 600 g line
 CAPACITY_G = 600.0

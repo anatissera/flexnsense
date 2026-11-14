@@ -1,8 +1,8 @@
 """A small control panel for the scale reader: pick a camera, calibrate, run, stop.
 
-    python -m vision.launcher
+    python -m gauge_reader.launcher
 
-It starts `python -m vision.scale_reader calibrate|run` as a child process (the camera view opens in its own
+It starts `python -m gauge_reader calibrate|run` as a child process (the camera view opens in its own
 OpenCV window, as from the terminal) and shows that process's output. The known-weight prompt of `calibrate`
 (key `w`) is answered from the "Known weight" box here, since there is no terminal to type into.
 """
@@ -26,7 +26,7 @@ MODES = [("Stickers (hand-held)", "stickers"), ("Fixed (clamped still)", "fixed"
 def build_cmd(action: str, camera: int | str, record: bool = False, mode: str = "stickers") -> list[str]:
     """Command line for one action ('calibrate', 'recalibrate' or 'run'). `mode` only applies to a new
     calibration; re-tare and run take the mode from the saved calibration file."""
-    cmd = [sys.executable, "-u", "-m", "vision.scale_reader"]
+    cmd = [sys.executable, "-u", "-m", "gauge_reader"]
     if action == "recalibrate":
         cmd += ["calibrate", "--resume"]
     else:
@@ -41,7 +41,7 @@ def build_cmd(action: str, camera: int | str, record: bool = False, mode: str = 
 
 def camera_choices() -> list[tuple[int, str]]:
     try:
-        from vision.scale_reader import list_cameras
+        from lib.camera import list_cameras
         cams = [(i, n) for i, n in list_cameras() if "desk view" not in n.lower()]
     except Exception:  # noqa: BLE001 - listing is a convenience only
         cams = []
@@ -52,7 +52,7 @@ def calib_summary() -> str:
     if not CALIB.is_file():
         return "Not calibrated yet: press Calibrate."
     try:
-        import vision.calibration as vc
+        import gauge_reader.calibration as vc
         loader = getattr(vc, "load_calibration", None)
         c = loader(CALIB) if loader is not None else vc.Calibration.load(CALIB)
         when = str(getattr(c, "created_at", "") or "")[:16].replace("T", " ")

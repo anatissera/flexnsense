@@ -29,7 +29,7 @@ from pathlib import Path
 
 import numpy as np
 
-from vision.geometry import Axis
+from lib.geometry import Axis
 
 DEFAULT_CALIB_PATH = "config/scale_calib.json"
 SCHEMA = "scale-calib/1"
@@ -152,7 +152,7 @@ class Calibration:
         schema = d.get("schema")
         if schema == SCHEMA_STICKERS:
             raise ValueError(f"this is a sticker calibration ({SCHEMA_STICKERS!r}), not a pixel one; "
-                             "use vision.calibration.load_calibration() or StickerCalibration.load()")
+                             "use gauge_reader.calibration.load_calibration() or StickerCalibration.load()")
         if schema != SCHEMA:
             raise ValueError(f"unsupported calibration schema {schema!r}, expected {SCHEMA!r}")
         tare = d.get("tare_t_px")
@@ -306,7 +306,7 @@ class StickerCalibration:
         schema = d.get("schema")
         if schema == SCHEMA:
             raise ValueError(f"this is a pixel calibration ({SCHEMA!r}), not a sticker one; "
-                             "use vision.calibration.load_calibration() or Calibration.load()")
+                             "use gauge_reader.calibration.load_calibration() or Calibration.load()")
         if schema != SCHEMA_STICKERS or d.get("mode", "stickers") != "stickers":
             raise ValueError(f"unsupported calibration schema {schema!r} / mode {d.get('mode')!r}, "
                              f"expected {SCHEMA_STICKERS!r} / 'stickers'")
