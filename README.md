@@ -1,5 +1,13 @@
 # Leukerbad Hackathon 2026 — Rehab & Elderly Care
 
+[![Leukerbad Robotics Hackathon 2026](https://img.shields.io/badge/Leukerbad_Robotics_Hackathon-2026-0b7285)](#)
+[![Track: Elderly Care & Rehabilitation](https://img.shields.io/badge/track-Elderly_Care_%26_Rehabilitation-2f9e44)](#the-idea)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](./SETUP.md)
+[![LeRobot SO-101](https://img.shields.io/badge/LeRobot-SO--101-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/docs/lerobot/so101)
+[![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)](./gauge_reader)
+[![Tests: 168 passing](https://img.shields.io/badge/tests-168_passing-success)](./tests)
+[![Status: prototype](https://img.shields.io/badge/status-prototype-orange)](./ROADMAP.md)
+
 Project for the **Leukerbad Robotics Hackathon 2026** (Nov 14–16, 2026, Leukerbad, Switzerland), **Elderly Care & Rehabilitation** track.
 
 ## The idea
@@ -12,6 +20,8 @@ A **force-limited tether** for rehabilitating fingers after hand surgery, built 
 The patient moves the finger. Arm B stays put, acting as an anchor, so the spring stretches and the force rises. Once the force reaches that patient's prescribed threshold (e.g. 200 g), arm B **yields**: it moves slowly in the direction of the finger so the spring stretches no further, capping the force at the threshold.
 
 The clinician sets the threshold and watches the session remotely.
+
+![Force-limited finger tether: arm A holds the hand, the finger pulls on the PESOLA scale held by arm B, a camera reads grams, the clinician sets the cap remotely](docs/images/concept.svg)
 
 Dynamic finger splints in hand therapy work in the 0–450 g range, so a 200 g cap sits in a clinically sensible band. The device category this belongs to is **CPM (continuous passive motion)**, used after hand surgery to prevent capsular and tendon adhesions.
 
@@ -41,6 +51,8 @@ else:
 ```
 
 This is deliberately **not** a learned policy. ACT and Diffusion Policy execute action chunks open-loop and cannot react to contact forces mid-chunk, which is the exact failure mode a device pulling on a post-surgical finger must not have. They also need 50–200 demonstrations and ~16 GB of VRAM to train, against a 4 GB laptop GPU and two days. RL from scratch is out for the same reason.
+
+![Force over time: it rises while the finger moves, stays at the 200 g cap while arm B yields, and drops when the finger relaxes](docs/images/force-cap.svg)
 
 ## Where the learning actually is
 
@@ -93,6 +105,8 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requi
 .venv/bin/python -m gauge_reader --help         # command line: cameras, calibrate, run, evaluate
 .venv/bin/python -m pytest -q                   # 168 tests, no camera needed
 ```
+
+![Gauge reader: find the red spots, the outer two are the dots and the middle one the marker, the marker's fraction between the dots becomes grams](docs/images/gauge-reader.svg)
 
 Setup, calibration, how it works and precision: [docs/scale-reader.md](./docs/scale-reader.md).
 
