@@ -9,7 +9,7 @@ By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
 
 [![Leukerbad Robotics Hackathon 2026](https://img.shields.io/badge/Leukerbad_Robotics_Hackathon-2026-0b7285)](https://luma.com/event/evt-7RecqicPQUegOIG)
 [![Track: Elderly Care & Rehabilitation](https://img.shields.io/badge/track-Elderly_Care_%26_Rehabilitation-2f9e44)](#the-hackathon)
-[![LeRobot SO-101](https://img.shields.io/badge/LeRobot-SO--101-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/docs/lerobot/so101)
+[![NormaCore ElRobot](https://img.shields.io/badge/arm-NormaCore_ElRobot_7%2B1_DOF-0b7285)](./docs/elrobot.md)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](./SETUP.md)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)](./gauge_reader)
 [![Tests: 168 passing](https://img.shields.io/badge/tests-168_passing-success)](./tests)
@@ -38,7 +38,7 @@ By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
 - **When:** 14–16 November 2026
 - **Where:** Sportarena Leukerbad, Valais, Switzerland
 - **Challenge:** Elderly Care & Rehabilitation, one of four alongside Autonomous Urban Services, Resilient & Safe City and Sustainable City
-- **Our hardware:** two LeRobot SO-101 arms, a PESOLA 600 g spring scale and a camera
+- **Our hardware:** two NormaCore ElRobot arms (7 joints + gripper, 8x Feetech ST3215), a PESOLA 600 g spring scale and a camera
 
 ## Team
 
@@ -58,7 +58,7 @@ After hand surgery, fingers have to be moved early and regularly to prevent tend
 
 ## Our solution
 
-A **force-limited tether** built from two SO-101 arms, with a clinician supervising remotely:
+A **force-limited tether** built from two ElRobot arms, with a clinician supervising remotely:
 
 1. **Arm A** holds the patient's hand still in a fixed pose (a hard-coded position, no policy).
 2. **Arm B** is tied to one finger through a **PESOLA spring scale** (0–600 g, 5 g per line, a red indicator on a linear printed scale).
@@ -77,9 +77,11 @@ Two independent signals:
 | Signal | How | Strength | Weakness |
 |---|---|---|---|
 | **Camera + PESOLA** | Read the red indicator against the printed scale and convert its position to grams (the gauge reader) | Physical ground truth, ~30 Hz | Glare, occlusion, motion blur |
-| **Servo current** | Feetech STS3215 `Present_Load` (register 60) and `Present_Current` (register 69, ×6.5 → mA) via LeRobot's motor bus | Fast and robust | Unitless; gearbox friction |
+| **Servo current** | ST3215 current, read from NormaCore Station's `st3215/inference` queue, in mA already decoded | Fast and robust | Unitless; gearbox friction |
 
-The plan: **calibrate the servo current against the camera**, run the control loop on current for speed, and keep the camera as an independent check and as the gram readout the clinician sees ([docs/force-calibration.md](./docs/force-calibration.md)). The risk: the 1/345 gearbox may add a dead zone and hysteresis larger than a 200 g (1.96 N) signal. The day-one calibration experiment finds out before anything is built on top of it.
+The arm is the **NormaCore ElRobot**, not an SO-101: same servo family (Feetech ST3215), so the force path below is unchanged in kind, but there is no LeRobot support for this arm - everything goes through NormaCore's own software, Station, instead. What that means in practice: [docs/elrobot.md](./docs/elrobot.md).
+
+The plan: **calibrate the servo current against the camera**, run the control loop on current for speed, and keep the camera as an independent check and as the gram readout the clinician sees ([docs/force-calibration.md](./docs/force-calibration.md)). The risk: the 345:1 gearbox may add a dead zone and hysteresis larger than a 200 g (1.96 N) signal. The day-one calibration experiment finds out before anything is built on top of it.
 
 **Gauge reader.** Two red dots drawn on the PESOLA's tube act as fixed references. Each frame, the camera finds the three red spots in a row (dot, marker, dot); the marker's position *between* the dots is a fraction that does not change when the scale moves, turns or comes closer, and calibration turns it into grams. When a dot is covered, it reports a reason instead of a number. Details: [docs/scale-reader.md](./docs/scale-reader.md).
 
@@ -129,31 +131,35 @@ The work is split into the subtasks of [ROADMAP.md](./ROADMAP.md), one branch an
 | 1 | Force calibration: can servo current stand in for a force sensor? | `feature/force-calibration` | 🟡 in progress ([#4](https://github.com/anatissera/leukerbad-hackathon/pull/4)) |
 | 2 | Gauge reader: PESOLA → grams + confidence from a camera | `feature/gauge-reader` | ✅ merged ([#5](https://github.com/anatissera/leukerbad-hackathon/pull/5)) |
 | 3 | Admittance controller + safety layer | `feature/admittance-control` | ⚪ planned |
-| 4 | Simulation rig (MuJoCo SO-101 + spring) | `feature/sim-rig` | ⚪ planned |
+| 4 | Simulation rig (MuJoCo + spring) | `feature/sim-rig` | ⚪ planned |
 | 5 | Hand tracking / range of motion | `feature/hand-tracking` | 🟡 in progress ([#16](https://github.com/anatissera/leukerbad-hackathon/pull/16)) |
 | 6 | Session metrics: force–displacement, stiffness | `feature/session-metrics` | ⚪ planned |
 | 7 | Remote clinician dashboard | `feature/remote-dashboard` | ⚪ planned |
+| - | ElRobot (NormaCore Station) instead of LeRobot: the arm we actually have | `feature/elrobot-support` | 🟡 in progress ([#17](https://github.com/anatissera/leukerbad-hackathon/pull/17)) |
 
 ## Getting started
 
 ```bash
 git clone https://github.com/anatissera/leukerbad-hackathon.git && cd leukerbad-hackathon
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
-.venv/bin/python -m pytest -q                   # all tests, no camera or robot needed
+.venv/bin/python -m pytest -q                   # all tests, no camera, robot or Station needed
 .venv/bin/python -m gauge_reader.launcher      # gauge reader control panel: camera, calibrate, run
 .venv/bin/python -m hand_tracking run           # finger flexion angles, live window (downloads the model once)
 .venv/bin/python -m hand_tracking run --jsonl frames.jsonl   # + the full per-frame HandFrame
 ```
 
-Robot arms (LeRobot install, motor IDs, calibration, `.env`): [SETUP.md](./SETUP.md).
+Arm (NormaCore Station, motor ids, calibration, `.env`): [SETUP.md](./SETUP.md). There is no
+LeRobot support for the ElRobot - see [docs/elrobot.md](./docs/elrobot.md) before assuming
+otherwise.
 
 ## Repository layout
 
 ```
-lib/              shared helpers for any script: camera, .env settings, Kalman filter, geometry
+lib/              shared helpers for any script: camera, .env settings, Kalman filter, geometry, Station client
 gauge_reader/     subtask 2: read the PESOLA scale through a camera (python -m gauge_reader)
 hand_tracking/    subtask 5: finger flexion angles through a camera (python -m hand_tracking)
-scripts/          robot and calibration scripts (force calibration)
+scripts/          robot and calibration scripts, against Station (force calibration)
+scripts/lerobot/  NOT our hardware: the original SO-101-via-LeRobot scripts, parked in case we ever port
 tests/            tests per package: tests/lib/, tests/gauge_reader/, tests/hand_tracking/
 docs/             guides and diagrams
 ```
@@ -173,7 +179,8 @@ ok, frame, ts, idx = src.read()
 | Document | What it covers |
 |---|---|
 | [ROADMAP.md](./ROADMAP.md) | The subtasks, their order and branches |
-| [SETUP.md](./SETUP.md) | Python, LeRobot, motors and `.env` |
+| [SETUP.md](./SETUP.md) | Python, Station, motors and `.env` |
+| [docs/elrobot.md](./docs/elrobot.md) | The ElRobot and NormaCore Station: why not LeRobot, the real client, what's unverified |
 | [docs/force-calibration.md](./docs/force-calibration.md) | The servo-current calibration experiment |
 | [docs/scale-reader.md](./docs/scale-reader.md) | The gauge reader: setup, calibration, precision, troubleshooting |
 | [docs/hand-tracking.md](./docs/hand-tracking.md) | Hand landmarks: model, the flexion angle, running it |

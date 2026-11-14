@@ -1,0 +1,68 @@
+import struct
+
+from lib.station import (
+    _CURRENT_ADDR,
+    _POSITION_ADDR,
+    _TEMPERATURE_ADDR,
+    _VOLTAGE_ADDR,
+    parse_motor_state,
+)
+
+
+def _blob(position=None, current=None, temperature=None, voltage_tenths=None, length=0x47):
+    """A synthetic state blob with fields placed at the real ST3215 offsets."""
+    b = bytearray(length)
+    if position is not None:
+        b[_POSITION_ADDR:_POSITION_ADDR + 2] = struct.pack("<H", position)
+    if current is not None:
+        b[_CURRENT_ADDR:_CURRENT_ADDR + 2] = struct.pack("<H", current)
+    if temperature is not None:
+        b[_TEMPERATURE_ADDR] = temperature
+    if voltage_tenths is not None:
+        b[_VOLTAGE_ADDR] = voltage_tenths
+    return bytes(b)
+
+
+def test_parses_all_fields_at_their_real_offsets():
+    state = parse_motor_state(_blob(position=2048, current=120, temperature=27, voltage_tenths=74))
+    assert state.position == 2048
+    assert state.current_ma == 120
+    assert state.temperature_c == 27
+    assert state.voltage_v == 7.4
+
+
+def test_negative_position_sign_bit():
+    """STS3215 flags direction in bit 15; parse_motor_state must unwrap it, not pass it through."""
+    raw = 0x8000 | 100  # sign bit set, magnitude 100
+    state = parse_motor_state(_blob(position=raw))
+    assert state.position == 4095 + 1 - 100
+
+
+def test_zero_position_round_trips():
+    state = parse_motor_state(_blob(position=0))
+    assert state.position == 0
+
+
+def test_missing_fields_are_none_not_zero():
+    """A truncated blob must report a field as missing, never as a false zero reading."""
+    state = parse_motor_state(bytes(0x38))  # ends right before the position field starts
+    assert state.position is None
+    assert state.current_ma is None
+    assert state.temperature_c is None
+    assert state.voltage_v is None
+
+
+def test_range_passed_through_unchanged():
+    state = parse_motor_state(_blob(position=10), range_min=133, range_max=3963)
+    assert state.range_min == 133
+    assert state.range_max == 3963
+
+
+def test_full_sized_blob_with_no_fields_set_reads_as_zero_not_none():
+    """A present-but-empty blob (all zero bytes) is a real reading of zero, distinct from a
+    too-short blob (tested above), which is a missing reading."""
+    state = parse_motor_state(bytes(0x47))
+    assert state.position == 0
+    assert state.current_ma == 0
+    assert state.temperature_c == 0
+    assert state.voltage_v == 0.0
