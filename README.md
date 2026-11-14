@@ -60,6 +60,18 @@ Patient-contact force limits are enforced **independently of the primary control
 - Physical e-stop within reach of both the patient and the operator.
 - The spring itself acts as a mechanical fuse.
 
+## Gauge reader (camera → grams)
+
+Roadmap item 2, in `vision/`. Two red dots on the PESOLA tube act as fixed references; the red indicator's position between them (a fraction) is converted to grams, so the reading survives the scale moving, turning or changing distance. Each frame yields grams, a steady flag and a reason when no reading is possible (dot covered, scale not found) — the confidence signal for the watchdog.
+
+```bash
+uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements-vision.txt
+.venv/bin/python -m vision.launcher                          # control panel: camera, calibrate, run
+.venv/bin/python -m pytest -q                                # 159 tests, no camera needed
+```
+
+Setup, calibration, how it works and precision: [docs/scale-reader.md](./docs/scale-reader.md).
+
 ## Where to start
 
 [ROADMAP.md](./ROADMAP.md) lists the subtasks and the branch for each.
