@@ -18,6 +18,10 @@ import os
 import statistics
 import sys
 import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for `lib`
+from lib.units import grams_force_to_newtons  # noqa: E402
 
 # Names seen across lerobot/Feetech control tables, most useful first.
 CANDIDATE_REGISTERS = [
@@ -185,9 +189,14 @@ def run_fit(path):
 
     if results:
         r2, channel, slope, intercept = max(results)
+        # grams = slope * counts + intercept is linear, so the N fit is the same line rescaled
+        # (see lib/units.py and AGENTS.md "Units": control code reads newtons, not grams).
+        slope_n = grams_force_to_newtons(slope)
+        intercept_n = grams_force_to_newtons(intercept)
         print(
             f"\nbest channel: {channel.replace('.mean', '')}\n"
-            f"  grams = {slope:.4f} * counts + {intercept:.2f}   (R^2 = {r2:.3f})"
+            f"  grams   = {slope:.4f} * counts + {intercept:.2f}   (R^2 = {r2:.3f})\n"
+            f"  newtons = {slope_n:.6f} * counts + {intercept_n:.4f}   <- what the controller reads"
         )
         print(
             "\nNow compare against the opposite-direction sweep: the gap between the "
