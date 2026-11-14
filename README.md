@@ -176,6 +176,23 @@ ok, frame, ts, idx = src.read()
 
 `main` is protected: work on the roadmap branch and open a PR. Commits and PRs do not credit AI tools (see [AGENTS.md](./AGENTS.md)).
 
+## Dashboard (Next.js app)
+
+A browser dashboard in `app/`: a 3D MyoHand (MuJoCo, in the browser) with a finger-curl stress test, recovery metrics and charts, and a text/voice assistant (OpenAI) that answers from the simulated results. All data is simulated.
+
+```bash
+pnpm install                    # Node 20+, pnpm 9
+cp .env.example .env            # then set OPENAI_API_KEY in .env
+pnpm dev                        # http://localhost:3000
+```
+
+- `OPENAI_API_KEY` is read server-side only (`app/api/chat`, `app/api/realtime`); the browser never sees it. Without it the simulator still runs, but the chat and voice panel return an error.
+- Optional overrides in `.env`: `OPENAI_MODEL` (chat) and `OPENAI_REALTIME_MODEL` (voice).
+- The MyoHand model files are served from `public/models/myohand`.
+- Voice needs microphone permission and network access to `api.openai.com`.
+- `pnpm build && pnpm start` runs the production build; `pnpm lint` runs ESLint.
+
+## Where to start
 ## Acknowledgements
 
 Built at the Leukerbad Robotics Hackathon 2026, co-organized by the Edelweiss Innovation & Intelligence Institute (EIII), HerCode, AI Team, EuroTech Federation and TUM-XR. Thanks to the organizers, mentors and hardware partners.
