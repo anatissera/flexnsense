@@ -58,6 +58,10 @@ class ManoParams:
     """Rotations and shape from a MANO-based model. Only a MANO source (WiLoR) produces these."""
 
     #: 15 x 3 axis-angle rotations in radians, one per MANO hand joint, full 3 DOF each.
+    #:
+    #: Careful: these are in MANO's own joint order, which is NOT the 21-point order the rest of
+    #: a HandFrame uses. MANO goes index, middle, pinky, ring, thumb, three joints each, base to
+    #: tip. Only ``landmarks`` and ``world`` are remapped to the shared layout.
     hand_pose: Sequence[Sequence[float]]
     #: Hand orientation in camera space, axis-angle, radians.
     global_orient: Sequence[float]
@@ -83,6 +87,8 @@ class HandFrame:
     #: "left", "right", or None when the tracker does not report it.
     handedness: str | None
     #: 21 points in normalized image coordinates (0..1 of width and height). For drawing only.
+    #: Only x and y are contractual: z is a relative depth from MediaPipe and a camera-space
+    #: depth in metres from WiLoR. Read ``world`` for anything quantitative.
     landmarks: Sequence[Point]
     #: 21 points in metres, hand centred. Angles come from these, never from ``landmarks``.
     world: Sequence[Point]
