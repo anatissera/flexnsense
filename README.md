@@ -87,7 +87,14 @@ The plan: **calibrate the servo current against the camera**, run the control lo
 
 ### Control
 
-Admittance control with a deadband, clinically *assist-as-needed*. The gauge reads grams, matching the PESOLA and the clinician's cap, but everything past that reading is in newtons (SI), see AGENTS.md "Units":
+Admittance control with a deadband, clinically *assist-as-needed*. Two modes, chosen by the operator before each session, never inferred:
+
+- **YIELD** (tendon injury): the patient pulls, the arm anchors until the force threshold then yields. The force the patient generates self-limits - if the loop misbehaves, the patient stops pulling and the force disappears.
+- **PULL** (contracture): the arm pulls the finger open to a target. This inverts who has authority over the force - the patient can't end it by relaxing, since relaxing doesn't reduce a force they aren't generating. Needs its own mitigations: a dead-man switch in the patient's free hand, a mechanical breakaway at the finger attachment, and a lower torque cap.
+
+Full design, the control law for both modes, and the failure modes each one does and doesn't cover: [docs/admittance-control.md](./docs/admittance-control.md).
+
+The snippet below is YIELD. The gauge reads grams, matching the PESOLA and the clinician's cap, but everything past that reading is in newtons (SI), see AGENTS.md "Units":
 
 ```python
 F = estimate_force()                        # newtons; calibrated servo current, filtered
@@ -128,7 +135,7 @@ The work is split into the subtasks of [ROADMAP.md](./ROADMAP.md), one branch an
 |---|---|---|---|
 | 1 | Force calibration: can servo current stand in for a force sensor? | `feature/force-calibration` | 🟡 in progress ([#4](https://github.com/anatissera/leukerbad-hackathon/pull/4)) |
 | 2 | Gauge reader: PESOLA → grams + confidence from a camera | `feature/gauge-reader` | ✅ merged ([#5](https://github.com/anatissera/leukerbad-hackathon/pull/5)) |
-| 3 | Admittance controller + safety layer | `feature/admittance-control` | ⚪ planned |
+| 3 | Admittance controller + safety layer (YIELD and PULL) | `feature/admittance-control` | 🟡 in progress ([#8](https://github.com/anatissera/leukerbad-hackathon/pull/8)) |
 | 4 | Simulation rig (MuJoCo SO-101 + spring) | `feature/sim-rig` | ⚪ planned |
 | 5 | Hand tracking / range of motion | `feature/hand-tracking` | ⚪ planned |
 | 6 | Session metrics: force–displacement, stiffness | `feature/session-metrics` | ⚪ planned |
