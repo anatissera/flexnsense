@@ -1,4 +1,4 @@
-"""python -m gauge_reader <cameras|calibrate|run|evaluate> — see gauge_reader/cli.py."""
+"""python -m gauge_reader <cameras|calibrate|run|evaluate> - see gauge_reader/cli.py."""
 import sys
 
 from gauge_reader.cli import main

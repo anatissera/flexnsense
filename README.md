@@ -1,4 +1,4 @@
-# Leukerbad Hackathon 2026 — Rehab & Elderly Care
+# Leukerbad Hackathon 2026 - Rehab & Elderly Care
 
 [![Leukerbad Robotics Hackathon 2026](https://img.shields.io/badge/Leukerbad_Robotics_Hackathon-2026-0b7285)](#)
 [![Track: Elderly Care & Rehabilitation](https://img.shields.io/badge/track-Elderly_Care_%26_Rehabilitation-2f9e44)](#the-idea)
@@ -14,7 +14,7 @@ Project for the **Leukerbad Robotics Hackathon 2026** (Nov 14–16, 2026, Leuker
 
 A **force-limited tether** for rehabilitating fingers after hand surgery, built from two LeRobot SO-101 arms, with a clinician supervising remotely.
 
-- **Arm A** holds and stabilizes the patient's hand in a fixed pose. No policy — a hardcoded position.
+- **Arm A** holds and stabilizes the patient's hand in a fixed pose. No policy - a hardcoded position.
 - **Arm B** is connected to one of the patient's fingers through a **PESOLA spring scale** (600 g range, 5 g graduations, red indicator sliding along a linear printed scale).
 
 The patient moves the finger. Arm B stays put, acting as an anchor, so the spring stretches and the force rises. Once the force reaches that patient's prescribed threshold (e.g. 200 g), arm B **yields**: it moves slowly in the direction of the finger so the spring stretches no further, capping the force at the threshold.
@@ -29,8 +29,8 @@ Dynamic finger splints in hand therapy work in the 0–450 g range, so a 200 g c
 
 The kit has no force/torque sensor, but there are two independent signals:
 
-1. **Camera + PESOLA** — a vision model locates the red indicator against the printed scale and converts its position to grams. Physical ground truth, ~30 Hz, but fragile (specular glare off the aluminium tube, occlusion, motion blur).
-2. **Servo current** — the Feetech STS3215 motors expose `Present_Load` (register 60) and `Present_Current` (register 69, ×6.5 → mA), readable through LeRobot's motor bus. Fast and robust, but unitless.
+1. **Camera + PESOLA** - a vision model locates the red indicator against the printed scale and converts its position to grams. Physical ground truth, ~30 Hz, but fragile (specular glare off the aluminium tube, occlusion, motion blur).
+2. **Servo current** - the Feetech STS3215 motors expose `Present_Load` (register 60) and `Present_Current` (register 69, ×6.5 → mA), readable through LeRobot's motor bus. Fast and robust, but unitless.
 
 The plan is to **calibrate (2) against (1)**, run the control loop on servo current for speed and stability, and keep the camera as independent verification and as the gram readout shown to the clinician. See [docs/force-calibration.md](./docs/force-calibration.md).
 
@@ -38,7 +38,7 @@ This has a real risk attached: the follower servos are geared 1/345, and frictio
 
 ## Control
 
-Admittance control with a deadband — clinically, *assist-as-needed*:
+Admittance control with a deadband - clinically, *assist-as-needed*:
 
 ```
 F = estimate_force()            # calibrated servo current, filtered
@@ -58,7 +58,7 @@ This is deliberately **not** a learned policy. ACT and Diffusion Policy execute 
 
 - The **vision model** that reads the PESOLA scale.
 - **Hand keypoint tracking** (MediaPipe or WiLoR) to measure finger range of motion during the session.
-- **Per-patient threshold adaptation** from the patient's response within a session — a lightweight online estimator, not deep RL.
+- **Per-patient threshold adaptation** from the patient's response within a session - a lightweight online estimator, not deep RL.
 - The **force–displacement curve** recorded across the session, which yields joint stiffness. Stiffness derived from force–displacement curves is a published quantitative biomarker of post-surgical tendon adhesion, so the device measures recovery rather than only exercising it. This is the clinical deliverable the remote clinician watches evolve between sessions.
 
 ## Safety
@@ -67,7 +67,7 @@ Patient-contact force limits are enforced **independently of the primary control
 
 - Torque/current cap written to the servo registers, in force even if the control process dies.
 - Software position limits bounding how far arm B can travel.
-- Vision watchdog — on lost detection, low confidence, or dropped frames, **release tension and stop**, never hold.
+- Vision watchdog - on lost detection, low confidence, or dropped frames, **release tension and stop**, never hold.
 - Low maximum velocity throughout.
 - Physical e-stop within reach of both the patient and the operator.
 - The spring itself acts as a mechanical fuse.
@@ -97,7 +97,7 @@ smooth = filt.update(reading, ts)            # .grams (smoothed value), .stable,
 
 ## Gauge reader (camera → grams)
 
-Roadmap item 2, in `gauge_reader/`, built on `lib/`. Two red dots on the PESOLA tube act as fixed references; the red indicator's position between them (a fraction) is converted to grams, so the reading survives the scale moving, turning or changing distance. Each frame yields grams, a steady flag and a reason when no reading is possible (dot covered, scale not found) — the confidence signal for the watchdog.
+Roadmap item 2, in `gauge_reader/`, built on `lib/`. Two red dots on the PESOLA tube act as fixed references; the red indicator's position between them (a fraction) is converted to grams, so the reading survives the scale moving, turning or changing distance. Each frame yields grams, a steady flag and a reason when no reading is possible (dot covered, scale not found) - the confidence signal for the watchdog.
 
 ```bash
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt

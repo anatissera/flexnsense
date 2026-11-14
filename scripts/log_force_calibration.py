@@ -229,7 +229,7 @@ def main():
         print("probing registers:")
         registers = probe(bus)
         if not registers:
-            sys.exit("No readable registers — check the connection and the lerobot version.")
+            sys.exit("No readable registers - check the connection and the lerobot version.")
         if args.probe:
             return
 

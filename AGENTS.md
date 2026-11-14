@@ -17,7 +17,7 @@
 
 ## Branch naming
 
-One branch per subtask in [ROADMAP.md](./ROADMAP.md), using the name given there — `feature/force-calibration`, `feature/gauge-reader`, and so on. For anything outside the roadmap: `fix/...` or `docs/...`.
+One branch per subtask in [ROADMAP.md](./ROADMAP.md), using the name given there - `feature/force-calibration`, `feature/gauge-reader`, and so on. For anything outside the roadmap: `fix/...` or `docs/...`.
 
 ## Scope
 
@@ -32,6 +32,12 @@ Commits, pull requests, issues, code comments and docs must **not** credit an AI
 - no mention of an AI assistant as an author anywhere in the repo.
 
 Write commit messages and PR descriptions as the human author would.
+
+## No em dashes
+
+No em dash (the long dash, Unicode U+2014) anywhere in this repo: not in the README, not in any doc, not in code, comments, commit messages or PR descriptions. Use a period, a comma, or a plain hyphen instead.
+
+This is enforced in CI (`.github/workflows/no-em-dash.yml`). A PR containing one will not pass.
 
 # Guide for coding agents
 
