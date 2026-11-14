@@ -70,10 +70,12 @@ lib/              shared helpers with no knowledge of any one device; use them f
   filters.py      1D Kalman filter with outlier gate and "steady" flag
   geometry.py     line maths (Axis)
 gauge_reader/     roadmap item 2: read the PESOLA spring scale through a camera (python -m gauge_reader)
+hand_tracking/    roadmap item 5: finger flexion angles through a camera (python -m hand_tracking)
+  landmarks.py    pure geometry on MediaPipe's 21 landmarks; no mediapipe/cv2 import, so it is unit-testable
 dashboard/        Next.js web dashboard (own package.json; run pnpm from here)
 scripts/          robot and calibration scripts (e.g. force calibration)
-tests/lib/, tests/gauge_reader/
-docs/             user-facing guides (docs/scale-reader.md, docs/force-calibration.md)
+tests/lib/, tests/gauge_reader/, tests/hand_tracking/
+docs/             user-facing guides (docs/scale-reader.md, docs/force-calibration.md, docs/hand-tracking.md)
 ```
 
 - Code that any script could reuse (camera, filtering, settings, maths) goes in `lib/`. Keep `lib/` free of device-specific logic.
