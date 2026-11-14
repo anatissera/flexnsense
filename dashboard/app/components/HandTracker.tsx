@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { buildHandFrame, FINGERTIPS, type HandFrame } from "../lib/handFrame";
 
 /** Joint name -> angle (rad) for the MyoHand model, written every frame while tracking. */
 export type HandPose = Record<string, number>;
@@ -46,14 +47,21 @@ const dist = (a: P3, b: P3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 export const tipWristMm = (w: P3[]) => dist(w[8], w[0]) * 1000;
 
 const SMOOTH = 0.5; // EMA weight of the new sample
+const TIPS = new Set<number>(FINGERTIPS); // drawn larger and in a second colour
 
-export default function HandTracker({ pose, disp, onStart, onActive }: {
+export default function HandTracker({ pose, disp, onStart, onActive, onFrame }: {
   pose: RefObject<HandPose | null>;
   /** Written every tracked frame with the index tip displacement in mm (null when not tracking). */
   disp?: RefObject<number | null>;
   onStart?: () => void;
   /** Called when hand tracking is switched on or off. */
   onActive?: (on: boolean) => void;
+  /**
+   * Called once per frame a hand is found, with the full tracked state in the shared HandFrame
+   * shape (see app/lib/handFrame.ts). A WiLoR backend emits the same shape, so a consumer here
+   * does not need to know which model produced it.
+   */
+  onFrame?: (frame: HandFrame) => void;
 }) {
   const [on, setOn] = useState(false);
   const [status, setStatus] = useState("");
@@ -61,6 +69,10 @@ export default function HandTracker({ pose, disp, onStart, onActive }: {
   const tipRef = useRef<{ now: number; ref: number | null }>({ now: 0, ref: null });
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
+  // Held in a ref, and declared before the effect that reads it, so that a caller passing a fresh
+  // closure on every render does not tear down and restart the camera.
+  const onFrameRef = useRef(onFrame);
+  useEffect(() => { onFrameRef.current = onFrame; });
 
   useEffect(() => {
     if (!on) return;
@@ -95,23 +107,26 @@ export default function HandTracker({ pose, disp, onStart, onActive }: {
 
         let lastTime = -1;
         let lastSeen = 0;
+        const t0 = performance.now();
         const loop = () => {
           raf = requestAnimationFrame(loop);
           if (video.readyState < 2 || video.currentTime === lastTime) return;
           lastTime = video.currentTime;
           const res = hl.detectForVideo(video, performance.now());
+          const lm = res.landmarks[0];
           const cv = overlayRef.current;
           const ctx = cv?.getContext("2d");
           if (cv && ctx) {
             cv.width = video.videoWidth;
             cv.height = video.videoHeight;
             ctx.clearRect(0, 0, cv.width, cv.height);
-            ctx.fillStyle = "#4df5e8";
-            for (const p of res.landmarks[0] ?? []) {
+            (lm ?? []).forEach((p, i) => {
+              const isTip = TIPS.has(i);
+              ctx.fillStyle = isTip ? "#ffc14d" : "#4df5e8";
               ctx.beginPath();
-              ctx.arc(p.x * cv.width, p.y * cv.height, 4, 0, 2 * Math.PI);
+              ctx.arc(p.x * cv.width, p.y * cv.height, isTip ? 6 : 3, 0, 2 * Math.PI);
               ctx.fill();
-            }
+            });
           }
           const w = res.worldLandmarks[0];
           if (w) {
@@ -123,6 +138,19 @@ export default function HandTracker({ pose, disp, onStart, onActive }: {
             t.ref = t.ref === null ? t.now : Math.max(t.ref, t.now); // reference = most extended so far
             setDispMm(t.ref - t.now);
             if (disp) disp.current = t.ref - t.now;
+            if (lm && onFrameRef.current) {
+              const side = res.handedness?.[0]?.[0]?.categoryName?.toLowerCase();
+              // Angles and tipWristMm are the smoothed values, the same ones the 3D hand follows.
+              onFrameRef.current(buildHandFrame({
+                source: "mediapipe",
+                t: performance.now() - t0,
+                handedness: side === "left" || side === "right" ? side : null,
+                landmarks: lm,
+                world: w,
+                angles: smoothed,
+                tipWristMm: t.now,
+              }));
+            }
             lastSeen = performance.now();
             setStatus("Tracking");
           } else if (performance.now() - lastSeen > 800) {
@@ -183,6 +211,7 @@ export default function HandTracker({ pose, disp, onStart, onActive }: {
           </div>
           <p className="t-small muted">
             Camera frames are processed in the browser and never stored or uploaded. The 3D hand mirrors your finger flexion.
+            Amber dots are the five fingertips, cyan the other tracked joints.
           </p>
         </>
       )}
