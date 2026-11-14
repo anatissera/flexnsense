@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@mediapipe/tasks-vision':
+        specifier: ^1.2.3
+        version: 1.2.3
       '@mujoco/mujoco':
         specifier: ^4.0.1
         version: 4.0.1
@@ -356,6 +359,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@mediapipe/tasks-vision@1.2.3':
+    resolution: {integrity: sha512-sxJyfhbN+EamexhaaCmUlw7v8vWWMum7VDsORe6d4c8Dk/xlI4qiIgoSw9cE9hpvYhVRRVLIA8y605FbqWkNeQ==}
 
   '@mujoco/mujoco@4.0.1':
     resolution: {integrity: sha512-vLuwD6biiyo2D2LG1fwpwJUfWSDZhBIr6aUd3AuPJR8P7FAIeSHgofGC+0XgIpZ0vYi0EOyju+Kv7zPJepX7wA==}
@@ -2281,6 +2287,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.3
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@mediapipe/tasks-vision@1.2.3': {}
 
   '@mujoco/mujoco@4.0.1': {}
 
