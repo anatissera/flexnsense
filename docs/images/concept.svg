@@ -46,7 +46,7 @@
     <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2186eb"/></marker>
     <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3ebd93"/></marker>
   </defs>
-  <text class="m" x="300" y="206" style="fill:#2186eb">finger pulls</text>
+  <text class="m" x="300" y="198" style="fill:#2186eb">finger pulls</text>
 
   <!-- tether to the scale -->
   <path d="M358,253 L392,253" stroke="#52606d" stroke-width="2.5"/>
@@ -71,7 +71,7 @@
   <text class="b" x="760" y="418">Arm B</text>
   <text class="m" x="760" y="436">anchors; yields at the cap</text>
   <path d="M700,214 L740,214" stroke="#3ebd93" stroke-width="3" marker-end="url(#arrG)"/>
-  <text class="m" x="680" y="206" style="fill:#0e7c58">yields slowly</text>
+  <text class="m" x="680" y="198" style="fill:#0e7c58">yields slowly</text>
 
   <!-- clinician -->
   <rect x="716" y="92" width="210" height="96" rx="12" fill="#ebf5ff" stroke="#2186eb" stroke-width="1.5"/>
