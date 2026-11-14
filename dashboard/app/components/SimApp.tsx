@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import MyoViewerClient from "./MyoViewerClient";
+import HandTracker, { type HandPose } from "./HandTracker";
 import { Bar, FINGER_COLOR, Legend, LineChart, type Band, type Series } from "./charts";
 import ChatPanel from "./ChatPanel";
 import MuscleCallout from "./MuscleCallout";
@@ -16,7 +17,8 @@ import {
   DEFAULT_WEIGHTS, GROUPS, metricsCsv, reportMd, reweight, runStudy, summaryCsv,
   type Fit, type Weights,
 } from "../lib/curlsim/study";
-import { FINGERS, FLEXOR_MUSCLES, SESSIONS, type Finger } from "../lib/curlsim/types";
+import { medicalReportMd } from "../lib/curlsim/report";
+import { FINGERS, FLEXOR_MUSCLES, SESSIONS, type Finger, type Trial } from "../lib/curlsim/types";
 
 const pct = (v: number | null | undefined, d = 0) =>
   v == null || !Number.isFinite(v) ? "–" : `${(v * 100).toFixed(d)}%`;
@@ -145,11 +147,19 @@ export default function SimApp() {
   const [speed, setSpeed] = useState(1);
   const [live, setLive] = useState<{ finger: Finger; t: number } | null>(null);
   const [snap, setSnap] = useState<LiveSnapshot | null>(null);
+  const [report, setReport] = useState<string | null>(null);
 
   const curlRef = useRef<{ joint: string; pip: string; flex: string[]; ext: string[]; target: number } | null>(null);
   const healthRef = useRef<Record<string, number>>({});
   const forceRef = useRef<{ n: number } | null>(null);
+  const handPoseRef = useRef<HandPose | null>(null);
   const runToken = useRef(0);
+  const camDispRef = useRef<number | null>(null);
+  const camToken = useRef(0);
+  const camAnalyzer = useRef<LiveAnalyzer | null>(null);
+  const camBuf = useRef<{ t: number[]; x: number[]; F: number[] }>({ t: [], x: [], F: [] });
+  const [camTrial, setCamTrial] = useState<Trial | null>(null);
+  const [camOn, setCamOn] = useState(false);
 
   // Chat tool-call targets: highlight set + screen anchors for floating callouts.
   const highlightRef = useRef<{ muscles: Set<string>; color: number } | null>(null);
@@ -238,6 +248,65 @@ export default function SimApp() {
   }, []);
   useEffect(() => stop, [stop]);
 
+  const CAM_FS = 100;
+  const publishCamTrial = useCallback(() => {
+    const b = camBuf.current;
+    if (b.t.length < 60) return;
+    setCamTrial({
+      patientId: base.patient.id, finger: "index", hand: "injured", session: week, trialIndex: 1, test: "full",
+      fs: CAM_FS, t: Float64Array.from(b.t), x: Float64Array.from(b.x), F: Float64Array.from(b.F),
+    });
+  }, [base.patient.id, week]);
+
+  const stopCam = useCallback(() => {
+    camToken.current++;
+    if (camAnalyzer.current) { setSnap(camAnalyzer.current.snapshot()); publishCamTrial(); }
+    camAnalyzer.current = null;
+    setCamOn(false);
+  }, [publishCamTrial]);
+  useEffect(() => () => { camToken.current++; }, []);
+
+  // Camera mode: the tracked index-tip displacement drives the live analysis in place of the simulated
+  // curl. Force is assumed constant at 20 N with +/-1 N uniform noise (no force sensor yet). The analyzer
+  // zeroes its baseline over the first 0.2 s, so force is held at 0 during that tare window.
+  const startCam = useCallback(() => {
+    const token = ++camToken.current;
+    const FS = CAM_FS;
+    const conA = analyzeTrial(genTrial(base.patient, "index", "contralateral", week, 1, "full"));
+    const refRomLive = median(conA.reps.map((r) => r.rom));
+    const analyzer = new LiveAnalyzer(FS, refRomLive, conA.reps.length ? medOfAnalysis(conA) : null, weights);
+    const tare = Math.round(0.2 * FS);
+    camAnalyzer.current = analyzer;
+    camBuf.current = { t: [], x: [], F: [] };
+    setCamTrial(null);
+    setSel("index");
+    setSnap(null);
+    setReport(null);
+    setCamOn(true);
+    let start: number | null = null;
+    let pushed = 0;
+    let lastSnap = 0;
+    const tick = (now: number) => {
+      if (camToken.current !== token) return;
+      const d = camDispRef.current;
+      if (d !== null) {
+        if (start === null) start = now;
+        const n = Math.floor(((now - start) / 1000) * FS);
+        const b = camBuf.current;
+        for (; pushed <= n; pushed++) {
+          const f = pushed < tare ? 0 : 20 + (Math.random() * 2 - 1);
+          analyzer.push(pushed / FS, d, f);
+          if (b.t.length < 30000) { b.t.push(pushed / FS); b.x.push(d); b.F.push(f); }
+        }
+        if (now - lastSnap > 100) { lastSnap = now; setSnap(analyzer.snapshot()); publishCamTrial(); }
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [base.patient, week, weights, publishCamTrial]);
+
+  const onCamActive = useCallback((on: boolean) => { if (on) startCam(); else stopCam(); }, [startCam, stopCam]);
+
   const run = useCallback(() => {
     const token = ++runToken.current;
     // Playback is index-finger only, with a deliberately subtle curl.
@@ -249,6 +318,8 @@ export default function SimApp() {
     let pushed = 0;
     let lastSnap = 0;
     setSnap(null);
+    setReport(null);
+    setCamTrial(null);
     const MAX_MCP = 0.55; // rad (~31 deg) target for a full-ROM curl: deliberately subtle
     let fi = 0;
     let start = performance.now();
@@ -288,9 +359,18 @@ export default function SimApp() {
     const inj = genTrial(base.patient, sel, "injured", week, 1, "full");
     const aC = analyzeTrial(con);
     const refRom = median(aC.reps.map((r) => r.rom));
-    const aI = analyzeTrial(inj, Number.isFinite(refRom) ? refRom : undefined);
-    return { aC, aI };
-  }, [base.patient, sel, week]);
+    const rr = Number.isFinite(refRom) ? refRom : undefined;
+    // Camera data overrides the simulated injured-hand trial for the index finger.
+    let cam = false;
+    let aI = analyzeTrial(inj, rr);
+    if (sel === "index" && camTrial) {
+      try { aI = analyzeTrial(camTrial, rr); cam = true; } catch { /* keep simulated */ }
+    }
+    return { aC, aI, cam };
+  }, [base.patient, sel, week, camTrial]);
+  const cursorT = camOn && view.cam && sel === "index"
+    ? view.aI.t[view.aI.t.length - 1]
+    : live?.finger === sel ? live.t : undefined;
 
   const bands: Band[] = view.aI.segs.flatMap((g) => {
     const t = view.aI.t;
@@ -330,7 +410,7 @@ export default function SimApp() {
   return (
     <FocusCtx.Provider value={focusSec}>
     <div className="relative h-full w-full">
-      <MyoViewerClient curl={curlRef} health={healthRef} highlight={highlightRef} anchors={anchorsRef} force={forceRef} />
+      <MyoViewerClient curl={curlRef} health={healthRef} highlight={highlightRef} anchors={anchorsRef} force={forceRef} handPose={handPoseRef} />
       <MuscleCallout callouts={callouts} anchors={anchorsRef} study={study} week={week} onClose={closeCallout} />
       <ChatPanel context={chatContext} onTool={onTool} />
       <aside className="panel absolute bottom-4 right-4 top-4 w-[470px] max-w-[calc(100%-2rem)] space-y-4 overflow-y-auto">
@@ -354,13 +434,14 @@ export default function SimApp() {
             {live ? (
               <button onClick={stop} className="btn btn-danger">Stop</button>
             ) : (
-              <button onClick={run} className="btn btn-primary">Run index curl</button>
+              <button onClick={run} disabled={camOn} className="btn btn-primary">Run index curl</button>
             )}
             <select value={speed} onChange={(e) => setSpeed(+e.target.value)} className="field">
               {[1, 2, 4].map((s) => <option key={s} value={s} className="text-black">{s}× speed</option>)}
             </select>
             <button onClick={() => setSeed((s) => s + 1)} className="btn">New patient</button>
           </div>
+          <HandTracker pose={handPoseRef} disp={camDispRef} onStart={stop} onActive={onCamActive} />
           <div className="flex gap-1">
             {FINGERS.map((f) => (
               <button key={f} onClick={() => setSel(f)} aria-pressed={sel === f}
@@ -372,16 +453,40 @@ export default function SimApp() {
           </div>
         </div>
 
-        {snap && <LivePanel snap={snap} running={!!live} />}
+        {snap && <LivePanel snap={snap} running={!!live || camOn} />}
 
-        <Section id="signals" title={`${sel} · week ${week} · displacement x(t) and force F(t)`}
+        {snap && !live && !camOn && snap.reps.length > 0 && (
+          <Section id="medical_report" title="Medical report"
+            note="Built from the completed index curl above and the fitted healing course. Simulated data, not for clinical use.">
+            <div className="flex flex-wrap gap-2">
+              <button className="btn btn-primary" onClick={() => setReport(medicalReportMd(study, week, snap))}>
+                {report ? "Regenerate medical report" : "Generate medical report"}
+              </button>
+              {report && (
+                <button className="btn" onClick={() => download(`MEDICAL_REPORT_${study.patient.id}_wk${week}.md`, report, "text/markdown")}>
+                  Download .md
+                </button>
+              )}
+            </div>
+            {report && (
+              <pre className="t-small max-h-96 overflow-auto whitespace-pre-wrap rounded border border-(--line) p-2">{report}</pre>
+            )}
+          </Section>
+        )}
+
+        <Section id="signals" title={`${sel} · ${view.cam ? "camera" : `week ${week}`} · displacement x(t) and force F(t)`}
           note="Shaded: flexion (blue), hold (amber), extension (green). Filtered, force baseline zeroed over first 0.2 s.">
           <LineChart h={110} yLabel="x (mm)" series={[{ name: "x", color: FINGER_COLOR[sel], xs: view.aI.t, ys: view.aI.xf }]}
-            bands={bands} cursor={live?.finger === sel ? live.t : undefined} />
+            bands={bands} cursor={cursorT} />
           <LineChart h={110} yLabel="F (N)" xLabel="time (s)" series={[{ name: "F", color: "#e5e7eb", xs: view.aI.t, ys: view.aI.Ff }]}
-            bands={bands} cursor={live?.finger === sel ? live.t : undefined} />
+            bands={bands} cursor={cursorT} />
           <div className="t-small muted">
-            {view.aI.ok ? `${view.aI.reps.length} clean reps` : `Trial rejected: ${view.aI.reasons.join("; ")}`}
+            {view.aI.ok
+              ? `${view.aI.reps.length} clean reps`
+              : view.cam
+                // Constant 20 N force reads as baseline drift to the offline checker; not meaningful here.
+                ? `${view.aI.reps.length} reps detected (camera, constant 20 N force assumed)`
+                : `Trial rejected: ${view.aI.reasons.join("; ")}`}
           </div>
         </Section>
 
