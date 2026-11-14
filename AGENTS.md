@@ -66,17 +66,20 @@ Read [README.md](./README.md) (the idea, safety rules, code layout) and [ROADMAP
 ```
 lib/              shared helpers with no knowledge of any one device; use them from any script
   camera.py       cameras by number or name ("iphone") or video files, warm-up, frame source
-  env.py          settings from the environment or .env (CAMERA_INDEX, ROBOT_PORT, LEADER_PORT, HF_TOKEN)
+  env.py          settings from the environment or .env (CAMERA_INDEX, STATION_HOST, FOLLOWER_BUS_SERIAL)
   filters.py      1D Kalman filter with outlier gate and "steady" flag
   geometry.py     line maths (Axis)
+  station.py      the NormaCore Station client: connect, follow motor state, send position commands
 gauge_reader/     roadmap item 2: read the PESOLA spring scale through a camera (python -m gauge_reader)
+hand_tracking/    roadmap item 5: finger flexion angles through a camera (python -m hand_tracking)
 dashboard/        Next.js web dashboard (own package.json; run pnpm from here)
-scripts/          robot and calibration scripts (e.g. force calibration)
-tests/lib/, tests/gauge_reader/
-docs/             user-facing guides (docs/scale-reader.md, docs/force-calibration.md)
+scripts/          robot and calibration scripts (e.g. force calibration), against Station
+scripts/lerobot/  NOT our hardware: original SO-101-via-LeRobot scripts, parked in case we ever port
+tests/lib/, tests/gauge_reader/, tests/hand_tracking/
+docs/             user-facing guides (docs/elrobot.md, docs/scale-reader.md, docs/force-calibration.md)
 ```
 
-- Code that any script could reuse (camera, filtering, settings, maths) goes in `lib/`. Keep `lib/` free of device-specific logic.
+- Code that any script could reuse (camera, filtering, settings, maths) goes in `lib/`. Keep `lib/` free of device-specific logic, with one deliberate exception: `lib/station.py` is where the Station client lives, so no script reimplements the wire protocol.
 - Each roadmap item gets its own package or script folder, named after it, with its tests under `tests/<name>/`.
 
 ## Setup and commands
@@ -86,10 +89,24 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requi
 .venv/bin/python -m pytest -q                 # all tests; must pass before every commit
 .venv/bin/python -m gauge_reader --help        # gauge reader CLI (cameras, calibrate, run, evaluate)
 .venv/bin/python -m gauge_reader.launcher      # gauge reader control panel
+.venv/bin/python -m hand_tracking run           # finger flexion angles, live window
 .venv/bin/python -m lib.camera                 # list cameras (macOS)
 ```
 
-LeRobot and the arm setup are described in [SETUP.md](./SETUP.md).
+## The arm: NormaCore Station, not LeRobot
+
+Our hardware is the **NormaCore ElRobot** (7 joints + gripper, 8 Feetech ST3215). **There is
+no LeRobot support for it** - no robot type, no driver, confirmed against upstream. Every
+script that talks to the arm goes through NormaCore's own binary, Station, over the protocol
+in `lib/station.py`. Full setup: [SETUP.md](./SETUP.md). Background, what's verified and
+what isn't: [docs/elrobot.md](./docs/elrobot.md).
+
+- Never write a new path to the arm outside `lib/station.py`. If a script needs to read motor
+  state or send a position, it imports from there.
+- `scripts/lerobot/` holds the original SO-101-via-LeRobot scripts, unused, kept only in case
+  the project ever ports to a LeRobot-supported arm. Don't extend them; don't assume they run.
+- Station enforces its own current limits in `station.yaml`, independent of whatever Python
+  we run - that's the register-level safety cap, not something to reimplement in our code.
 
 ## Rules
 

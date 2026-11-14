@@ -51,9 +51,10 @@ venv/
 node_modules/
 *.log
 
-# cloned third-party repos
-WiLoR/
-lerobot/
+# cloned third-party repos (not scripts/lerobot/, that's ours, kept on purpose - see docs/elrobot.md)
+/WiLoR/
+/lerobot/
+/norma-core/
 
 # Internal working docs (plans, datasheets) - not shared in the repo
 internal-docs/

@@ -1,7 +1,7 @@
 """Read settings from the environment, falling back to a `.env` file (see .env.example).
 
     from lib.env import env_get
-    port = env_get("ROBOT_PORT")                 # str or None
+    bus = env_get("FOLLOWER_BUS_SERIAL")          # str or None
     cam = env_get("CAMERA_INDEX", default="0")
 """
 from __future__ import annotations

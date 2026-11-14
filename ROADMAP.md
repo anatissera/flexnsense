@@ -2,12 +2,18 @@
 
 One branch per subtask, one PR into `main`. Order matters where noted.
 
+## 0. ElRobot via NormaCore Station, not LeRobot - `feature/elrobot-support`
+
+**Also blocks everything else that touches the arm.** There is no LeRobot support for the
+ElRobot; every script talks to it through NormaCore's own binary, Station, via `lib/station.py`.
+See [docs/elrobot.md](./docs/elrobot.md).
+
 ## 1. Force calibration - `feature/force-calibration`
 
 **Blocks everything else.** Establish whether servo current can stand in for a force sensor.
 
-- Log `Present_Current` / `Present_Load` from arm B's servos while known forces are applied along the therapy axis.
-- Sweep up and back down to expose hysteresis from the 1/345 gearbox.
+- Log current from arm B's servos (via Station's `st3215/inference` queue) while known forces are applied along the therapy axis.
+- Sweep up and back down to expose hysteresis from the 345:1 gearbox.
 - Fit grams = f(current − baseline); report the dead zone and the noise floor.
 
 Guide: [docs/force-calibration.md](./docs/force-calibration.md).
@@ -31,7 +37,7 @@ Depends on 1 or 2 for a force signal.
 
 ## 4. Simulation rig - `feature/sim-rig`
 
-MuJoCo SO-101 model (`TheRobotStudio/SO-ARM100` → `Simulation/SO101`) plus a linear spring (F = k·x, k measurable from the PESOLA in minutes) and a scripted "patient finger" trajectory.
+MuJoCo model plus a linear spring (F = k·x, k measurable from the PESOLA in minutes) and a scripted "patient finger" trajectory. NormaCore ships URDF/STEP/STL for the ElRobot (`hardware/elrobot/simulation` in their repo), but it hasn't been checked for use here yet.
 
 Purpose is **de-risking the controller without a human in the loop** - oscillation, force overshoot, behaviour when the force reading freezes or spikes. Not for generating training data.
 
@@ -39,9 +45,9 @@ Can run in parallel with 1–2.
 
 ## 5. Hand tracking / ROM - `feature/hand-tracking`
 
-Finger range of motion during the session. MediaPipe Hand Landmarker on CPU is the safe default; WiLoR if the 4 GB RTX 3050 holds it in fp16 (verify with `nvidia-smi` before committing to it) - WiLoR also outputs MANO joint rotations, which is the input format a musculoskeletal model would later want.
+Finger range of motion during the session. MediaPipe Hand Landmarker on CPU is the safe default, done: `hand_tracking/` reports one flexion angle per finger, see [docs/hand-tracking.md](./docs/hand-tracking.md). WiLoR is still worth adding alongside it if the 4 GB RTX 3050 holds it in fp16 (verify with `nvidia-smi` before committing to it) - it outputs MANO joint rotations, which is the input format a musculoskeletal model would later want, something a bare per-joint angle does not give.
 
-Independent of 1–4.
+Independent of 0–4; camera-only, does not touch the arm.
 
 ## 6. Session metrics - `feature/session-metrics`
 
