@@ -71,7 +71,7 @@ The control panel runs these commands; they also work on their own:
 .venv/bin/python -m gauge_reader evaluate --video recordings/moving.mp4
 ```
 
-Keys in the camera window — calibrate: `SPACE` freeze, click 0 then 600, `ENTER` accept, `c` click the dots by hand, `z` zero, `w` known weight, `s` save, `m` mask, `q` quit. Run: `z` zero, `s` save, `SPACE` pause, `m` mask, `q` quit.
+Keys in the camera window - calibrate: `SPACE` freeze, click 0 then 600, `ENTER` accept, `c` click the dots by hand, `z` zero, `w` known weight, `s` save, `m` mask, `q` quit. Run: `z` zero, `s` save, `SPACE` pause, `m` mask, `q` quit.
 
 CSV columns: `time_s, frame, found, t_px, raw_g, grams, stable, std_g, confidence, u, sticker_dist_px, reason`.
 

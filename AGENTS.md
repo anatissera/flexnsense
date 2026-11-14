@@ -17,7 +17,7 @@
 
 ## Branch naming
 
-One branch per subtask in [ROADMAP.md](./ROADMAP.md), using the name given there — `feature/force-calibration`, `feature/gauge-reader`, and so on. For anything outside the roadmap: `fix/...` or `docs/...`.
+One branch per subtask in [ROADMAP.md](./ROADMAP.md), using the name given there - `feature/force-calibration`, `feature/gauge-reader`, and so on. For anything outside the roadmap: `fix/...` or `docs/...`.
 
 ## Scope
 
@@ -32,6 +32,30 @@ Commits, pull requests, issues, code comments and docs must **not** credit an AI
 - no mention of an AI assistant as an author anywhere in the repo.
 
 Write commit messages and PR descriptions as the human author would.
+
+## No em dashes
+
+No em dash (the long dash, Unicode U+2014) anywhere in this repo: not in the README, not in any doc, not in code, comments, commit messages or PR descriptions. Use a period, a comma, or a plain hyphen instead.
+
+This is enforced in CI (`.github/workflows/no-em-dash.yml`). A PR containing one will not pass.
+
+## Units
+
+Grams-force (gf) below the boundary, newtons (N, SI) above it:
+
+- The PESOLA is graduated in grams, that's what a human reads off it, what the gauge reader calibrates
+  against, and what hand-therapy literature and dynamometers already use. Keep the instrument-facing
+  numbers (the gauge reader's `grams` field, the CSV's `grams`/`raw_g` columns, the calibration rig's
+  known weights) in grams-force. Do not rename these or change their meaning.
+- Everything past that boundary, control math, thresholds, any value the admittance controller or the
+  safety layer reads, any force or torque equation, is in newtons. `FilteredReading.newtons` and
+  `FrameResult.newtons` / `StickerFrameResult.newtons` (and the CSV's `newtons` column) already do the
+  conversion; read those, not `grams`, from control code.
+- The conversion lives in exactly one place, `lib/units.py` (`grams_force_to_newtons`,
+  `newtons_to_grams_force`, `STANDARD_GRAVITY_M_S2`). Never hardcode `9.80665`, `9.81` or `/ 1000`
+  anywhere else; import from there.
+- When writing a new doc or script that states a force value, give the newton figure first (it's what
+  the system runs on) with the gram figure alongside for intuition, e.g. "1.96 N (200 gf)".
 
 # Guide for coding agents
 
@@ -80,8 +104,8 @@ LeRobot and the arm setup are described in [SETUP.md](./SETUP.md).
 
 ## This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `dashboard/node_modules/next/dist/docs/` (the Next.js app lives in `dashboard/`; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+This version has breaking changes - APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `dashboard/node_modules/next/dist/docs/` (the Next.js app lives in `dashboard/`; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+This block is written and re-added by `next dev` - verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
