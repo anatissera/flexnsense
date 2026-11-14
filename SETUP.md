@@ -69,7 +69,7 @@ Copy `.env.example` to `.env` and fill in what you actually use:
 cp .env.example .env
 ```
 
-- `HF_TOKEN` — only needed if pushing/pulling datasets or models to/from the Hugging Face Hub (`hf auth login` also works instead of a `.env` entry).
-- `ROBOT_PORT` / camera and doctor-dashboard settings — local, machine-specific; do not commit real values.
+- `HF_TOKEN` - only needed if pushing/pulling datasets or models to/from the Hugging Face Hub (`hf auth login` also works instead of a `.env` entry).
+- `ROBOT_PORT` / camera and doctor-dashboard settings - local, machine-specific; do not commit real values.
 
-`.env` is git-ignored — never commit it.
+`.env` is git-ignored - never commit it.
