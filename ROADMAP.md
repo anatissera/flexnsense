@@ -25,14 +25,14 @@ Read the PESOLA's red indicator from a fixed camera and output grams + a confide
 
 ## 3. Admittance controller + safety layer - `feature/admittance-control`
 
-Two modes now, not one — design in [docs/admittance-control.md](./docs/admittance-control.md):
+Two modes now, not one - design in [docs/admittance-control.md](./docs/admittance-control.md):
 
 - **YIELD** (tendon): arm anchors, yields past the force threshold. Self-limiting.
-- **PULL** (contracture): arm pulls the finger open to a target. Does **not** self-limit — needs its own mitigations (dead-man switch, mechanical breakaway, lower torque cap) before it touches a real finger.
+- **PULL** (contracture): arm pulls the finger open to a target. Does **not** self-limit - needs its own mitigations (dead-man switch, mechanical breakaway, lower torque cap) before it touches a real finger.
 
 Plus the safety layer that does **not** depend on either mode: servo-level torque cap, software position limits, vision watchdog that releases tension, velocity ceiling, e-stop.
 
-Build and validate YIELD first; PULL is a separate risk class, not "YIELD with a flipped sign" — bring it in only once YIELD is repeatable against a spring and a weight.
+Build and validate YIELD first; PULL is a separate risk class, not "YIELD with a flipped sign" - bring it in only once YIELD is repeatable against a spring and a weight.
 
 Depends on 1 or 2 for a force signal.
 
