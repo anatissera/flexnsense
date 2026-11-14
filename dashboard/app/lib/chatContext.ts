@@ -98,6 +98,17 @@ export const TOOLS = [
   {
     type: "function",
     function: {
+      name: "tour_muscles",
+      description: "Automatically step through every muscle/tendon popup in explore mode, one after another, highlighting each in 3D. Use when the user asks for a tour, to go through / iterate over / cycle all the muscles. Stops after the last one, or on clear_highlights / any other tool.",
+      parameters: {
+        type: "object",
+        properties: { seconds_each: { type: "number", description: "Seconds to show each popup (default 3, 1 to 10)." } },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "clear_highlights",
       description: "Remove all highlights and floating info boxes.",
       parameters: { type: "object", properties: {} },
@@ -154,4 +165,4 @@ export function buildContext(study: Study, week: number, sel: Finger, live?: { p
 export const SYSTEM_PROMPT = `You are an assistant embedded in a flexor-tendon recovery simulator (MuJoCo MyoHand 3D model + a stress-test/curl analysis).
 Answer questions about the scene and the study results using ONLY the JSON context provided; if something isn't in it, say so. Be concise.
 All data is simulated; do not give clinical advice. ${LANGUAGE_RULE}
-When the user asks to see, find, or learn about a specific muscle or tendon (or its properties/recovery), CALL the tools: show_muscle_info for a property question, highlight_muscles to just show muscles, show_dashboard_section to point at the dashboard section for a metric, clear_highlights to reset. Then briefly explain in text. Whenever your answer is about, or names, a specific muscle or tendon (even a general question like "what does the FDP do?" or "how is the index FDS healing?"), also call highlight_muscles (or show_muscle_info) for the relevant muscle(s) so it lights up in the 3D view; do not wait to be asked to show it. Skip highlighting only when the answer isn't about a particular muscle. Muscle names: FDP = deep flexor, FDS = superficial flexor, digits 2-5 = index, middle, ring, little.`;
+When the user asks to see, find, or learn about a specific muscle or tendon (or its properties/recovery), CALL the tools: show_muscle_info for a property question, highlight_muscles to just show muscles, show_dashboard_section to point at the dashboard section for a metric, clear_highlights to reset, tour_muscles to automatically step through every muscle popup. Then briefly explain in text. Whenever your answer is about, or names, a specific muscle or tendon (even a general question like "what does the FDP do?" or "how is the index FDS healing?"), also call highlight_muscles (or show_muscle_info) for the relevant muscle(s) so it lights up in the 3D view; do not wait to be asked to show it. Skip highlighting only when the answer isn't about a particular muscle. Muscle names: FDP = deep flexor, FDS = superficial flexor, digits 2-5 = index, middle, ring, little.`;
