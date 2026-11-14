@@ -62,6 +62,8 @@ export type ViewerHooks = {
    * kinematically every step and all muscle drive is off, so the sim hand mirrors a tracked hand.
    */
   handPose?: RefObject<Record<string, number> | null>;
+  /** Explore mode: while true, wheel zoom is disabled so the wheel can step through tendons. */
+  explore?: RefObject<boolean>;
 };
 // Force arrow: length grows linearly with force, from the index fingertip, pointing out along the finger in the xy-plane.
 const FORCE_ARROW_MIN = 0.008; // m
@@ -69,7 +71,7 @@ const FORCE_ARROW_PER_N = 0.0022; // m per newton (28 N peak is about 7 cm)
 const FORCE_HEAD_WIDTH = 0.007; // m
 export type MuscleAnchor = { x: number; y: number; visible: boolean; act: number };
 
-export default function MyoViewer({ drive, curl, health, highlight, anchors, force: forceRef, handPose }: ViewerHooks = {}) {
+export default function MyoViewer({ drive, curl, health, highlight, anchors, force: forceRef, handPose, explore }: ViewerHooks = {}) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctl = useRef<Controls>({
     flexor: 0,
@@ -523,6 +525,7 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
           forceArrow.setLength(len, Math.min(0.012, len * 0.4), FORCE_HEAD_WIDTH);
           forceArrow.visible = true;
         } else forceArrow.visible = false;
+        orbit.enableZoom = !explore?.current;
         orbit.update();
         renderer.render(scene, camera);
       };
@@ -559,9 +562,29 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
       cancelled = true;
       cleanup();
     };
-  }, [startGrasp, drive, curl, health, highlight, anchors, forceRef, handPose]);
+  }, [startGrasp, drive, curl, health, highlight, anchors, forceRef, handPose, explore]);
 
   const set = (patch: Partial<Controls>) => Object.assign(ctl.current, patch);
+
+  // Collapse the sliders/buttons (keep title + legend) when they would overlap the flex guide panel.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      const panel = panelRef.current;
+      const body = bodyRef.current;
+      const guide = document.getElementById("flex-guide");
+      if (!panel || !body || !guide) { setCompact(false); return; }
+      // Bottom edge the panel would have if fully expanded.
+      const fullBottom = panel.getBoundingClientRect().bottom - body.offsetHeight + body.scrollHeight;
+      setCompact(fullBottom + 8 > guide.getBoundingClientRect().top);
+    };
+    check();
+    const id = window.setInterval(check, 400);
+    window.addEventListener("resize", check);
+    return () => { window.clearInterval(id); window.removeEventListener("resize", check); };
+  }, []);
 
   return (
     <div className="relative h-full w-full">
@@ -571,7 +594,7 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
           {status}
         </div>
       )}
-      <div className="panel absolute left-4 top-4 w-64 space-y-3">
+      <div ref={panelRef} className="panel absolute left-4 top-4 w-64 space-y-3">
         <div className="t-title">MyoHand</div>
         <ul className="space-y-1.5">
           {[
@@ -590,6 +613,13 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
             </li>
           ))}
         </ul>
+        <div
+          ref={bodyRef}
+          className="space-y-3 overflow-hidden transition-[max-height,opacity] duration-200"
+          style={compact ? { maxHeight: 0, opacity: 0, marginTop: 0, pointerEvents: "none" } : { maxHeight: 400 }}
+          aria-hidden={compact}
+          inert={compact}
+        >
         <label className="t-body block">
           Flexors: {flexor.toFixed(2)}
           <input
@@ -613,12 +643,14 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
           />
           Show force vector
         </label>
+        </div>
         <div className="flex gap-2">
           <button
             className="btn"
+            hidden={compact}
             onClick={() => { setPaused(!paused); set({ paused: !paused }); }}
           >
-            {paused ? "Play" : "Pause"}
+            {paused ? "Resume" : "Pause"}
           </button>
           <button
             className="btn"
@@ -627,10 +659,11 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
               set({ flexor: 0, extensor: 0, reset: true });
             }}
           >
-            Reset
+            Reset simulation
           </button>
           <button
             className="btn"
+            hidden={compact}
             onClick={() => {
               setFlexor(0.6); setExtensor(0.05);
               set({ flexor: 0.6, extensor: 0.05 });

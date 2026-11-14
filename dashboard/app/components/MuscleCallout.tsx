@@ -83,10 +83,7 @@ export default function MuscleCallout({
           <div key={name} className="panel pointer-events-auto absolute t-small !border-(--annotate)/60 !p-3"
             style={{ left: bx, top: by, width: BOX_W, minHeight: BOX_H }}>
             <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="t-section text-(--annotate)">{name}</div>
-                <div className="muted">{info?.label}</div>
-              </div>
+              <div className="t-section text-(--annotate)">{info?.label ?? name}</div>
               <button className="btn btn-icon" onClick={() => onClose(name)} aria-label="Close">✕</button>
             </div>
             <div className="mt-2">
