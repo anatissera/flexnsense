@@ -9,6 +9,8 @@ u_hat = (P - G) / |P - G|            direction the robot yields along
 
 Two consequences follow directly. The controller never needs to know where anything is in space - it only needs `T`, so if the hand shifts a little, `d` changes, `T` changes, and the force loop absorbs it without remapping anything. But the PESOLA gives a scalar: `|T|`, never `u_hat`. Direction has to come from somewhere else, and it is the central vulnerability of the design (see "The direction problem" below).
 
+**Units** (see AGENTS.md "Units"): every `F`, `T`, `F_threshold`, `F_target`, `F_max`, `F_home` in this doc and in the controller is in **newtons**. Grams only ever appear where a human reads the PESOLA directly, e.g. setting up a known weight or reading the clinician's displayed cap; anything the controller computes with is already past the `lib/units.py` boundary.
+
 ## Mode is chosen by the operator, not inferred
 
 Before torque is enabled on arm B, the clinician/operator selects a mode and its parameters. This never auto-detects, for two reasons: the two modes have opposite risk profiles (see below), so a misclassification would silently put the system in the one that doesn't self-limit; and knowing whether a flexed finger is a contracture needing a stretch, or just how the patient's hand happens to rest, is clinical information the camera does not have.
@@ -85,7 +87,7 @@ if mode == HOLD and F_meas_rising_unprompted:
     release_tension()                  # patient is contracting against the stretch
 ```
 
-PULL needs a state YIELD doesn't: a slow, low-force **approach phase** that takes up slack before loading, to avoid arriving at the finger with a jerk. Detecting that first soft contact needs forces in the 10-30 g range - below the servo current dead zone - so this phase (and the equivalent "return home" in YIELD, see below) depends on the camera, not current.
+PULL needs a state YIELD doesn't: a slow, low-force **approach phase** that takes up slack before loading, to avoid arriving at the finger with a jerk. Detecting that first soft contact needs forces in the 10-30 g (0.1-0.3 N) range - below the servo current dead zone - so this phase (and the equivalent "return home" in YIELD, see below) depends on the camera, not current.
 
 ### Where the stop threshold comes from
 
@@ -93,7 +95,7 @@ Neither ceiling alone is enough. Force-only lets a finger whose tissue gives abr
 
 Per-session procedure to set numbers (a protocol to run, not fixed constants):
 
-1. Measure today's baseline: bring the finger to a low reference force (~50 g), record the angle reached → `theta_ref`, which changes day to day.
+1. Measure today's baseline: bring the finger to a low reference force (~50 g, ~0.49 N), record the angle reached → `theta_ref`, which changes day to day.
 2. Sweep slowly, recording F vs. theta, until the first ceiling. That gives today's stiffness/end-feel.
 3. Set the target as an increment, not an absolute: `theta_target = theta_ref + delta`, small delta. This is the static-progressive-splint principle - stepwise angle increases, not force increases.
 4. Hold position for the prescribed time; force decays on its own.
@@ -125,7 +127,7 @@ Three cases from "does it still work if the hand moves a little":
 | **Hand rotates or shifts laterally a lot** | Not covered - `u_hat` actually changes |
 | **Arm B travels far while yielding** | Partially - `u_hat` drifts during its own long excursion |
 
-**Slack.** Not dangerous (T -> 0, the robot sits still) but silent. Add an explicit `SLACK` state: if `T` stays below ~20 g past a timeout, flag it in telemetry and run a gentle **take-up**: creep at a velocity well under `v_max` toward a small baseline tension (20-30 g), never further. A patient still retreating can always outpace the take-up, so it never turns into chasing - it only keeps the exercise live when the patient has simply stopped engaging it.
+**Slack.** Not dangerous (T -> 0, the robot sits still) but silent. Add an explicit `SLACK` state: if `T` stays below ~20 g (~0.2 N) past a timeout, flag it in telemetry and run a gentle **take-up**: creep at a velocity well under `v_max` toward a small baseline tension (20-30 g, 0.2-0.3 N), never further. A patient still retreating can always outpace the take-up, so it never turns into chasing - it only keeps the exercise live when the patient has simply stopped engaging it.
 
 **Rotation / large lateral shift, and `u_hat` drift during a long yield.** One added component fixes both: track `P` by vision every cycle instead of assuming it once at setup, and recompute `u_hat = (P - G) / |P - G|` each cycle with `G` from forward kinematics (always available from the encoders). That's the same projection used to discriminate "released" from "detached" below, applied continuously instead of once.
 
@@ -148,7 +150,7 @@ Both read as force dropping to zero and call for opposite responses:
 
 `lib/filters.ReadingFilter` already computes `velocity_g_s` (the rate of force change) alongside the smoothed reading - that derivative is exactly the "shape of the drop" signal above, combined with the finger's own tracked position from the hand-tracking roadmap item.
 
-**"Home" should be defined by force, not by an absolute pose.** Home = "the position where tension equals `F_home`," with `F_home` small (20-30 g), not a fixed joint configuration. If the hand shifted during the session, an absolute-pose home either pushes into the finger or leaves the spring slack; a tension-defined home self-corrects. Since 20-30 g sits below the servo's dead zone, returning also depends on the camera, same as the PULL approach phase above.
+**"Home" should be defined by force, not by an absolute pose.** Home = "the position where tension equals `F_home`," with `F_home` small (20-30 g, 0.2-0.3 N), not a fixed joint configuration. If the hand shifted during the session, an absolute-pose home either pushes into the finger or leaves the spring slack; a tension-defined home self-corrects. Since that range sits below the servo's dead zone, returning also depends on the camera, same as the PULL approach phase above.
 
 ## Frequencies: why there are two loops, not one
 
