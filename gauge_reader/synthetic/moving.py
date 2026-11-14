@@ -1,13 +1,13 @@
 """Synthetic frames of a MOVING scale with two red reference stickers, for the sticker-based (relative) reader.
 
     frame, truth = render_moving_frame(312.0, center=(900, 500), angle_deg=20, px_per_mm=5)
-    python -m vision.synthetic_moving recordings/moving.mp4     # hand-held style video + truth CSV
+    python -m gauge_reader.synthetic.moving recordings/moving.mp4     # hand-held style video + truth CSV
 
-The scale is drawn like vision.synthetic (0..600 g over 100 mm, 12 mm tube, 4x supersampled, exact sub-pixel
+The scale is drawn like gauge_reader.synthetic.still (0..600 g over 100 mm, 12 mm tube, 4x supersampled, exact sub-pixel
 truth) plus two red round stickers on the tube's centre line, one before the 0 g line and one past the 600 g
 line. Stickers and marker are the SAME red, as on the real scale; they are told apart by position.
 
-Axis convention (vision.geometry): t = 0 at the 0 g line, increasing towards the 600 g line.
+Axis convention (lib.geometry): t = 0 at the 0 g line, increasing towards the 600 g line.
 u = marker position between the stickers as a fraction: 0 at sticker 1 (0 g side), 1 at sticker 2.
 """
 from __future__ import annotations
@@ -19,8 +19,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from vision.geometry import Axis
-from vision.synthetic import CAPACITY_G, SCALE_MM, SHIFT, SS, TUBE_DIAM_MM, _poly, grams_to_t
+from lib.geometry import Axis
+from gauge_reader.synthetic.still import CAPACITY_G, SCALE_MM, SHIFT, SS, TUBE_DIAM_MM, _poly, grams_to_t
 
 STICKER1_MM = -12.0       # sticker centres along the axis, mm from the 0 g line (gap ~1 cm to the lines)
 STICKER2_MM = 112.0

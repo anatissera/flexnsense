@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-from vision.smoothing import FilteredReading, ReadingFilter
+from lib.filters import FilteredReading, ReadingFilter
 
 FPS = 30.0
 DT = 1.0 / FPS
@@ -138,7 +138,7 @@ def test_reset():
 
 def test_stable_drops_on_first_frames_of_a_ramp():
     """Regression: a resting load starts ramping at 300 g/s; no frame may be 'stable' while it lags > 3 g."""
-    from vision.smoothing import ReadingFilter
+    from lib.filters import ReadingFilter
 
     f = ReadingFilter()
     fps = 30.0

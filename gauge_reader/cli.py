@@ -1,10 +1,10 @@
 """Camera reader for the Pesola Medio-Line 600 g spring scale: find the red marker, show and log grams.
 
-    python -m vision.scale_reader calibrate                 # stickers mode: click 0 g and 600 g, confirm stickers, tare, save
-    python -m vision.scale_reader calibrate --mode fixed    # scale clamped still: fixed axis from the two clicks
-    python -m vision.scale_reader run --csv out.csv         # live reading window + CSV log (mode from the calib file)
-    python -m vision.scale_reader run --headless --video recordings/moving.mp4
-    python -m vision.scale_reader evaluate --video recordings/moving.mp4      # end-to-end check vs truth CSV
+    python -m gauge_reader calibrate                 # stickers mode: click 0 g and 600 g, confirm stickers, tare, save
+    python -m gauge_reader calibrate --mode fixed    # scale clamped still: fixed axis from the two clicks
+    python -m gauge_reader run --csv out.csv         # live reading window + CSV log (mode from the calib file)
+    python -m gauge_reader run --headless --video recordings/moving.mp4
+    python -m gauge_reader evaluate --video recordings/moving.mp4      # end-to-end check vs truth CSV
 
 Two modes:
   stickers (default) - the scale is hand-held and moves. Two red stickers on the tube (one before 0 g, one past
@@ -31,10 +31,12 @@ from typing import Any
 import cv2
 import numpy as np
 
-from vision import overlay
-from vision.geometry import Axis
+from gauge_reader import overlay
+from lib import camera
+from lib.camera import FrameSource
+from lib.geometry import Axis
 
-DEFAULT_CALIB = "config/scale_calib.json"   # mirrors vision.calibration.DEFAULT_CALIB_PATH
+DEFAULT_CALIB = "config/scale_calib.json"   # mirrors gauge_reader.calibration.DEFAULT_CALIB_PATH
 RECORDINGS_DIR = Path("recordings")
 CSV_COLUMNS = ["time_s", "frame", "found", "t_px", "raw_g", "grams", "stable", "std_g", "confidence",
                "u", "sticker_dist_px", "reason"]    # last three: sticker mode only (empty / reason in fixed mode)
@@ -42,10 +44,6 @@ MODES = ("stickers", "fixed")
 HISTORY = 15            # frames used for the median in tare / known-weight samples
 WINDOW = "scale reader"
 
-MAC_CAMERA_HINT = (
-    "macOS: allow camera access for the app running Python - System Settings -> Privacy & Security -> Camera -> "
-    "enable your terminal / IDE (Terminal, iTerm, VS Code, ...), then restart it. Also try another --camera index."
-)
 
 
 # --------------------------------------------------------------------------------------------- pipeline
@@ -58,9 +56,9 @@ def _f(v, nd=3) -> str:
 class FrameResult:
     frame: int
     time_s: float
-    detection: Any          # vision.detector.Detection
+    detection: Any          # gauge_reader.detector.Detection
     raw_g: float | None
-    reading: Any            # vision.smoothing.FilteredReading
+    reading: Any            # lib.filters.FilteredReading
 
     @property
     def found(self) -> bool:
@@ -114,8 +112,8 @@ class Pipeline:
 
     @classmethod
     def from_calibration(cls, calib, det_config=None, filt=None) -> "Pipeline":
-        from vision.detector import RedMarkerDetector
-        from vision.smoothing import ReadingFilter
+        from gauge_reader.detector import RedMarkerDetector
+        from lib.filters import ReadingFilter
         return cls(RedMarkerDetector(calib.axis, det_config), calib, filt if filt is not None else ReadingFilter())
 
     def process(self, frame_bgr: np.ndarray, ts: float, index: int | None = None) -> FrameResult:
@@ -185,9 +183,9 @@ class Pipeline:
 class StickerFrameResult:
     frame: int
     time_s: float
-    detection: Any          # vision.stickers.StickerDetection
+    detection: Any          # gauge_reader.stickers.StickerDetection
     raw_g: float | None
-    reading: Any            # vision.smoothing.FilteredReading
+    reading: Any            # lib.filters.FilteredReading
     last_g: float | None = None     # filtered grams of the last found frame (shown greyed while not found)
 
     t_px = None
@@ -266,14 +264,14 @@ class StickerPipeline:
 
     @staticmethod
     def make_tracker(calib, config=None):
-        from vision.stickers import StickerConfig, StickerTracker
+        from gauge_reader.stickers import StickerConfig, StickerTracker
         if config is None:
             config = StickerConfig(u_range=tuple(calib.u_range()))
         return StickerTracker(config, s1_hint=getattr(calib, "s1_ref", None), s2_hint=getattr(calib, "s2_ref", None))
 
     @classmethod
     def from_calibration(cls, calib, config=None, filt=None) -> "StickerPipeline":
-        from vision.smoothing import ReadingFilter
+        from lib.filters import ReadingFilter
         return cls(cls.make_tracker(calib, config), calib, filt if filt is not None else ReadingFilter())
 
     def process(self, frame_bgr: np.ndarray, ts: float, index: int | None = None) -> StickerFrameResult:
@@ -332,7 +330,7 @@ class StickerPipeline:
         return sticker_crop(frame_bgr, self.last_s1, self.last_s2)
 
     def _red_mask_crop(self, frame_bgr):
-        from vision.detector import red_mask
+        from gauge_reader.detector import red_mask
         crop = sticker_crop(frame_bgr, self.last_s1, self.last_s2)
         if crop is None:
             return None, None
@@ -368,163 +366,15 @@ def make_pipeline(calib):
 
 
 # --------------------------------------------------------------------------------------------- sources
-
-def list_cameras() -> list[tuple[int, str]]:
-    """(index, name) of the video devices, in AVFoundation order (macOS, via ffmpeg). Empty if unknown."""
-    import re
-    import shutil
-    import subprocess
-    if sys.platform != "darwin" or not shutil.which("ffmpeg"):
-        return []
-    out = subprocess.run(["ffmpeg", "-hide_banner", "-f", "avfoundation", "-list_devices", "true", "-i", ""],
-                         capture_output=True, text=True).stderr
-    video = out.split("audio devices")[0]
-    return [(int(i), n.strip()) for i, n in re.findall(r"\[(\d+)\] (.+)", video) if "Capture screen" not in n]
-
-
-def resolve_camera(cam: int | str) -> int | str:
-    """A name fragment such as 'iphone' -> its index; a number, path or URL is returned as is."""
-    if isinstance(cam, int) or "/" in cam or ":" in cam:
-        return cam
-    want = cam.lower()
-    hits = [(i, n) for i, n in list_cameras() if want in n.lower() and "desk view" not in n.lower()]
-    if not hits:
-        raise SystemExit(f"error: no camera matching {cam!r}; see: python -m vision.scale_reader cameras")
-    print(f"camera {cam!r} -> {hits[0][0]} ({hits[0][1]})")
-    return hits[0][0]
-
+# Cameras and video files come from the shared library (lib/camera.py), so robot scripts can use them too.
 
 def cmd_cameras(args) -> int:
-    cams = list_cameras()
-    if not cams:
-        print("could not list cameras (needs macOS + ffmpeg); try --camera 0, 1, 2 ...")
-        return 1
-    for i, n in cams:
-        print(f"  --camera {i}   {n}")
-    return 0
-
-
-
-def _env_camera_default() -> int | str:
-    val = os.environ.get("CAMERA_INDEX")
-    if val is None and Path(".env").is_file():
-        for line in Path(".env").read_text().splitlines():
-            line = line.strip()
-            if line.startswith("CAMERA_INDEX="):
-                val = line.split("=", 1)[1].strip().strip('"').strip("'")
-    if not val:
-        return 0
-    return int(val) if val.lstrip("-").isdigit() else val
-
-
-class FrameSource:
-    """A camera or a video file. read() -> (ok, frame, timestamp_s, frame_index)."""
-
-    def __init__(self, cap: cv2.VideoCapture, is_camera: bool, fps: float, name: str):
-        self.cap, self.is_camera, self.fps, self.name = cap, is_camera, fps, name
-        self.index = 0
-        self.width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) if not is_camera else 0
-
-    CAMERA_STALL_S = 10.0   # a live camera may drop frames (iPhone Continuity Camera reconnecting): wait this long
-
-    def read(self):
-        ok, frame = self.cap.read()
-        if (not ok or frame is None) and self.is_camera:
-            t_end = time.monotonic() + self.CAMERA_STALL_S
-            while (not ok or frame is None) and time.monotonic() < t_end:
-                time.sleep(0.02)
-                ok, frame = self.cap.read()
-        if not ok or frame is None:
-            return False, None, 0.0, self.index
-        i = self.index
-        self.index += 1
-        ts = time.monotonic() if self.is_camera else i / self.fps
-        return True, frame, ts, i
-
-    def release(self):
-        self.cap.release()
-
-
-WARMUP_S = 20.0
-IPHONE_HINT = ("  iPhone (Continuity Camera): lock the phone, keep it still in landscape near the Mac, Wi-Fi + Bluetooth on,\n"
-               "  same Apple ID; the phone should show 'Connected to <Mac>'. Opening Photo Booth and picking the iPhone\n"
-               "  in its Camera menu forces the connection. List cameras: python -m vision.scale_reader cameras")
-
-
-def configure_camera(cap: cv2.VideoCapture, width: int, height: int) -> list[str]:
-    """Request the resolution and best-effort turn off auto exposure / auto white balance. Returns a report."""
-    report = []
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    # Backends disagree on the value meaning "manual": V4L2 uses 0.25 (or 1), others 0. Try them and read back.
-    before = cap.get(cv2.CAP_PROP_AUTO_EXPOSURE)
-    took = None
-    for v in (0.25, 0.0, 1.0):
-        if cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, v):
-            took = v
-            break
-    after = cap.get(cv2.CAP_PROP_AUTO_EXPOSURE)
-    report.append(f"auto exposure off: {'accepted (value %s)' % took if took is not None else 'NOT supported by backend'}"
-                  f" [read back {before} -> {after}]")
-    wb_ok = cap.set(cv2.CAP_PROP_AUTO_WB, 0)
-    report.append(f"auto white balance off: {'accepted' if wb_ok else 'NOT supported by backend'}"
-                  f" [read back {cap.get(cv2.CAP_PROP_AUTO_WB)}]")
-    if took is None or not wb_ok:
-        report.append("  -> lock exposure/white balance another way (steady diffuse light; avoid moving shadows), "
-                      "or a camera utility app.")
-    return report
+    return camera.main()
 
 
 def open_source(args) -> FrameSource:
-    if getattr(args, "video", None):
-        path = str(args.video)
-        if not Path(path).is_file():
-            raise SystemExit(f"error: video not found: {path}")
-        cap = cv2.VideoCapture(path)
-        if not cap.isOpened():
-            raise SystemExit(f"error: cannot open video {path}")
-        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-        src = FrameSource(cap, False, fps if fps > 0 else 30.0, path)
-        print(f"video {path}: {src.width}x{src.height} @ {src.fps:.1f} fps, {src.n_frames} frames")
-        return src
-
-    cam = resolve_camera(args.camera if args.camera is not None else _env_camera_default())
-    backend = cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY
-    cap = cv2.VideoCapture(cam, backend) if isinstance(cam, int) else cv2.VideoCapture(cam)
-    if not cap.isOpened():
-        print(f"error: cannot open camera {cam!r}", file=sys.stderr)
-        if sys.platform == "darwin":
-            print(MAC_CAMERA_HINT, file=sys.stderr)
-        raise SystemExit(2)
-    for line in configure_camera(cap, args.width, args.height):
-        print("camera: " + line)
-    # The first frames after opening are often empty or black while the sensor starts; an iPhone (Continuity
-    # Camera) can take several seconds to connect. Wait up to WARMUP_S for a real (non-black) frame.
-    ok, lit, t0, said = False, False, time.monotonic(), False
-    while time.monotonic() - t0 < WARMUP_S:
-        ok, f = cap.read()
-        if ok and f is not None and float(f.mean()) > 3.0:
-            lit = True
-            break
-        if not said and time.monotonic() - t0 > 2.0:
-            print(f"camera {cam!r}: waiting for a picture (up to {WARMUP_S:.0f} s)...", flush=True)
-            said = True
-        time.sleep(0.03)
-    if not ok:
-        print(f"error: camera {cam!r} opened but delivers no frames", file=sys.stderr)
-        if sys.platform == "darwin":
-            print(MAC_CAMERA_HINT, file=sys.stderr)
-        raise SystemExit(2)
-    if not lit:
-        print(f"warning: camera {cam!r} sends only black frames.", file=sys.stderr)
-        if sys.platform == "darwin":
-            print(IPHONE_HINT, file=sys.stderr)
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    src = FrameSource(cap, True, fps if fps > 0 else 30.0, f"camera {cam}")
-    print(f"camera {cam}: requested {args.width}x{args.height}, got {src.width}x{src.height} @ {src.fps:.1f} fps")
-    return src
+    """The camera or video named on the command line."""
+    return camera.open_source(camera=args.camera, video=getattr(args, "video", None), width=args.width, height=args.height)
 
 
 # --------------------------------------------------------------------------------------------- outputs
@@ -625,10 +475,10 @@ def _parse_xy(s: str) -> tuple[float, float]:
 
 
 def _load_calibration(path: str):
-    """Fixed (schema 1) Calibration or StickerCalibration (schema 2), via vision.calibration.load_calibration."""
+    """Fixed (schema 1) Calibration or StickerCalibration (schema 2), via gauge_reader.calibration.load_calibration."""
     if not Path(path).is_file():
-        raise SystemExit(f"error: no calibration at {path} - run `python -m vision.scale_reader calibrate` first")
-    import vision.calibration as vc
+        raise SystemExit(f"error: no calibration at {path} - run `python -m gauge_reader calibrate` first")
+    import gauge_reader.calibration as vc
     loader = getattr(vc, "load_calibration", None)
     return loader(path) if loader is not None else vc.Calibration.load(path)
 
@@ -763,7 +613,7 @@ WRONG_READING_G = 10.0      # sticker mode: a found frame this far off the truth
 
 
 def truth_is_stickers(path: str | Path) -> bool:
-    """A sticker-mode truth CSV (vision.synthetic_moving) has u and s1x columns."""
+    """A sticker-mode truth CSV (gauge_reader.synthetic.moving) has u and s1x columns."""
     with open(path, newline="") as f:
         header = next(csv.reader(f), [])
     return "u" in header and "s1x" in header
@@ -792,7 +642,7 @@ def evaluate(video: str | Path, truth: str | Path | None = None, g0: float = 0.0
     truth_p = Path(truth) if truth else Path(video).with_suffix(".truth.csv")
     if truth_p.is_file() and truth_is_stickers(truth_p):
         return evaluate_stickers(video, truth_p, g0, g1, max_frames)
-    from vision.calibration import Calibration
+    from gauge_reader.calibration import Calibration
     truth, cap, fps = _open_eval(video, truth)
     axis, truth_g = read_truth(truth)
     calib = Calibration.from_clicks(axis.p0, axis.p1, g0=g0, g1=g1)
@@ -833,7 +683,7 @@ def evaluate_stickers(video: str | Path, truth: str | Path | None = None, g0: fl
     """Sticker mode: calibration from the first truth row's s1, s2, p0, p1 (as if the user had clicked them),
     then the full StickerPipeline over the video. Pass = found rate >= 95 % on frames with both stickers
     visible, mean raw error <= 3 g, and no wrong reading (found but |error| > 10 g) anywhere."""
-    from vision.calibration import StickerCalibration
+    from gauge_reader.calibration import StickerCalibration
     truth, cap, fps = _open_eval(video, truth)
     with open(truth, newline="") as f:
         rows = {int(r["frame"]): r for r in csv.DictReader(f)}
@@ -987,7 +837,7 @@ class _CalibrateUI:
         """Sticker mode: once both lines are clicked, look for the two stickers along that line (once)."""
         if self.mode != "stickers" or len(self.clicks) < 2 or self.searched:
             return
-        from vision.stickers import find_stickers_near_line
+        from gauge_reader.stickers import find_stickers_near_line
         self.searched = True
         found = find_stickers_near_line(self.frozen, self.clicks[0], self.clicks[1])
         if found is None:
@@ -1022,17 +872,17 @@ class _CalibrateUI:
     def accept_clicks(self):
         p0, p1 = self.clicks
         if self.mode == "stickers":
-            from vision.calibration import StickerCalibration
+            from gauge_reader.calibration import StickerCalibration
             s1, s2 = self.stickers()
             calib = StickerCalibration.from_clicks(s1, s2, p0, p1, g0=self.args.g0, g1=self.args.g1)
         else:
-            from vision.calibration import Calibration
+            from gauge_reader.calibration import Calibration
             calib = Calibration.from_clicks(p0, p1, g0=self.args.g0, g1=self.args.g1)
         self.start_live(calib)
         self.dirty = True
 
     def draw_click(self) -> np.ndarray:
-        from vision.detector import find_red_blobs
+        from gauge_reader.detector import find_red_blobs
         disp = self.frozen.copy()
         if self.mode == "fixed":
             overlay.draw_blobs(disp, find_red_blobs(self.frozen), max_n=1)
@@ -1060,7 +910,7 @@ class _CalibrateUI:
         return disp
 
     def loop(self) -> int:
-        from vision.detector import find_red_blobs
+        from gauge_reader.detector import find_red_blobs
         _open_window(self.src.width or self.args.width, self.src.height or self.args.height)
         cv2.setMouseCallback(WINDOW, self.on_mouse)
         frame = None
@@ -1191,14 +1041,14 @@ def calibration_from_args(args, src: FrameSource | None = None):
     if args.p0 is None or args.p1 is None:
         raise SystemExit("error: give both --p0 and --p1")
     if args.mode == "fixed":
-        from vision.calibration import Calibration
+        from gauge_reader.calibration import Calibration
         return Calibration.from_clicks(args.p0, args.p1, g0=args.g0, g1=args.g1)
-    from vision.calibration import StickerCalibration
+    from gauge_reader.calibration import StickerCalibration
     s1, s2 = args.s1, args.s2
     if (s1 is None) != (s2 is None):
         raise SystemExit("error: give both --s1 and --s2 (or neither, to search for the stickers)")
     if s1 is None:
-        from vision.stickers import find_stickers_near_line
+        from gauge_reader.stickers import find_stickers_near_line
         found = find_stickers_near_line(_first_frame(src), args.p0, args.p1)
         if found is None:
             raise SystemExit("error: stickers not found near the 0 g - 600 g line; give --s1 X,Y --s2 X,Y "
@@ -1233,7 +1083,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--width", type=int, default=1920, help="requested camera width (default 1920)")
     g.add_argument("--height", type=int, default=1080, help="requested camera height (default 1080)")
 
-    ap = argparse.ArgumentParser(prog="python -m vision.scale_reader",
+    ap = argparse.ArgumentParser(prog="python -m gauge_reader",
                                  description="Read the Pesola 600 g spring scale through a camera.")
     sub = ap.add_subparsers(dest="cmd", required=True)
 

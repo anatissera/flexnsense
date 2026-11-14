@@ -27,8 +27,8 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
-from vision.detector import DetectorConfig, red_mask
-from vision.geometry import Axis
+from gauge_reader.detector import DetectorConfig, red_mask
+from lib.geometry import Axis
 
 Point = tuple[float, float]
 

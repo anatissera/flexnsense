@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from vision.geometry import Axis
+from lib.geometry import Axis
 
 
 @dataclass
