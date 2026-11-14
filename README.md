@@ -60,6 +60,42 @@ Patient-contact force limits are enforced **independently of the primary control
 - Physical e-stop within reach of both the patient and the operator.
 - The spring itself acts as a mechanical fuse.
 
+## Code layout
+
+```
+lib/              shared helpers for any script (robot arms, force calibration, gauge reader)
+  camera.py       open a camera by number or name ("iphone") or a video file; warm-up; python -m lib.camera lists cameras
+  env.py          read settings from the environment or .env (CAMERA_INDEX, ROBOT_PORT, ...)
+  filters.py      1D Kalman filter with outlier gate and "steady" flag (any noisy signal, e.g. servo current)
+  geometry.py     a line in an image: project points, distances along it
+gauge_reader/     roadmap item 2: read the PESOLA scale through a camera (python -m gauge_reader)
+scripts/          robot and calibration scripts (force calibration)
+tests/lib/, tests/gauge_reader/
+docs/             guides; docs/scale-reader.md for the gauge reader
+```
+
+```python
+from lib.camera import open_source
+from lib.filters import ReadingFilter
+
+src, filt = open_source(camera="iphone"), ReadingFilter(measurement_std_g=2.0)
+ok, frame, ts, idx = src.read()
+smooth = filt.update(reading, ts)            # .grams (smoothed value), .stable, .velocity_g_s
+```
+
+## Gauge reader (camera → grams)
+
+Roadmap item 2, in `gauge_reader/`, built on `lib/`. Two red dots on the PESOLA tube act as fixed references; the red indicator's position between them (a fraction) is converted to grams, so the reading survives the scale moving, turning or changing distance. Each frame yields grams, a steady flag and a reason when no reading is possible (dot covered, scale not found) — the confidence signal for the watchdog.
+
+```bash
+uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
+.venv/bin/python -m gauge_reader.launcher      # control panel: camera, calibrate, run
+.venv/bin/python -m gauge_reader --help         # command line: cameras, calibrate, run, evaluate
+.venv/bin/python -m pytest -q                   # 168 tests, no camera needed
+```
+
+Setup, calibration, how it works and precision: [docs/scale-reader.md](./docs/scale-reader.md).
+
 ## Where to start
 
 [ROADMAP.md](./ROADMAP.md) lists the subtasks and the branch for each.
