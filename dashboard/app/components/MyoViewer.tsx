@@ -57,6 +57,11 @@ export type ViewerHooks = {
   anchors?: RefObject<{ wanted: Set<string>; pos: Record<string, MuscleAnchor> }>;
   /** Fingertip force (N) during a live curl; drawn as an arrow at the index fingertip. Null hides it. */
   force?: RefObject<{ n: number } | null>;
+  /**
+   * Hand-tracking mode: when non-null, these joint angles (rad, by joint name) are imposed
+   * kinematically every step and all muscle drive is off, so the sim hand mirrors a tracked hand.
+   */
+  handPose?: RefObject<Record<string, number> | null>;
 };
 // Force arrow: length grows linearly with force, from the index fingertip, pointing out along the finger in the xy-plane.
 const FORCE_ARROW_MIN = 0.008; // m
@@ -64,7 +69,7 @@ const FORCE_ARROW_PER_N = 0.0022; // m per newton (28 N peak is about 7 cm)
 const FORCE_HEAD_WIDTH = 0.007; // m
 export type MuscleAnchor = { x: number; y: number; visible: boolean; act: number };
 
-export default function MyoViewer({ drive, curl, health, highlight, anchors, force: forceRef }: ViewerHooks = {}) {
+export default function MyoViewer({ drive, curl, health, highlight, anchors, force: forceRef, handPose }: ViewerHooks = {}) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctl = useRef<Controls>({
     flexor: 0,
@@ -124,7 +129,37 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
         const j = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT.value, n);
         return { q: model.jnt_qposadr[j] as number, v: model.jnt_dofadr[j] as number, val: v as number };
       });
+      // While a curl is played, every other digit is held in extension (flexion joints at 0).
+      const restJoints = [
+        ...[3, 4, 5].flatMap((d) => [`mcp${d}_flexion_r`, `pm${d}_flexion_r`, `md${d}_flexion_r`]),
+        "cmc_flexion_r", "mp_flexion_r", "ip_flexion_r",
+      ];
+      const restPins = restJoints.map((n) => {
+        const j = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT.value, n);
+        return { q: model.jnt_qposadr[j] as number, v: model.jnt_dofadr[j] as number };
+      });
+      const jointIds = new Map<string, number>();
+      const jointId = (n: string) => {
+        if (!jointIds.has(n)) jointIds.set(n, mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT.value, n));
+        return jointIds.get(n)!;
+      };
       const pinPose = () => {
+        const hp = handPose?.current;
+        if (hp) {
+          for (const [n, val] of Object.entries(hp)) {
+            const j = jointId(n);
+            if (j < 0) continue;
+            const lo = model.jnt_range[2 * j];
+            const hi = model.jnt_range[2 * j + 1];
+            data.qpos[model.jnt_qposadr[j]] = Math.min(Math.max(val, lo), hi);
+            data.qvel[model.jnt_dofadr[j]] = 0;
+          }
+        } else if (curl?.current) {
+          for (const p of restPins) {
+            data.qpos[p.q] = 0;
+            data.qvel[p.v] = 0;
+          }
+        }
         for (const p of pins) {
           data.qpos[p.q] = p.val;
           data.qvel[p.v] = 0;
@@ -310,7 +345,9 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
         }
         const d = drive?.current;
         const cv = curl?.current;
-        if (cv) {
+        if (handPose?.current) {
+          data.ctrl.fill(0);
+        } else if (cv) {
           const jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT.value, cv.joint);
           const q = data.qpos[model.jnt_qposadr[jid]];
           const qp = data.qpos[model.jnt_qposadr[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT.value, cv.pip)]];
@@ -522,7 +559,7 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
       cancelled = true;
       cleanup();
     };
-  }, [startGrasp, drive, curl, health, highlight, anchors, forceRef]);
+  }, [startGrasp, drive, curl, health, highlight, anchors, forceRef, handPose]);
 
   const set = (patch: Partial<Controls>) => Object.assign(ctl.current, patch);
 
