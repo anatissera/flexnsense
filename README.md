@@ -130,7 +130,7 @@ The work is split into the subtasks of [ROADMAP.md](./ROADMAP.md), one branch an
 | 2 | Gauge reader: PESOLA → grams + confidence from a camera | `feature/gauge-reader` | ✅ merged ([#5](https://github.com/anatissera/leukerbad-hackathon/pull/5)) |
 | 3 | Admittance controller + safety layer | `feature/admittance-control` | ⚪ planned |
 | 4 | Simulation rig (MuJoCo SO-101 + spring) | `feature/sim-rig` | ⚪ planned |
-| 5 | Hand tracking / range of motion | `feature/hand-tracking` | ⚪ planned |
+| 5 | Hand tracking / range of motion | `feature/hand-tracking` | 🟡 in progress ([#15](https://github.com/anatissera/leukerbad-hackathon/pull/15)) |
 | 6 | Session metrics: force–displacement, stiffness | `feature/session-metrics` | ⚪ planned |
 | 7 | Remote clinician dashboard | `feature/remote-dashboard` | ⚪ planned |
 
@@ -141,6 +141,7 @@ git clone https://github.com/anatissera/leukerbad-hackathon.git && cd leukerbad-
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python -m pytest -q                   # all tests, no camera or robot needed
 .venv/bin/python -m gauge_reader.launcher      # gauge reader control panel: camera, calibrate, run
+.venv/bin/python -m hand_tracking run           # finger flexion angles, live window (downloads the model once)
 ```
 
 Robot arms (LeRobot install, motor IDs, calibration, `.env`): [SETUP.md](./SETUP.md).
@@ -150,8 +151,9 @@ Robot arms (LeRobot install, motor IDs, calibration, `.env`): [SETUP.md](./SETUP
 ```
 lib/              shared helpers for any script: camera, .env settings, Kalman filter, geometry
 gauge_reader/     subtask 2: read the PESOLA scale through a camera (python -m gauge_reader)
+hand_tracking/    subtask 5: finger flexion angles through a camera (python -m hand_tracking)
 scripts/          robot and calibration scripts (force calibration)
-tests/            tests per package: tests/lib/, tests/gauge_reader/
+tests/            tests per package: tests/lib/, tests/gauge_reader/, tests/hand_tracking/
 docs/             guides and diagrams
 ```
 
@@ -173,6 +175,7 @@ ok, frame, ts, idx = src.read()
 | [SETUP.md](./SETUP.md) | Python, LeRobot, motors and `.env` |
 | [docs/force-calibration.md](./docs/force-calibration.md) | The servo-current calibration experiment |
 | [docs/scale-reader.md](./docs/scale-reader.md) | The gauge reader: setup, calibration, precision, troubleshooting |
+| [docs/hand-tracking.md](./docs/hand-tracking.md) | Hand landmarks: model, the flexion angle, running it |
 | [AGENTS.md](./AGENTS.md) | Git workflow, branch naming, rules for contributors and coding agents |
 
 `main` is protected: work on the roadmap branch and open a PR. Commits and PRs do not credit AI tools (see [AGENTS.md](./AGENTS.md)).

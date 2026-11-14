@@ -2,3 +2,6 @@
 opencv-python>=4.10
 numpy>=1.26
 pytest>=8
+
+# hand_tracking/: CPU hand landmarks (MediaPipe Hand Landmarker, model auto-downloaded on first run)
+mediapipe>=0.10
