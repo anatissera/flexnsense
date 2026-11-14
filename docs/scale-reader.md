@@ -1,0 +1,173 @@
+# Scale Reader
+
+Reads a **Pesola Medio-Line 600 g** spring scale through a camera and shows the weight (or pulling force) in grams, live, and logs it to a file. It works while the scale is held in the hands and moving.
+
+## What you need
+
+- The Pesola 600 g scale (0–600 g, 5 g per line). Datasheet: [pesola-medio-line-40600-datasheet.pdf](pesola-medio-line-40600-datasheet.pdf) (item 40600: capacity 600 g, division 5 g, precision ±0.3 %, scale length 100 mm, tube 12 mm).
+- **Two red dots** drawn or stuck on the scale's tube (see below).
+- A camera: the laptop camera, or an iPhone via Continuity Camera (better picture).
+- Python 3.12 and this repository.
+
+## Set up the scale: two red dots
+
+The scale already has a red **marker** that slides along the slot as the load changes. Add two red dots that never move:
+
+```
+  [label] ●  ●marker ───────────────────────── 600   ●
+          ↑  ↑                                       ↑
+     dot 1   marker (moves with the weight)     dot 2
+```
+
+- **Dot 1:** about 1 cm before the **0** line, where the marker rests when nothing hangs on the scale.
+- **Dot 2:** about 1 cm after the **600** line.
+- Both on the tube's side facing the camera, at the same height, on the line the marker travels.
+- About 4–6 mm wide. Do not let a dot touch the marker.
+- Hold the scale by the ring and the hook, never over the dots.
+
+## Install
+
+```bash
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -r requirements-vision.txt
+```
+
+## Use it
+
+Open the control panel:
+
+```bash
+.venv/bin/python -m vision.launcher
+```
+
+1. Pick the **camera** (an iPhone appears by name) and keep **Mode = Stickers**.
+2. Press **1 · Calibrate**. With **nothing hanging on the scale**, in the camera window:
+   - **SPACE** freezes the picture.
+   - Click the **0** line, then the **600** line.
+   - The two dots get circled automatically. Press **ENTER**.
+   - Press **z** to set zero, **s** to save, **q** to quit.
+3. Press **2 · Run**. The weight appears on the video:
+   - **green** = steady reading,
+   - **amber** = the load is changing,
+   - a message such as **"sticker hidden"** = a dot is covered, so no number is shown (it never guesses).
+
+Each session is saved as a CSV file in `recordings/` (time and grams; no images).
+
+Optional: to double-check, hang a known weight during calibration, press **w** in the camera window, type the grams in the control panel and press **Send**.
+
+### Command line
+
+The control panel runs these commands; they also work on their own:
+
+```bash
+.venv/bin/python -m vision.scale_reader cameras                       # list cameras and their numbers
+.venv/bin/python -m vision.scale_reader calibrate --camera iphone     # sticker mode (default); --mode fixed for a clamped scale
+.venv/bin/python -m vision.scale_reader calibrate --resume            # reload the saved calibration: re-zero, add weights
+.venv/bin/python -m vision.scale_reader run --camera iphone           # live reading + CSV in recordings/
+.venv/bin/python -m vision.scale_reader run --headless --video clip.mp4 --csv out.csv
+
+# tests without hardware: synthetic hand-held video with exact ground truth, then score it
+.venv/bin/python -m vision.synthetic_moving recordings/moving.mp4 --speed 2 --occlude-every 40
+.venv/bin/python -m vision.scale_reader evaluate --video recordings/moving.mp4
+```
+
+Keys in the camera window — calibrate: `SPACE` freeze, click 0 then 600, `ENTER` accept, `c` click the dots by hand, `z` zero, `w` known weight, `s` save, `m` mask, `q` quit. Run: `z` zero, `s` save, `SPACE` pause, `m` mask, `q` quit.
+
+CSV columns: `time_s, frame, found, t_px, raw_g, grams, stable, std_g, confidence, u, sticker_dist_px, reason`.
+
+## How it works (simply)
+
+1. Every video frame, the program looks for **red spots**.
+2. It finds the **three spots in a row**: the two outer ones are the dots, the one between them is the marker.
+3. It measures **where the marker sits between the two dots**, as a fraction (for example 40 % of the way).
+4. Calibration told it which fraction means 0 g and which means 600 g, so the fraction becomes **grams**.
+5. A smoothing filter removes jitter and marks the reading as steady when it stops changing.
+
+Because everything is measured *relative to the dots*, it does not matter if the scale moves, tilts, or gets closer to or further from the camera: the fraction stays the same.
+
+### Why moving the scale does not change the reading
+
+The program never keeps pixel positions from the calibration picture. It keeps **fractions**.
+
+**At calibration (once)** it stores where the 0 line and the 600 line fall *between the two dots*, as fractions of the dot-to-dot distance:
+
+```
+dot 1 ●───┃0───────────────────────────┃600───● dot 2
+      0   0.124                       0.918   1
+```
+
+(Real values from our iPhone calibration: the 0 line sits at 0.124, the 600 line at 0.918.)
+
+**In every frame** it finds dot 1 (D1), dot 2 (D2) and the marker (M) again, in that frame's pixels, and computes:
+
+```
+u      = ((M − D1) · (D2 − D1)) / |D2 − D1|²     how far along the dots the marker is, 0 to 1
+grams  = 600 × (u − 0.124) / (0.918 − 0.124)     then corrected by the zero set with z
+```
+
+When the scale moves closer or further, **every distance in the picture grows or shrinks by the same factor**, so the fraction does not change:
+
+| | Scale close to the camera | Scale further away |
+|---|---|---|
+| Dot 1 to dot 2 | 1340 px | 900 px |
+| Dot 1 to marker | 697 px | 468 px |
+| **u = marker ÷ dots** | **0.520** | **0.520** |
+| Reading | 300 g | 300 g |
+
+The same holds when the scale slides or turns in the picture. In our two real calibrations the dot distance changed by 14 % (about 1340 px vs 1160 px), but the 0-line fraction changed by less than 0.1 % (0.1239 vs 0.1231).
+
+What *does* affect it:
+
+- **Tilting the scale towards or away from the camera**: the near end looks bigger, so the fraction shifts a little (about 1–2 g for a small tilt). Keep the scale roughly face-on.
+- **Dots that can move against the printed lines**: draw them on the same rigid tube as the numbers, not on the hook or the moving part.
+- **A dot covered or outside the picture**: no reading is shown until both dots are visible again.
+
+### Smoothing: the Kalman filter
+
+Every frame gives a raw reading with a little noise. Before it is shown, it goes through a small **Kalman filter** (`vision/smoothing.py`; the method is explained step by step at [kalmanfilter.net](https://kalmanfilter.net/)). It tracks two numbers, the weight in grams and how fast it is changing in grams per second, and blends:
+
+- a **prediction**: "it was 250 g and rising 20 g/s, so now it should be about 251 g", and
+- the **new measurement**: "the camera says 252 g",
+
+weighing each by how much it can be trusted. The result is smoother than the raw value without lagging as much as a plain average.
+
+What it does for the scale:
+
+| Job | Without it | With it |
+|---|---|---|
+| Jitter at rest | The number flickers a gram or two | Steady |
+| Steady flag (green / amber) | Hard to decide | Steady when the rate is under 5 g/s and the spread is small |
+| One bad frame (blur, glare) | A spike in the log | Dropped as an outlier |
+| A real, fast pull | – | Recognised; the filter restarts instead of trailing behind |
+| Uneven frame timing (iPhone 30 fps, Mac 15 fps) | Breaks a fixed-window average | Handled: each step uses the real time between frames |
+
+What it cannot do:
+
+- **Fix systematic errors.** A wrong calibration, the scale tilted towards the camera or a misplaced dot shifts every reading the same way; the filter just smooths the wrong value. Those are fixed with **z**, known weights and a good setup.
+- **Avoid a little lag on fast pulls**: up to about 25 g during a quick ramp in our tests, catching up once the load settles. The raw value is always in the CSV too.
+- **Guess while a dot is covered.** It could keep predicting, but those guesses were up to 155 g off in tests, so the app shows "sticker hidden" instead of a number.
+
+Tuning: the filter's noise settings are currently set from test videos. To match a real camera, hold the scale still for 10 seconds, look at the spread of `raw_g` in the CSV, and set the filter's measurement noise (`measurement_std_g`) to that value.
+
+A bonus for rehab: the filter also estimates the **rate of pull** (grams per second), which shows how quickly a patient builds force. It is available in the code (`velocity_g_s`) and could be added to the CSV and the therapist view.
+
+## How precise is it?
+
+- The scale itself is accurate to about **±1.8 g** (±0.3 % of 600 g, from the [datasheet](pesola-medio-line-40600-datasheet.pdf)).
+- On test videos of a moving, tilting, blurred scale, the camera adds less than **0.5 g** of error.
+- Expect about **±3 g** in real use with a steady light. Fast movement or bad light makes it worse; a covered dot stops the reading instead of giving a wrong one.
+
+## Troubleshooting
+
+| Problem | What to do |
+|---|---|
+| Camera does not open | macOS System Settings → Privacy & Security → Camera → allow your terminal or IDE. |
+| iPhone picture is black | Lock the iPhone, keep it still in landscape near the Mac (Wi-Fi and Bluetooth on, same Apple ID). It should say "Connected to Mac". Opening Photo Booth and choosing the iPhone forces the connection. |
+| "Stickers not found" at calibration | Both dots and the marker must be visible. Check there are **two** dots plus the marker. You can also click dot 1, then dot 2, by hand. |
+| Reads a few grams at 0 g | Press **z** with nothing on the scale (zero), then **s** to save. |
+| "Sticker hidden" often | Fingers cover a dot, or a dot leaves the picture. Hold the scale by its ends and keep it fully in view. |
+| Jumpy numbers | Use steady, even light; avoid moving shadows and strong reflections on the metal tube. |
+
+## Privacy
+
+Frames are processed in memory and never saved. The CSV holds only times and grams. The optional `--record` mode saves only a narrow strip around the scale, never the full picture (the camera may also see the person using it).
