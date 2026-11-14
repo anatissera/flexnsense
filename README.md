@@ -16,4 +16,4 @@ Use a **LeRobot SO-101** robotic arm (open-source, 6 DOF, supported by Hugging F
 
 Repo just created — structure and code in progress during the hackathon.
 
-See [AGENTS.md](./AGENTS.md) for the git/GitHub workflow.
+See [SETUP.md](./SETUP.md) for environment setup (Python, LeRobot install, motor/port config, `.env`) and [AGENTS.md](./AGENTS.md) for the git/GitHub workflow.
