@@ -39,7 +39,7 @@ Can run in parallel with 1–2.
 
 ## 5. Hand tracking / ROM - `feature/hand-tracking`
 
-Finger range of motion during the session. MediaPipe Hand Landmarker on CPU is the safe default; WiLoR if the 4 GB RTX 3050 holds it in fp16 (verify with `nvidia-smi` before committing to it) - WiLoR also outputs MANO joint rotations, which is the input format a musculoskeletal model would later want.
+Finger range of motion during the session. MediaPipe Hand Landmarker on CPU is the safe default, done: `hand_tracking/` reports one flexion angle per finger, see [docs/hand-tracking.md](./docs/hand-tracking.md). WiLoR is still worth adding alongside it if the 4 GB RTX 3050 holds it in fp16 (verify with `nvidia-smi` before committing to it) - it outputs MANO joint rotations, which is the input format a musculoskeletal model would later want, something a bare per-joint angle does not give.
 
 Independent of 1–4.
 
