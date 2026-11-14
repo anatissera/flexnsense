@@ -20,7 +20,7 @@ to train on data Station recorded, after converting Station's own Parquet format
 - Main repo: [norma-core/norma-core](https://github.com/norma-core/norma-core)
 - Station Python client (verified against the actual source):
   [`software/station/shared/station_py/`](https://github.com/norma-core/norma-core/tree/main/software/station/shared/station_py)
-  — `client.py`, `example_follow.py`, `example_commands.py` is where
+  - `client.py`, `example_follow.py`, `example_commands.py` is where
   [`lib/station.py`](../lib/station.py) comes from, line for line on the protocol parts.
 - ElRobot hardware (BOM, STL/STEP, manuals, URDF):
   [`hardware/elrobot/`](https://github.com/norma-core/norma-core/tree/main/hardware/elrobot)
@@ -31,9 +31,9 @@ to train on data Station recorded, after converting Station's own Parquet format
 Everything flows over one TCP connection to the `station` binary (default port 8888),
 protobuf-encoded, through named queues:
 
-- **`st3215/inference`** — a continuous stream of every bus and every motor's raw state.
+- **`st3215/inference`** - a continuous stream of every bus and every motor's raw state.
   Subscribe with `client.follow("st3215/inference", queue)`.
-- **`commands`** — write a `DriverCommand` here to move a motor.
+- **`commands`** - write a `DriverCommand` here to move a motor.
 
 A motor's state is a raw byte blob at fixed ST3215 register offsets (from NormaCore's own
 example, which cites `protocol/memory.rs`):
@@ -41,7 +41,7 @@ example, which cites `protocol/memory.rs`):
 | Field | Offset | Size | Notes |
 |---|---|---|---|
 | Position | `0x38` | 2 bytes | sign bit flags direction; `lib/station.py` unwraps it |
-| Current | `0x45` | 2 bytes | **milliamps directly** — Station has already decoded it, no `x6.5` scaling needed |
+| Current | `0x45` | 2 bytes | **milliamps directly** - Station has already decoded it, no `x6.5` scaling needed |
 | Temperature | `0x3F` | 1 byte | degrees C |
 | Voltage | `0x3E` | 1 byte | 0.1 V units |
 
