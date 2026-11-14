@@ -55,7 +55,7 @@ node_modules/
 WiLoR/
 lerobot/
 
-# Internal working docs (plans, datasheets) — not shared in the repo
+# Internal working docs (plans, datasheets) - not shared in the repo
 internal-docs/
 
 # Gauge reader: per-machine calibration and session output

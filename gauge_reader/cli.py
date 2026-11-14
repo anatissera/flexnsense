@@ -400,7 +400,7 @@ class SessionLog:
 
 class StripRecorder:
     """Writes ONLY a crop around the scale (fixed mode: the rectified marker strip; sticker mode: the rectified
-    S1-S2 region), upscaled, to an mp4 — never full frames, the camera also sees the patient."""
+    S1-S2 region), upscaled, to an mp4 - never full frames, the camera also sees the patient."""
 
     def __init__(self, path: str | Path, fps: float, target_width: int = 1280, max_scale: float = 4.0):
         self.path = Path(path)
