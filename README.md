@@ -2,18 +2,64 @@
 
 Project for the **Leukerbad Robotics Hackathon 2026** (Nov 14–16, 2026, Leukerbad, Switzerland), **Elderly Care & Rehabilitation** track.
 
-## Idea
+## The idea
 
-Use a **LeRobot SO-101** robotic arm (open-source, 6 DOF, supported by Hugging Face LeRobot) to assist **rehabilitation of patients recovering from hand surgery**: guided reach/manipulation exercises, progress logging, and **remote supervision by a doctor/therapist**.
+A **force-limited tether** for rehabilitating fingers after hand surgery, built from two LeRobot SO-101 arms, with a clinician supervising remotely.
 
-## Planned components
+- **Arm A** holds and stabilizes the patient's hand in a fixed pose. No policy — a hardcoded position.
+- **Arm B** is connected to one of the patient's fingers through a calibrated **spring dynamometer** (a gram scale with a red sliding indicator).
 
-- **Hardware**: LeRobot SO-101 arm (leader/follower, Feetech STS3215 servos).
-- **Software**: `lerobot` (Hugging Face) for control/calibration; camera for session tracking; remote interface so the clinician can supervise and adjust difficulty.
-- **Demo**: a functional exercise session (reach/grasp of light objects) with metrics on completed tasks, assistance needed, and variability, visible to the remote supervisor.
+The patient moves the finger. Arm B stays put, acting as an anchor, so the spring stretches and the force rises. Once the force reaches that patient's prescribed threshold (e.g. 200 g), arm B **yields**: it moves slowly in the direction of the finger so the spring stretches no further, capping the force at the threshold.
+
+The clinician sets the threshold and watches the session remotely.
+
+Dynamic finger splints in hand therapy work in the 0–450 g range, so a 200 g cap sits in a clinically sensible band. The device category this belongs to is **CPM (continuous passive motion)**, used after hand surgery to prevent capsular and tendon adhesions.
+
+## How force is measured without a force sensor
+
+The kit has no force/torque sensor, but there are two independent signals:
+
+1. **Camera + dynamometer** — a vision model locates the red indicator against the printed scale and converts it to grams. Physical ground truth, ~30 Hz, but fragile (occlusion, blur, lighting).
+2. **Servo current** — the Feetech STS3215 motors expose `Present_Load` (register 60) and `Present_Current` (register 69, ×6.5 → mA), readable through LeRobot's `bus.sync_read`. Fast and robust, but unitless.
+
+The plan is to **calibrate (2) against (1)** using known hanging weights, run the control loop on servo current for speed and stability, and keep the camera as independent verification and as the gram readout shown to the clinician.
+
+## Control
+
+Admittance control with a deadband — clinically, *assist-as-needed*:
+
+```
+F = estimate_force()            # calibrated servo current, filtered
+if F < F_threshold:
+    hold_position()             # the arm is the anchor
+else:
+    v = k * (F - F_threshold)   # yield proportionally to the excess
+    v = clip(v, 0, v_max)       # always slow
+    move(v, direction_that_reduces_F)
+```
+
+This is deliberately **not** a learned policy. ACT and Diffusion Policy execute action chunks open-loop and cannot react to contact forces mid-chunk, which is the exact failure mode a device pulling on a post-surgical finger must not have. They also need 50–200 demonstrations and ~16 GB of VRAM to train, against a 4 GB laptop GPU and two days. RL from scratch is out for the same reason.
+
+## Where the learning actually is
+
+- The **vision model** that reads the dynamometer scale.
+- **Hand keypoint tracking** (MediaPipe or WiLoR) to measure finger range of motion during the session.
+- **Per-patient threshold adaptation** from the patient's response within a session — a lightweight online estimator, not deep RL.
+- The **force–displacement curve** recorded across the session, which yields joint stiffness. Stiffness derived from force–displacement curves is a published quantitative biomarker of post-surgical tendon adhesion, so the device measures recovery rather than only exercising it. This is the clinical deliverable the remote clinician watches evolve between sessions.
+
+## Safety
+
+Patient-contact force limits are enforced **independently of the primary control loop**:
+
+- Torque/current cap written to the servo registers, in force even if the control process dies.
+- Software position limits bounding how far arm B can travel.
+- Vision watchdog — on lost detection, low confidence, or dropped frames, **release tension and stop**, never hold.
+- Low maximum velocity throughout.
+- Physical e-stop within reach of both the patient and the operator.
+- The spring itself acts as a mechanical fuse.
 
 ## Status
 
-Repo just created — structure and code in progress during the hackathon.
+In progress during the hackathon.
 
-See [AGENTS.md](./AGENTS.md) for the git/GitHub workflow.
+See [SETUP.md](./SETUP.md) for environment setup and [AGENTS.md](./AGENTS.md) for the git/GitHub workflow.

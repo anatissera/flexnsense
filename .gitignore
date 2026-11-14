@@ -6,3 +6,7 @@ venv/
 .DS_Store
 node_modules/
 *.log
+
+# cloned third-party repos
+WiLoR/
+lerobot/
