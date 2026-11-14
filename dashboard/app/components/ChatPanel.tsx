@@ -119,7 +119,7 @@ export default function ChatPanel({
 
       sock.onopen = () => setVoice("live");
       sock.onclose = (ev) => { if (rtc.current) { if (!ev.wasClean || ev.code !== 1000) setError(`Voice connection closed (${ev.code}) ${ev.reason}`); stopVoice(); } };
-      sock.onerror = () => setError("Voice connection error (could not reach api.openai.com — check network/extensions)");
+      sock.onerror = () => setError("Voice connection error (could not reach api.openai.com - check network/extensions)");
       sock.onmessage = (ev) => {
         const e = JSON.parse(ev.data);
         if (!e.type.endsWith(".delta")) console.debug("[realtime]", e.type, e);

@@ -28,6 +28,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from lib.units import grams_force_to_newtons
+
 STABLE_COVERAGE = 0.8
 _INIT_VEL_STD_G_S = 1000.0     # velocity unknown on (re)initialisation
 
@@ -39,6 +41,11 @@ class FilteredReading:
     velocity_g_s: float
     stable: bool
     std_g: float                # std of accepted raw readings over the stable window (nan if too few)
+
+    @property
+    def newtons(self) -> float | None:
+        """`grams` converted at the gf -> N boundary (see lib/units.py); what control code should read."""
+        return None if self.grams is None else grams_force_to_newtons(self.grams)
 
 
 class ReadingFilter:

@@ -187,7 +187,7 @@ def draw_mask_inset(img, mask, strip=None, max_frac=(0.6, 0.3), margin=None):
 
 
 def draw_blobs(img, blobs, max_n=3, color=MAGENTA):
-    """Mark suggested red blobs [(x, y, area), ...] (largest first) — helps finding the marker before clicking."""
+    """Mark suggested red blobs [(x, y, area), ...] (largest first) - helps finding the marker before clicking."""
     s = _ui_scale(img)
     for i, (x, y, area) in enumerate(list(blobs)[:max_n]):
         r = int(max(10 * s, np.sqrt(area) * 1.2))

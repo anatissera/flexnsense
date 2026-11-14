@@ -54,7 +54,7 @@ We are **Flex'N Sense**, a team of five.
 
 ## The problem
 
-After hand surgery, fingers have to be moved early and regularly to prevent tendons and joint capsules from sticking (adhesions). This is the job of **CPM, continuous passive motion**. The force matters: dynamic finger splints in hand therapy work in the **0–450 g** range, and too much force on a healing finger does harm. Therapists cannot be present for every session, and the kit available here has **no force sensor**.
+After hand surgery, fingers have to be moved early and regularly to prevent tendons and joint capsules from sticking (adhesions). This is the job of **CPM, continuous passive motion**. The force matters: dynamic finger splints in hand therapy work in the **0–450 g (0–4.4 N)** range, and too much force on a healing finger does harm. Therapists cannot be present for every session, and the kit available here has **no force sensor**.
 
 ## Our solution
 
@@ -63,7 +63,7 @@ A **force-limited tether** built from two SO-101 arms, with a clinician supervis
 1. **Arm A** holds the patient's hand still in a fixed pose (a hard-coded position, no policy).
 2. **Arm B** is tied to one finger through a **PESOLA spring scale** (0–600 g, 5 g per line, a red indicator on a linear printed scale).
 3. The patient moves the finger. Arm B stays put as an anchor, so the spring stretches and the force rises.
-4. When the force reaches the patient's prescribed cap (e.g. **200 g**), arm B **yields**: it moves slowly with the finger so the spring stretches no further.
+4. When the force reaches the patient's prescribed cap (e.g. **200 g, 1.96 N**), arm B **yields**: it moves slowly with the finger so the spring stretches no further.
 5. The **clinician** sets the cap and watches the session remotely, and can stop it.
 
 ![Force over time: it rises while the finger moves, stays at the 200 g cap while arm B yields, and drops when the finger relaxes](docs/images/force-cap.svg)
@@ -79,7 +79,7 @@ Two independent signals:
 | **Camera + PESOLA** | Read the red indicator against the printed scale and convert its position to grams (the gauge reader) | Physical ground truth, ~30 Hz | Glare, occlusion, motion blur |
 | **Servo current** | Feetech STS3215 `Present_Load` (register 60) and `Present_Current` (register 69, ×6.5 → mA) via LeRobot's motor bus | Fast and robust | Unitless; gearbox friction |
 
-The plan: **calibrate the servo current against the camera**, run the control loop on current for speed, and keep the camera as an independent check and as the gram readout the clinician sees ([docs/force-calibration.md](./docs/force-calibration.md)). The risk: the 1/345 gearbox may add a dead zone and hysteresis larger than a 200 g signal. The day-one calibration experiment finds out before anything is built on top of it.
+The plan: **calibrate the servo current against the camera**, run the control loop on current for speed, and keep the camera as an independent check and as the gram readout the clinician sees ([docs/force-calibration.md](./docs/force-calibration.md)). The risk: the 1/345 gearbox may add a dead zone and hysteresis larger than a 200 g (1.96 N) signal. The day-one calibration experiment finds out before anything is built on top of it.
 
 **Gauge reader.** Two red dots drawn on the PESOLA's tube act as fixed references. Each frame, the camera finds the three red spots in a row (dot, marker, dot); the marker's position *between* the dots is a fraction that does not change when the scale moves, turns or comes closer, and calibration turns it into grams. When a dot is covered, it reports a reason instead of a number. Details: [docs/scale-reader.md](./docs/scale-reader.md).
 
@@ -87,10 +87,11 @@ The plan: **calibrate the servo current against the camera**, run the control lo
 
 ### Control
 
-Admittance control with a deadband, clinically *assist-as-needed*:
+Admittance control with a deadband, clinically *assist-as-needed*. The gauge reads grams, matching the PESOLA and the clinician's cap, but everything past that reading is in newtons (SI), see AGENTS.md "Units":
 
 ```python
-F = estimate_force()            # calibrated servo current, filtered
+F = estimate_force()                        # newtons; calibrated servo current, filtered
+F_threshold = grams_force_to_newtons(200)   # the clinician's cap is set in grams, 200 gf = 1.96 N
 if F < F_threshold:
     hold_position()             # the arm is the anchor
 else:
