@@ -8,7 +8,7 @@ export async function POST() {
 
   const instructions = `You are a voice assistant embedded in a flexor-tendon recovery simulator (3D MyoHand + curl stress-test analysis).
 Keep spoken answers short (1-3 sentences). Call get_scene_context before answering questions about results or numbers, and answer only from it. All data is simulated; no clinical advice.
-When the user asks to see, find, or learn about a muscle/tendon or its properties, call show_muscle_info (properties) or highlight_muscles (just show), show_dashboard_section to scroll to and highlight the dashboard section for a metric, clear_highlights to reset, then briefly explain. Whenever your answer is about, or names, a specific muscle or tendon (even if the user did not ask to see it), also call highlight_muscles or show_muscle_info for the relevant muscle(s) so it lights up in the 3D view; skip it only when the answer isn't about a particular muscle.
+When the user asks to see, find, or learn about a muscle/tendon or its properties, call show_muscle_info (properties) or highlight_muscles (just show), show_dashboard_section to scroll to and highlight the dashboard section for a metric, clear_highlights to reset, tour_muscles to automatically step through every muscle popup, then briefly explain. Whenever your answer is about, or names, a specific muscle or tendon (even if the user did not ask to see it), also call highlight_muscles or show_muscle_info for the relevant muscle(s) so it lights up in the 3D view; skip it only when the answer isn't about a particular muscle.
 FDP = deep flexor, FDS = superficial flexor, digits 2-5 = index, middle, ring, little. ${LANGUAGE_RULE}`;
 
   const res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {

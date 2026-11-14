@@ -5,9 +5,10 @@ import MyoViewerClient from "./MyoViewerClient";
 import HandTracker, { type HandPose } from "./HandTracker";
 import { Bar, FINGER_COLOR, Legend, LineChart, type Band, type Series } from "./charts";
 import ChatPanel from "./ChatPanel";
+import GuideHand from "./GuideHand";
 import MuscleCallout from "./MuscleCallout";
 import type { MuscleAnchor } from "./MyoViewer";
-import { buildContext, muscleInfo, resolveMuscle } from "../lib/chatContext";
+import { buildContext, MUSCLE_NAMES, muscleInfo, resolveMuscle } from "../lib/chatContext";
 import { median } from "../lib/curlsim/dsp";
 import { curveAt } from "../lib/curlsim/dsp";
 import { genTrial, refOf } from "../lib/curlsim/generator";
@@ -181,12 +182,92 @@ export default function SimApp() {
       return next;
     });
   }, []);
+
+  // Explore mode: the mouse wheel steps through every tendon, highlighting it and opening its popup.
+  const [explore, setExplore] = useState(false);
+  const [exploreIdx, setExploreIdx] = useState(0);
+  const exploreRef = useRef(false);
+  const exploreIdxRef = useRef(0);
+  const viewerWrapRef = useRef<HTMLDivElement>(null);
+  const showExplore = useCallback((i: number) => {
+    const n = MUSCLE_NAMES.length;
+    const idx = ((i % n) + n) % n;
+    const m = MUSCLE_NAMES[idx];
+    exploreIdxRef.current = idx;
+    setExploreIdx(idx);
+    highlightRef.current = { muscles: new Set([m]), color: 0xfde047 };
+    updateCallouts([m]);
+  }, [updateCallouts]);
+  const startExplore = useCallback(() => {
+    exploreRef.current = true;
+    setExplore(true);
+    showExplore(0);
+  }, [showExplore]);
+  const tourTimer = useRef<ReturnType<typeof setInterval>>(undefined);
+  const stopTour = useCallback(() => { clearInterval(tourTimer.current); tourTimer.current = undefined; }, []);
+  useEffect(() => stopTour, [stopTour]);
+  const stopExplore = useCallback(() => {
+    stopTour();
+    if (!exploreRef.current) return;
+    exploreRef.current = false;
+    setExplore(false);
+    highlightRef.current = null;
+    updateCallouts([]);
+  }, [updateCallouts, stopTour]);
+  // Tool call: auto-advance through every muscle popup in explore mode.
+  const startTour = useCallback((sec: number) => {
+    stopTour();
+    exploreRef.current = true;
+    setExplore(true);
+    let i = 0;
+    showExplore(0);
+    tourTimer.current = setInterval(() => {
+      i += 1;
+      if (i >= MUSCLE_NAMES.length) { stopExplore(); return; }
+      showExplore(i);
+    }, sec * 1000);
+  }, [showExplore, stopExplore, stopTour]);
+  useEffect(() => {
+    const el = viewerWrapRef.current;
+    if (!el) return;
+    let acc = 0;
+    let last = 0;
+    const onWheel = (e: WheelEvent) => {
+      if (!exploreRef.current) return;
+      stopTour();
+      e.preventDefault();
+      e.stopPropagation();
+      acc += e.deltaY;
+      const now = performance.now();
+      if (Math.abs(acc) < 40 || now - last < 120) return;
+      showExplore(exploreIdxRef.current + (acc > 0 ? 1 : -1));
+      acc = 0;
+      last = now;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    return () => el.removeEventListener("wheel", onWheel, { capture: true });
+  }, [showExplore, stopTour]);
+  useEffect(() => {
+    if (!explore) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") stopExplore(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [explore, stopExplore]);
+
   const [focusSec, setFocusSec] = useState<string | null>(null);
   const focusTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(focusTimer.current), []);
   const onTool = useCallback((name: string, args: Record<string, unknown>) => {
     const resolve = (v: unknown) => (typeof v === "string" ? resolveMuscle(v) : null);
     const select = (m: string) => { const f = muscleInfo(m)?.finger; if (f) setSel(f); };
+    if (name === "tour_muscles") {
+      const raw = Number(args.seconds_each);
+      const sec = Number.isFinite(raw) ? Math.min(10, Math.max(1, raw)) : 3;
+      startTour(sec);
+      return `touring all ${MUSCLE_NAMES.length} muscle popups, ${sec}s each (about ${Math.round(MUSCLE_NAMES.length * sec)}s total); it stops on its own at the end`;
+    }
+    stopTour();
+    if (name !== "show_dashboard_section" && exploreRef.current) { exploreRef.current = false; setExplore(false); }
     if (name === "show_dashboard_section") {
       const id = String(args.section ?? "");
       const el = document.getElementById(`sec-${id}`);
@@ -227,7 +308,7 @@ export default function SimApp() {
       return `showing floating info box for ${m}`;
     }
     return `error: unknown tool ${name}`;
-  }, [updateCallouts]);
+  }, [updateCallouts, startTour, stopTour]);
 
   // Tint flexor tendons in the 3D model by the *estimated* recovery of each unit.
   useEffect(() => {
@@ -410,8 +491,11 @@ export default function SimApp() {
   return (
     <FocusCtx.Provider value={focusSec}>
     <div className="relative h-full w-full">
-      <MyoViewerClient curl={curlRef} health={healthRef} highlight={highlightRef} anchors={anchorsRef} force={forceRef} handPose={handPoseRef} />
+      <div ref={viewerWrapRef} className="absolute inset-0">
+        <MyoViewerClient curl={curlRef} health={healthRef} highlight={highlightRef} anchors={anchorsRef} force={forceRef} handPose={handPoseRef} explore={exploreRef} />
+      </div>
       <MuscleCallout callouts={callouts} anchors={anchorsRef} study={study} week={week} onClose={closeCallout} />
+      <GuideHand />
       <ChatPanel context={chatContext} onTool={onTool} />
       <aside className="panel absolute bottom-4 right-4 top-4 w-[470px] max-w-[calc(100%-2rem)] space-y-4 overflow-y-auto">
         <div>
@@ -440,6 +524,13 @@ export default function SimApp() {
               {[1, 2, 4].map((s) => <option key={s} value={s} className="text-black">{s}× speed</option>)}
             </select>
             <button onClick={() => setSeed((s) => s + 1)} className="btn">New patient</button>
+            <button onClick={explore ? stopExplore : startExplore} aria-pressed={explore} className="chip"
+              title="Scroll the mouse wheel over the 3D view to step through every tendon (Esc to exit)">
+              Explore
+            </button>
+            {explore && (
+              <span className="t-small muted">{exploreIdx + 1}/{MUSCLE_NAMES.length} {muscleInfo(MUSCLE_NAMES[exploreIdx])?.label}</span>
+            )}
           </div>
           <HandTracker pose={handPoseRef} disp={camDispRef} onStart={stop} onActive={onCamActive} />
           <div className="flex gap-1">
