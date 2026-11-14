@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-labelledby="t">
+  <title id="t">Flex'N Sense mark: a bending finger with a sensor dot and signal waves</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#102a43"/>
+      <stop offset="1" stop-color="#0b7285"/>
+    </linearGradient>
+    <linearGradient id="finger" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d9f2ff"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="124" height="124" rx="30" fill="url(#bg)"/>
+  <!-- the finger, flexing: three phalanges -->
+  <path d="M30,104 L38,70 L58,47 L84,40" fill="none" stroke="url(#finger)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- knuckles -->
+  <circle cx="38" cy="70" r="3.2" fill="#0b7285"/>
+  <circle cx="58" cy="47" r="3.2" fill="#0b7285"/>
+  <!-- sensor dot on the fingertip -->
+  <circle cx="86" cy="40" r="7.5" fill="#e12d39" stroke="#ffffff" stroke-width="2.5"/>
+  <!-- sense waves -->
+  <path d="M98,30 A15,15 0 0 1 98,50" fill="none" stroke="#3ebd93" stroke-width="4.5" stroke-linecap="round"/>
+  <path d="M106,22 A26,26 0 0 1 106,58" fill="none" stroke="#3ebd93" stroke-width="4.5" stroke-linecap="round" opacity="0.75"/>
+  <path d="M114,15 A37,37 0 0 1 114,65" fill="none" stroke="#3ebd93" stroke-width="4.5" stroke-linecap="round" opacity="0.45"/>
+</svg>
