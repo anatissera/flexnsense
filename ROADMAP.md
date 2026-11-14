@@ -39,7 +39,9 @@ Can run in parallel with 1–2.
 
 ## 5. Hand tracking / ROM - `feature/hand-tracking`
 
-Finger range of motion during the session. MediaPipe Hand Landmarker on CPU is the safe default, done: `hand_tracking/` reports one flexion angle per finger, see [docs/hand-tracking.md](./docs/hand-tracking.md). WiLoR is still worth adding alongside it if the 4 GB RTX 3050 holds it in fp16 (verify with `nvidia-smi` before committing to it) - it outputs MANO joint rotations, which is the input format a musculoskeletal model would later want, something a bare per-joint angle does not give.
+Finger range of motion during the session. MediaPipe Hand Landmarker on CPU is the safe default, done: `hand_tracking/` reports one flexion angle per finger, see [docs/hand-tracking.md](./docs/hand-tracking.md). WiLoR is still worth adding alongside it, and it outputs MANO joint rotations, which is the input format a musculoskeletal model would later want, something a bare per-joint angle does not give.
+
+The 4 GB question is now answered: WiLoR in fp16 peaks at 1.69 GB of VRAM on the RTX 3050 and runs at 11 FPS on 640x480 with two hands once its pyrender overlay is dropped (the dashboard draws its own hand, so that overlay, 73% of the cost, is not needed). Benchmark and the full argument in [docs/hand-tracking.md](./docs/hand-tracking.md). 11 FPS and a 2.5 GB checkpoint behind a server process mean WiLoR is the precision-capture path, not the live one: MediaPipe stays the default in the dashboard. Both already emit the same `HandFrame` (`hand_tracking/frame.py`, `dashboard/app/lib/handFrame.ts`), so the remaining work is the WiLoR service itself, not the plumbing around it.
 
 Independent of 1–4.
 
