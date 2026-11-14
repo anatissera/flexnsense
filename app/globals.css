@@ -1,26 +1,179 @@
 @import "tailwindcss";
 
+/*
+  Design tokens. One dark instrument-panel language shared by every overlay:
+  quiet slate surfaces, a bone-white primary action, and colour reserved for data
+  (fingers, phases) and state (danger, annotation).
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --surface: rgba(15, 18, 24, 0.82);
+  --surface-raised: rgba(255, 255, 255, 0.07);
+  --surface-hover: rgba(255, 255, 255, 0.13);
+  --line: rgba(255, 255, 255, 0.1);
+  --line-soft: rgba(255, 255, 255, 0.05);
+
+  --ink: #eceef1;
+  --ink-muted: #a3acb8;
+  --ink-faint: #727c89;
+
+  --primary: #ece9e2;
+  --primary-ink: #14171c;
+  --danger: #fb7185;
+  --warn: #fbbf24;
+  --annotate: #fde047;
+
+  --phase-flexion: #38bdf8;
+  --phase-hold: #f59e0b;
+  --phase-extension: #34d399;
+  --phase-rest: #9ca3af;
+
+  --radius-panel: 12px;
+  --radius-control: 6px;
+  --gutter: 16px;
+  --panel-pad: 16px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: #000;
+  --color-foreground: var(--ink);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: #000;
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* Containers */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    color: var(--ink);
+    padding: var(--panel-pad);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: calc(var(--panel-pad) * -1) calc(var(--panel-pad) * -1) 12px;
+    padding: 10px var(--panel-pad);
+    border-bottom: 1px solid var(--line);
+  }
+
+  /* Type */
+  .t-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .t-section { font-size: 12px; font-weight: 600; color: var(--ink); }
+  .t-body { font-size: 12px; }
+  .t-small { font-size: 11px; line-height: 1.4; }
+  .muted { color: var(--ink-muted); }
+  .faint { color: var(--ink-faint); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* Controls */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: var(--radius-control);
+    border: 1px solid transparent;
+    background: var(--surface-raised);
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 120ms;
+  }
+  .btn:hover:not(:disabled) { background: var(--surface-hover); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn-primary { background: var(--primary); color: var(--primary-ink); }
+  .btn-primary:hover:not(:disabled) { background: #fff; }
+  .btn-danger { background: var(--danger); color: #1a0509; }
+  .btn-danger:hover:not(:disabled) { background: #fda4af; }
+  .btn-icon { width: 24px; height: 24px; padding: 0; color: var(--ink-muted); background: transparent; }
+  .btn-icon:hover:not(:disabled) { color: var(--ink); }
+  .btn-sm { height: 24px; padding: 0 8px; font-size: 11px; }
+
+  /* Selectable chip (weeks, fingers). Active state is set via aria-pressed. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: var(--radius-control);
+    background: var(--surface-raised);
+    color: var(--ink);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 120ms;
+  }
+  .chip:hover { background: var(--surface-hover); }
+  .chip[aria-pressed="true"] { background: var(--primary); color: var(--primary-ink); font-weight: 600; }
+
+  .field {
+    height: 28px;
+    padding: 0 8px;
+    border-radius: var(--radius-control);
+    border: 1px solid var(--line);
+    background: var(--surface-raised);
+    color: var(--ink);
+    font-size: 12px;
+  }
+  .field::placeholder { color: var(--ink-faint); }
+  .field option { color: #000; }
+
+  input[type="range"] { accent-color: var(--primary); }
+
+  :where(button, input, select, a):focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+  .field:focus-visible { outline-offset: 0; }
+
+  /* Data display */
+  .tbl { width: 100%; text-align: left; border-collapse: collapse; }
+  .tbl th { color: var(--ink-muted); font-weight: 500; padding: 2px 0; }
+  .tbl td { padding: 3px 0; border-top: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; }
+  .kv {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 2px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .kv > :first-child { color: var(--ink-muted); }
+  .tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #0b0d11;
+  }
+  .section { scroll-margin-top: 8px; border-radius: var(--radius-control); transition: background 200ms, box-shadow 200ms; }
+  .section[data-focus="true"] {
+    background: rgba(253, 224, 71, 0.08);
+    box-shadow: 0 0 0 2px var(--annotate);
+    padding: 12px;
+    margin: 0 -12px;
+  }
+  .bubble { border-radius: 10px; padding: 6px 10px; }
+  .bubble-user { background: rgba(236, 233, 226, 0.16); margin-left: 32px; }
+  .bubble-bot { background: var(--surface-raised); margin-right: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn, .chip { transition: none; }
 }
