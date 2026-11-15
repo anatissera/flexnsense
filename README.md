@@ -195,7 +195,8 @@ ok, frame, ts, idx = src.read()
 | [docs/hardware-setup.md](./docs/hardware-setup.md) | Which physical arm is which: Follower 1/2, Leader 1/2, bus serials, who runs what |
 | [docs/session-orchestration.md](./docs/session-orchestration.md) | The two exercise modes, the rep and session state machines, the two-arm interlock, why arm 1 needs no VLA |
 | [docs/pull-mode-design.md](./docs/pull-mode-design.md) | Passive (device-driven) mode: the inverted monotonicity guard, the three stop conditions, end-feel. Designed, not implemented |
-| [docs/pitch-v2/](./docs/pitch-v2/) | Pitch deck, version 2: an HTML deck with real footage (open `index.html` locally). Version 1 is [docs/Pitch.pptx](./docs/Pitch.pptx) |
+| [docs/pitch-v3/](./docs/pitch-v3/) | Pitch deck, version 3 (current): an HTML deck with real footage, a zig-zag timeline and the updated dashboard (open `index.html` locally) |
+| [docs/pitch-v2/](./docs/pitch-v2/) | Pitch deck, version 2 (HTML). Version 1 is [docs/Pitch.pptx](./docs/Pitch.pptx) |
 | [AGENTS.md](./AGENTS.md) | Git workflow, branch naming, rules for contributors and coding agents |
 
 `main` is protected: work on the roadmap branch and open a PR. Commits and PRs do not credit AI tools (see [AGENTS.md](./AGENTS.md)).
