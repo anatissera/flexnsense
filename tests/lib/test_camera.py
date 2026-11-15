@@ -66,3 +66,167 @@ def test_list_cameras_uses_opencv_order(monkeypatch):
     monkeypatch.setattr(camera.sys, "platform", "darwin")
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: types.SimpleNamespace(stdout=json.dumps(listing), stderr=""))
     assert camera.list_cameras() == [(0, "ROG EYE S"), (1, "MacBook Air Camera"), (2, "Someone's iPhone Camera")]
+
+
+# ------------------------------------------------------------------ operating system: macOS and Linux
+# The platform is faked (sys.platform) and so are sysfs, /dev and cv2.VideoCapture: no camera is opened.
+
+def _fake_v4l(tmp_path, monkeypatch, nodes, dev=()):
+    """A fake /sys/class/video4linux (name -> (device name, index)) and a fake /dev."""
+    sysfs, devdir = tmp_path / "sys", tmp_path / "dev"
+    sysfs.mkdir()
+    devdir.mkdir()
+    for node, (name, index) in nodes.items():
+        (sysfs / node).mkdir()
+        if name is not None:
+            (sysfs / node / "name").write_text(name + "\n")
+        if index is not None:
+            (sysfs / node / "index").write_text(f"{index}\n")
+    for d in dev:
+        (devdir / d).write_text("")
+    monkeypatch.setattr(camera.sys, "platform", "linux")
+    monkeypatch.setattr(camera, "V4L_SYSFS", sysfs)
+    monkeypatch.setattr(camera, "V4L_DEV", devdir)
+
+
+@pytest.mark.parametrize("platform, expected", [("darwin", "macos"), ("linux", "linux"), ("linux2", "linux"),
+                                                ("win32", "other"), ("freebsd14", "other")])
+def test_host_os(monkeypatch, platform, expected):
+    monkeypatch.setattr(camera.sys, "platform", platform)
+    assert camera.host_os() == expected
+
+
+def test_list_cameras_linux_from_sysfs(tmp_path, monkeypatch):
+    # a UVC webcam makes two nodes (picture = index 0, metadata = index 1); the number is the /dev/videoN number
+    _fake_v4l(tmp_path, monkeypatch, {
+        "video0": ("Integrated Camera: Integrated C", 0), "video1": ("Integrated Camera: Integrated C", 1),
+        "video10": ("OBS Virtual Camera", 0),
+        "video2": ("ROG EYE S: ROG EYE S", 0), "video3": ("ROG EYE S: ROG EYE S", 1),
+        "v4l-subdev0": ("not a camera", 0)})
+    assert camera.list_cameras() == [(0, "Integrated Camera: Integrated C"), (2, "ROG EYE S"),
+                                     (10, "OBS Virtual Camera")]
+
+
+def test_list_cameras_linux_does_not_run_any_tool(tmp_path, monkeypatch):
+    import subprocess
+
+    def boom(*a, **k):
+        raise AssertionError("the Linux listing must not depend on an external tool")
+    monkeypatch.setattr(subprocess, "run", boom)
+    monkeypatch.setattr(camera.shutil, "which", boom)
+    _fake_v4l(tmp_path, monkeypatch, {"video0": ("USB Camera", 0)})
+    assert camera.list_cameras() == [(0, "USB Camera")]
+
+
+def test_list_cameras_linux_incomplete_sysfs(tmp_path, monkeypatch):
+    # no index file: keep the node; no name file: fall back to the device path
+    _fake_v4l(tmp_path, monkeypatch, {"video0": ("USB Camera", None), "video4": (None, 0)})
+    assert camera.list_cameras() == [(0, "USB Camera"), (4, "/dev/video4")]
+
+
+def test_list_cameras_linux_falls_back_to_dev(tmp_path, monkeypatch):
+    _fake_v4l(tmp_path, monkeypatch, {}, dev=["video2", "video0", "null", "videox"])
+    cams = camera.list_cameras()
+    assert [i for i, _ in cams] == [0, 2] and cams[0][1].endswith("video0")
+
+
+def test_list_cameras_linux_nothing(tmp_path, monkeypatch, capsys):
+    _fake_v4l(tmp_path, monkeypatch, {})
+    monkeypatch.setattr(camera, "V4L_SYSFS", tmp_path / "missing")
+    assert camera.list_cameras() == []
+    assert camera.main() == 1
+    out = capsys.readouterr().out
+    assert "macOS + ffmpeg" not in out and "plugged in" in out
+
+
+def test_resolve_camera_by_name_linux(tmp_path, monkeypatch):
+    # issue #44: on Linux a name fragment never matched, because the listing was empty
+    _fake_v4l(tmp_path, monkeypatch, {"video0": ("Integrated Camera", 0), "video2": ("ROG EYE S: ROG EYE S", 0)})
+    assert camera.resolve_camera("rog") == 2
+    assert camera.resolve_camera("/dev/video2") == "/dev/video2"      # a device path goes through untouched
+    with pytest.raises(SystemExit):
+        camera.resolve_camera("iphone")
+
+
+def test_main_lists_linux_cameras(tmp_path, monkeypatch, capsys):
+    _fake_v4l(tmp_path, monkeypatch, {"video0": ("USB Camera", 0)})
+    assert camera.main() == 0
+    assert "0   USB Camera" in capsys.readouterr().out
+
+
+def test_list_cameras_other_os(monkeypatch):
+    monkeypatch.setattr(camera.sys, "platform", "win32")
+    assert camera.list_cameras() == []
+
+
+def test_backends_and_hints_by_os(monkeypatch):
+    monkeypatch.setattr(camera.sys, "platform", "darwin")
+    assert camera.camera_backends() == [cv2.CAP_AVFOUNDATION] and camera.camera_hint() == camera.MAC_CAMERA_HINT
+    monkeypatch.setattr(camera.sys, "platform", "linux")
+    assert camera.camera_backends() == [cv2.CAP_V4L2, cv2.CAP_ANY] and "video" in camera.camera_hint()
+    monkeypatch.setattr(camera.sys, "platform", "win32")
+    assert camera.camera_backends() == [cv2.CAP_ANY] and camera.camera_hint() is None
+
+
+class _FakeCapture:
+    """Stands in for cv2.VideoCapture: records how it was opened, opens only with the backends in `works`."""
+    works: set = set()
+    calls: list = []
+
+    def __init__(self, *args):
+        type(self).calls.append(args)
+        self.opened = len(args) < 2 or args[1] in type(self).works
+
+    def isOpened(self):
+        return self.opened
+
+    def release(self):
+        self.opened = False
+
+    def set(self, prop, value):
+        return True
+
+    def get(self, prop):
+        return 30.0
+
+    def read(self):
+        return True, np.full((4, 4, 3), 128, np.uint8)
+
+
+def _fake_capture(monkeypatch, platform, works):
+    _FakeCapture.works, _FakeCapture.calls = set(works), []
+    monkeypatch.setattr(camera.sys, "platform", platform)
+    monkeypatch.setattr(camera.cv2, "VideoCapture", _FakeCapture)
+    return _FakeCapture.calls
+
+
+def test_open_camera_backend_macos(monkeypatch):
+    calls = _fake_capture(monkeypatch, "darwin", {cv2.CAP_AVFOUNDATION})
+    assert camera.open_camera(1).is_camera
+    assert calls == [(1, cv2.CAP_AVFOUNDATION)]
+
+
+def test_open_camera_backend_linux(monkeypatch):
+    calls = _fake_capture(monkeypatch, "linux", {cv2.CAP_V4L2})
+    assert camera.open_camera(2).is_camera
+    assert calls == [(2, cv2.CAP_V4L2)]
+
+
+def test_open_camera_linux_falls_back_when_v4l2_is_missing(monkeypatch):
+    calls = _fake_capture(monkeypatch, "linux", {cv2.CAP_ANY})
+    assert camera.open_camera(0).is_camera
+    assert calls == [(0, cv2.CAP_V4L2), (0, cv2.CAP_ANY)]
+
+
+def test_open_camera_linux_device_path(monkeypatch):
+    calls = _fake_capture(monkeypatch, "linux", set())
+    assert camera.open_camera("/dev/video2").is_camera
+    assert calls == [("/dev/video2",)]
+
+
+@pytest.mark.parametrize("platform, hint", [("linux", "usermod -aG video"), ("darwin", "Privacy & Security")])
+def test_open_camera_failure_prints_the_hint_for_this_os(monkeypatch, capsys, platform, hint):
+    _fake_capture(monkeypatch, platform, set())
+    with pytest.raises(SystemExit):
+        camera.open_camera(0)
+    assert hint in capsys.readouterr().err

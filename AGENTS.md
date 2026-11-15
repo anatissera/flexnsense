@@ -65,7 +65,7 @@ Read [README.md](./README.md) (the idea, safety rules, code layout) and [ROADMAP
 
 ```
 lib/              shared helpers with no knowledge of any one device; use them from any script
-  camera.py       cameras by number or name ("iphone") or video files, warm-up, frame source
+  camera.py       cameras by number or name ("iphone") or video files, warm-up, frame source; macOS and Linux (host_os)
   env.py          settings from the environment or .env (CAMERA_INDEX, STATION_HOST, FOLLOWER_BUS_SERIAL)
   filters.py      1D Kalman filter with outlier gate and "steady" flag
   geometry.py     line maths (Axis)
@@ -96,7 +96,7 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requi
 .venv/bin/python -m gauge_reader --help        # gauge reader CLI (cameras, calibrate, run, evaluate)
 .venv/bin/python -m gauge_reader.launcher      # gauge reader control panel
 .venv/bin/python -m hand_tracking run           # finger flexion angles, live window
-.venv/bin/python -m lib.camera                 # list cameras (macOS)
+.venv/bin/python -m lib.camera                 # list cameras (macOS and Linux)
 ```
 
 ## The arm: NormaCore Station, not LeRobot

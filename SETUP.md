@@ -23,11 +23,40 @@ rather: `source .venv/bin/activate`.
 
 ## 2. System dependencies
 
-`ffmpeg`, for video decoding (gauge reader, hand tracking):
+The Python packages are the same on macOS and Linux. `lib/camera.py` detects the operating system
+and picks the camera backend: AVFoundation on macOS, V4L2 on Linux.
+
+### Linux (Ubuntu)
 
 ```bash
-sudo apt-get install -y ffmpeg
+sudo apt-get install -y ffmpeg libgl1 libglib2.0-0 v4l-utils
+sudo usermod -aG video $USER      # then log out and in again
 ```
+
+- `ffmpeg`: video decoding (gauge reader, hand tracking).
+- `libgl1`, `libglib2.0-0`: needed by the `opencv-python` wheel to import and to open its windows. A
+  desktop Ubuntu usually has them already; a minimal or server install does not.
+- `v4l-utils`: optional. The code does not use it, but `v4l2-ctl --list-devices` and
+  `v4l2-ctl -d /dev/video0 --list-formats-ext` help when a camera misbehaves.
+- The `video` group lets your user read `/dev/video*`. Check with `ls -l /dev/video*` and `groups`.
+- The control panel (`python -m gauge_reader.launcher`) uses Tk. The Python that `uv` or conda installs
+  includes it. With the system Python, also install `python3-tk`.
+
+Cameras are numbered as the kernel numbers them: camera `N` is `/dev/videoN`. List them with
+`.venv/bin/python -m gauge_reader cameras`. The names come from `/sys/class/video4linux`, so no extra
+tool is needed. One USB camera often creates two devices (picture and metadata); only the picture one
+is listed, so the numbers can skip (0, 2, 4, ...).
+
+Use this repo's `.venv`, not an environment that has `opencv-python-headless` (LeRobot installs it).
+The headless build has no windows, so `calibrate` and `run` fail at `cv2.imshow` there.
+
+### macOS
+
+```bash
+brew install ffmpeg
+```
+
+Allow camera access for your terminal or IDE: System Settings -> Privacy & Security -> Camera.
 
 ## 3. Project packages (camera, filters, hand tracking)
 
@@ -122,7 +151,7 @@ cp .env.example .env
 - `STATION_HOST` - where Station is listening, e.g. `localhost` or `localhost:8888`. Default: `localhost`.
 - `FOLLOWER_BUS_SERIAL` - the bus serial for arm B (the one pulling against the PESOLA), from Station's web UI.
 - `LEADER_BUS_SERIAL` - if a leader arm is used, same idea.
-- `CAMERA_INDEX` - camera number, or a name fragment such as `iphone`.
+- `CAMERA_INDEX` - camera number, or a name fragment such as `iphone` (macOS) or `rog` (any OS). On Linux, number `N` is `/dev/videoN`.
 
 `.env` is git-ignored. Never commit it.
 

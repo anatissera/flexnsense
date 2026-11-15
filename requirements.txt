@@ -1,4 +1,7 @@
 # lib/ (shared camera, filters, geometry) and gauge_reader/. LeRobot is installed separately: see SETUP.md.
+# The same packages on macOS and Linux: the opencv-python wheel carries both camera backends (AVFoundation and
+# V4L2) and its own window toolkit, so no package needs an OS marker. lib/camera.py picks the backend by OS.
+# Linux system packages and camera permissions: SETUP.md, section 2.
 opencv-python>=4.10
 numpy>=1.26
 pytest>=8
