@@ -15,7 +15,7 @@ import logging
 
 import numpy as np
 
-from policy_runner import PolicyRunner
+from policy_runner import load_runner
 from protocol import recv_msg, send_msg
 from station_io import VIEWS
 
@@ -35,7 +35,7 @@ def main() -> None:
     if args.host not in ("127.0.0.1", "localhost", "::1") and not args.token:
         raise SystemExit("escuchando fuera de localhost sin --token: no. Usa un túnel SSH o pon --token.")
 
-    runner = PolicyRunner(args.checkpoint, device=args.device, n_action_steps=args.n_action_steps)
+    runner = load_runner(args.checkpoint, device=args.device, n_action_steps=args.n_action_steps)
     # calentamiento (la primera inferencia en CUDA es lenta)
     runner.predict_chunk(np.full(8, 0.5, np.float32), {v: np.zeros((224, 224, 3), np.uint8) for v in VIEWS}, "")
     log.info("policy %s en %s | chunk %d | n_action_steps %d", runner.cfg.type, runner.device,

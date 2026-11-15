@@ -19,6 +19,7 @@ Station directamente.
 | `inspect_normacore.py` | Revisa un dataset antes de convertirlo (fps, huecos, cámaras) |
 | `convert_normacore.py` | Parquet NormaCore → LeRobotDataset |
 | `train_act.sh` | Entrena ACT (y sube el resultado si se le da un repo) |
+| `normalize_cameras.py` + `train_smolvla.sh` | Fine-tune de SmolVLA con la receta de NormaCore (sección 3b) |
 | `upload_model.py` | Sube un checkpoint a Hugging Face con su model card |
 | `inference/run_local.py` | Inferencia con la policy en la misma máquina que el robot |
 | `inference/policy_server.py` + `robot_client.py` | Inferencia con la policy en un servidor GPU / nube |
@@ -140,7 +141,7 @@ Referencia medida (RTX PRO 4000 Blackwell, 24 GB): 8.5 pasos/s con batch 32, 3 G
 |---|---|---|
 | Dataset grabado (HF, dataset) | `<user>/flexnsense_skill<N>` | `JustoDario/flexnsense_skill1` |
 | LeRobotDataset convertido | `<user>/flexnsense_skill<N>_lerobot` | `JustoDario/flexnsense_skill1_lerobot` |
-| Run local (`RUN`) | `<policy>_flexnsense_skill<N>_c<chunk>` | `act_flexnsense_skill1_c30` |
+| Run local (`RUN`) | `<policy>_flexnsense_skill<N>_c<chunk>` | `act_flexnsense_skill1_c30`, `smolvla_flexnsense_skill1_c50` |
 | Modelo en HF (`HF_REPO`) | `<user>/flexnsense_<policy>_skill<N>_<tarea_corta>` | `JustoDario/flexnsense_act_skill1_rightindex2middle` |
 
 Si cambias algo relevante (chunk, pasos, subconjunto de episodios), refléjalo en `RUN`
@@ -175,6 +176,64 @@ python upload_model.py --checkpoint $CK --repo-id JustoDario/flexnsense_act_skil
   `train_config.json` (incluye rutas locales).
 - Para usarlo en otra máquina:
   `hf download <user>/<repo> --local-dir ./act_ckpt` y pasa `--checkpoint ./act_ckpt` a los scripts de inferencia.
+
+---
+
+## 3b. SmolVLA con el fine-tune de NormaCore
+
+Alternativa a ACT: el fine-tune estándar de NormaCore (`norma-core/software/ai/smolvla_py`), que
+parte de `lerobot/smolvla_base` y lee los Parquet de Station directamente (no usa el
+LeRobotDataset). Su `train.py` está escrito para el SO-101; aquí se ejecuta sin modificar y
+`train_smolvla.py` solo cambia lo que trae fijo:
+
+| `train.py` de NormaCore | Con el ElRobot | Cómo |
+|---|---|---|
+| 6 joints | 8 | se lee del Parquet |
+| 2 cámaras, por índice de `images[]` | 3, en orden fijo | `normalize_cameras.py` reordena cada episodio |
+| suelo de la std 1e-4 | 0.02 | `--std-floor`; los motores 5 y 7 casi no se mueven (std 0.012 y 0.003) |
+
+```bash
+# 1) Un solo Parquet con las cámaras en orden (side, gripper, table). ~20 s.
+python normalize_cameras.py --src ~/data/flexnsense_skill1_raw \
+    --output ~/data/flexnsense_skill1_canon.parquet --ref-views side,gripper,table
+
+# 2) Entrenar (crea el venv de smolvla_py la primera vez: transformers==5.3.0, aparte del de LeRobot)
+tmux new -s smolvla
+PARQUET=~/data/flexnsense_skill1_canon.parquet RUN=smolvla_flexnsense_skill1_c50 bash train_smolvla.sh
+```
+
+| Variable | Por defecto | Qué es |
+|---|---|---|
+| `PARQUET` / `RUN` | - | Parquet del paso 1 y nombre del run |
+| `STEPS` / `BATCH` | 12000 / 64 | la receta de NormaCore son 30000 pasos; ver tiempos abajo |
+| `SAVE_EVERY` | 2000 | cada cuántos pasos guarda checkpoint |
+| `STD_FLOOR` | 0.02 | `1e-4` = comportamiento original de NormaCore |
+| `OUT_ROOT` / `LOG_DIR` | `./outputs/train` / `./outputs/logs` | dónde se guarda todo |
+
+- **Checkpoints:** `outputs/train/<RUN>/step-NNNNNN/` y `final/`, cada uno con `config.json`,
+  `model.safetensors` (~900 MB), `stats.safetensors` y `elrobot.json` (vistas, dimensiones y la
+  frase del dataset; es lo que usa la inferencia para reconocer el checkpoint).
+- **Progreso:** `grep '^step' outputs/logs/<RUN>.log | tail -3`
+- **No se puede reanudar** (el `train.py` de NormaCore no tiene `--resume`). El LR sigue un coseno
+  ajustado a `STEPS`: los checkpoints intermedios sirven, pero no han terminado de bajar el LR.
+- Chunk de 50 acciones (5 s a 10 Hz), el del modelo base. Solo se entrena el action expert
+  (100 M de 450 M parámetros).
+
+Referencia medida (RTX PRO 4000 Blackwell, 24 GB): **0.54 pasos/s con batch 64, 13.5 GB de VRAM**,
+GPU al 100 %. 12 000 pasos ≈ 6 h (91 épocas de 8465 frames); 30 000 pasos ≈ 15 h.
+
+**Subir a Hugging Face:** `upload_model.py` es solo para checkpoints LeRobot. Para estos:
+`hf upload <user>/flexnsense_smolvla_skill<N>_<tarea> outputs/train/<RUN>/final . --repo-type model --private`
+(`elrobot.json` incluye rutas locales y `stats.safetensors` las estadísticas del dataset).
+
+**Inferencia:** los mismos scripts de la sección 4, pasando la carpeta del checkpoint
+(`.../final` o `.../step-NNNNNN`) como `--checkpoint`. Se ejecuta en el entorno de LeRobot
+(`setup_env.sh` ya pone `smolvla_py` en el path; probado con transformers 5.22).
+- Latencia por chunk: ~200 ms en GPU, ~1.8 s en CPU (4 hilos). Con CPU, mejor el modo remoto.
+- Ejecuta 15 de las 50 acciones antes de re-planificar (`--n-action-steps` para cambiarlo).
+- Usa la frase del dataset guardada en `elrobot.json`; `--task "..."` para otra.
+- El `scripts/run_policy.py` de NormaCore no sirve aquí: lee las cámaras por índice, asume 6
+  motores y falla al predecir por mezclar bf16 con float32 (aquí se usa autocast).
 
 ---
 
@@ -296,6 +355,95 @@ siempre con alguien listo para cortar la alimentación.
 Otras opciones: `--station host[:8888]`, `--motor-ids 1,...,8`, `--n-action-steps N`, `--task "..."`
 (solo para policies con lenguaje), `--device cpu|cuda`.
 
+### 4.5 SmolVLA en el portátil, paso a paso
+
+Para correr en local el SmolVLA de la sección 3b (`JustoDario/flexnsense_smolvla`) en el portátil
+que tiene el robot. Necesita GPU NVIDIA con ≥ 2 GB de VRAM libres (usa 1.2 GB) o, en su defecto, el
+modo remoto (4.3). Todo se hace en el portátil.
+
+**1. Código** (una vez, y `git pull` cada vez que cambie la rama):
+
+```bash
+git clone https://github.com/anatissera/leukerbad-hackathon.git      # si aún no lo tienes
+cd leukerbad-hackathon && git checkout feature/robot-training && git pull
+cd robot_training
+```
+
+**2. Entorno** (una vez; sáltalo si ya tienes el de `setup_env.sh`, p.ej. de probar ACT en local):
+
+```bash
+bash setup_env.sh ~/robot_env        # venv + LeRobot (con transformers) + norma-core + smolvla_py
+```
+
+En cada terminal nueva:
+
+```bash
+source ~/robot_env/env.sh
+python -c "import torch; print(torch.cuda.is_available())"     # debe decir True
+```
+
+Si dice `False`, la policy correrá en CPU (~2 s por chunk, el brazo irá a tirones): arregla el
+driver NVIDIA / instala un torch con CUDA, o usa el modo remoto.
+
+**3. Checkpoint** (una vez, ~1.2 GB):
+
+```bash
+hf auth login                                  # solo si el repo es privado
+hf download JustoDario/flexnsense_smolvla --local-dir ~/smolvla_ckpt
+ls ~/smolvla_ckpt      # config.json  elrobot.json  model.safetensors  stats.safetensors
+```
+
+La carpeta tiene que contener `elrobot.json`: es lo que hace que los scripts carguen SmolVLA en
+vez de una policy LeRobot. Para probar otro checkpoint (`step-NNNNNN`), cópialo a otra carpeta y
+pásala en `--checkpoint`.
+
+**4. Banco de cámaras** (una vez por escena; sáltalo si ya tienes `inference/camera_refs.npz`):
+
+```bash
+hf download JustoDario/flexnsense_skill1 --repo-type dataset --local-dir ~/data/flexnsense_skill1_raw
+cd inference
+python make_camera_refs.py --src ~/data/flexnsense_skill1_raw --ref-views side,gripper,table
+```
+
+**5. Prueba sin robot** (comprueba entorno, checkpoint y latencia; la primera vez necesita
+internet para bajar el tokenizer de SmolVLM2):
+
+```bash
+cd inference
+python selftest.py --ticks 60 \
+    --parquet ~/data/flexnsense_skill1_raw/data/move_device_from_right_index_to_right_middle_finger/episode_0030.parquet \
+    local --checkpoint ~/smolvla_ckpt
+```
+
+Tiene que acabar con `SELFTEST local: 60 sync writes`. Mira los `(inferencia N ms)`: la primera es
+lenta (calentamiento); las demás deberían quedar por debajo de ~500 ms. Si pasan de ~1 s, usa
+`--n-action-steps 25` o el modo remoto.
+
+**6. Station.** Arráncalo con el follower y las 3 cámaras, y el **leader sin torque** (4.1, punto 1).
+Apunta el serial del bus del follower (web de Station, `:8889`).
+
+**7. En el brazo**, en este orden y con la alimentación a mano (lee 4.0):
+
+```bash
+cd inference
+python run_local.py --checkpoint ~/smolvla_ckpt --bus-serial <SERIAL_FOLLOWER> --dry-run       # no mueve nada
+python run_local.py --checkpoint ~/smolvla_ckpt --bus-serial <SERIAL_FOLLOWER> --max-ticks 30  # 3 s
+python run_local.py --checkpoint ~/smolvla_ckpt --bus-serial <SERIAL_FOLLOWER>                 # Ctrl-C para parar
+```
+
+Antes de confirmar `[s/N]` abre `camera_preview.jpg` y comprueba que es `side | gripper | table`.
+
+**Ajustes si no va fino**
+
+| Síntoma | Prueba |
+|---|---|
+| Tirón o pausa cada 1.5 s (al pedir chunk) | `--n-action-steps 25` (re-planifica cada 2.5 s; máximo 50) |
+| Reacciona tarde a lo que ve | `--n-action-steps 10` |
+| `CUDA out of memory` | cierra lo que use la GPU (navegador, Station viewer) o `--device cpu` para descartar |
+| `SmolVLA necesita la instrucción` | el checkpoint no trae la frase: `--task "move device from right index to right middle finger"` |
+| `ModuleNotFoundError: smolvla` | no has hecho `source ~/robot_env/env.sh`, o el entorno es anterior a `setup_env.sh` |
+| Se para con las cámaras | `--camera-order` (4.4, punto 2) o regenera el banco (paso 4) |
+
 ---
 
 ## 5. Estado: qué está probado y qué no
@@ -314,9 +462,8 @@ Otras opciones: `--station host[:8888]`, `--motor-ids 1,...,8`, `--n-action-step
 - **Ningún script de `inference/` se ha ejecutado contra el robot real**: el arranque de torque y
   el envío real de comandos están escritos según el código de norma-core, pero sin verificar en hardware.
 - El reconocimiento de cámaras con otra iluminación o con las cámaras movidas.
-- Otras policies. Para SmolVLA de LeRobot, `train_act.sh` sirve de plantilla cambiando
-  `--policy.type`; el port `smolvla_py` de NormaCore está escrito para SO-101 (6 joints, 2 cámaras)
-  y fija `transformers==5.3.0`, incompatible con este entorno.
+- SmolVLA (sección 3b) en el brazo: el entrenamiento y la inferencia contra un Station simulado
+  están probados; el comportamiento en el robot real, no.
 
 ## 6. Problemas conocidos
 
