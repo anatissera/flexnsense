@@ -27,6 +27,10 @@ CALIB = REPO_ROOT / "config/calibration/follower-5B8E114979.json"
 #: arm was observed to do by hand.
 OBSERVED_POSE = {1: 1976, 2: 1719, 3: 2526, 4: 2755, 5: 1907, 6: 1270, 7: 1282}
 
+#: The smallest set of joints that can follow an arbitrary 3D direction at this pose: three
+#: independent ones. Fewer spans only a plane, which fails on the return stroke.
+PULL_MOTORS = [2, 3, 4]
+
 pytestmark = pytest.mark.skipif(
     not URDF.is_file(),
     reason="needs the norma-core clone (hardware/elrobot/simulation); see SETUP.md",
@@ -165,3 +169,143 @@ def test_a_missing_motor_reading_is_treated_as_centred(chain):
     full = dict.fromkeys(chain.motor_ids, CENTRE_TICKS)
     full.update(partial)
     assert np.allclose(chain.tip_position(partial), chain.tip_position(full))
+
+
+# ---------------------------------------------------------------- straight-line pulls
+def test_one_joint_alone_cannot_pull_straight(chain):
+    """The finding that made inverse kinematics necessary. A revolute joint moves the tip along
+    an arc; over the 72 to 88 mm one full-range repetition needs (config/calibration/bench.md)
+    that arc leaves the tether's axis by more than 20 mm. The tether does not bend, so that is
+    either side-load on the finger or slack."""
+    direction = chain.tip_velocity_direction(4, OBSERVED_POSE)
+    worst, _ = chain.line_error([4], OBSERVED_POSE, direction, 0.090, steps=60)
+    assert worst > 0.015, f"only {worst*1000:.1f} mm off; the single-joint problem has changed"
+
+
+def test_coordinating_three_joints_pulls_straight(chain):
+    """And the fix. Same pull, same distance, three joints solved together."""
+    direction = chain.tip_velocity_direction(4, OBSERVED_POSE)
+    worst, shortfall = chain.line_error(PULL_MOTORS, OBSERVED_POSE, direction, 0.090, steps=60)
+    assert worst < 0.002, f"deviation {worst*1000:.2f} mm"
+    assert abs(shortfall) < 0.002, f"shortfall {shortfall*1000:.2f} mm"
+
+
+def test_two_joints_span_only_a_plane(chain):
+    """Why PULL_MOTORS has three entries and not two. Two revolute joints give a rank-2
+    jacobian, so the reachable directions are a plane: a pull that happens to lie in it works,
+    and the return stroke, which does not, misses by millimetres. Three independent joints are
+    the minimum that can follow an arbitrary 3D direction."""
+    assert np.linalg.matrix_rank(chain.jacobian([3, 4], OBSERVED_POSE), tol=1e-6) == 2
+    assert np.linalg.matrix_rank(chain.jacobian(PULL_MOTORS, OBSERVED_POSE), tol=1e-6) == 3
+
+    direction = chain.tip_velocity_direction(4, OBSERVED_POSE)
+    back_two, _ = chain.line_error([3, 4], OBSERVED_POSE, -direction, 0.090, steps=60)
+    back_three, _ = chain.line_error(PULL_MOTORS, OBSERVED_POSE, -direction, 0.090, steps=60)
+    assert back_two > 0.003, f"two joints managed {back_two*1000:.2f} mm; has the pose changed?"
+    assert back_three < 0.002, f"three joints: {back_three*1000:.2f} mm"
+
+
+def test_more_joints_do_not_make_it_worse(chain):
+    """A redundant arm has many solutions; the damped least-squares pick should stay sane as
+    joints are added rather than wandering off."""
+    direction = chain.tip_velocity_direction(4, OBSERVED_POSE)
+    for motors in (PULL_MOTORS, [2, 3, 4, 6], [1, 2, 3, 4, 5, 6, 7]):
+        worst, _ = chain.line_error(motors, OBSERVED_POSE, direction, 0.090, steps=60)
+        assert worst < 0.003, f"{motors}: {worst*1000:.2f} mm"
+
+
+def test_the_jacobian_columns_are_the_single_joint_directions(chain):
+    """The matrix is just those vectors side by side, so an assembly mistake shows up here."""
+    motors = [2, 3, 4]
+    J = chain.jacobian(motors, OBSERVED_POSE)
+    assert J.shape == (3, 3)
+    for i, m in enumerate(motors):
+        col = J[:, i] / np.linalg.norm(J[:, i])
+        assert np.allclose(col, chain.tip_velocity_direction(m, OBSERVED_POSE), atol=1e-9)
+
+
+def test_damping_trades_accuracy_for_bounded_joint_motion(chain):
+    """The trade `ik_step` is deliberately making, and why one step is not the thing to judge.
+
+    This arm is redundant and at this pose the jacobian is badly conditioned: its smallest
+    singular value is about 1e-4 against a largest of 0.24, so one direction is nearly
+    unreachable. Chasing it exactly is possible but asks for radians of joint motion to produce
+    a millimetre at the tip, which next to a healing finger is the dangerous answer, not the
+    clever one. Damping suppresses that direction, at the cost of a residual in it.
+
+    What matters is the finished path, not the single step: `line_trajectory` re-solves at each
+    waypoint, and `test_coordinating_three_joints_pulls_straight` shows the result lands within
+    a millimetre over 90 mm.
+    """
+    want = np.array([0.0, -1.0, -1.0]) / np.sqrt(2) * 0.001
+    J = chain.jacobian(PULL_MOTORS, OBSERVED_POSE)
+    assert np.linalg.cond(J) > 100, "pose is better conditioned than it was; re-tune this test"
+
+    damped = chain.ik_step(PULL_MOTORS, OBSERVED_POSE, want)
+    greedy = chain.ik_step(PULL_MOTORS, OBSERVED_POSE, want, damping=1e-7)
+    biggest_damped = max(abs(v) for v in damped.values())
+    biggest_greedy = max(abs(v) for v in greedy.values())
+    assert biggest_damped < 50, f"a 1 mm step asked for {biggest_damped:.0f} ticks"
+    assert biggest_greedy > 10 * biggest_damped, (
+        "undamped should be far more aggressive; if it is not, the pose is well conditioned "
+        "and this test is no longer exercising the trade-off"
+    )
+
+
+def test_an_ik_step_moves_the_tip_roughly_where_asked(chain):
+    """The step is still a real solve, checked against the forward kinematics: most of the
+    requested motion arrives, and what is missing lies in the suppressed direction."""
+    want = np.array([0.0, -1.0, -1.0]) / np.sqrt(2) * 0.001
+    dq = chain.ik_step(PULL_MOTORS, OBSERVED_POSE, want)
+    moved = dict(OBSERVED_POSE)
+    for m, d in dq.items():
+        moved[m] += d
+    got = chain.tip_position(moved) - chain.tip_position(OBSERVED_POSE)
+    along = float(np.dot(got, want / np.linalg.norm(want)))
+    assert along > 0.9 * float(np.linalg.norm(want)), "most of the step should arrive"
+
+
+def test_pulling_backwards_retraces_the_same_line(chain):
+    """The reset beat of a repetition runs the pull in reverse, so it has to be as straight."""
+    direction = -chain.tip_velocity_direction(4, OBSERVED_POSE)
+    worst, _ = chain.line_error(PULL_MOTORS, OBSERVED_POSE, direction, 0.090, steps=60)
+    assert worst < 0.002
+
+
+def test_two_joints_cannot_reach_out_of_their_plane(chain):
+    """The consequence of rank 2, stated as geometry rather than as a numerical accident.
+
+    An earlier version of this test asserted that the undamped solve raises or blows up. It
+    does neither: numpy returns the minimum-norm least-squares answer, which looks perfectly
+    reasonable. The real and reliable property is that a rank-2 jacobian simply cannot produce
+    motion outside its plane, however the linear algebra is done, which is why `PULL_MOTORS`
+    has three entries.
+    """
+    J = chain.jacobian([3, 4], OBSERVED_POSE)
+    assert np.linalg.matrix_rank(J, tol=1e-6) == 2
+
+    # The direction those two joints cannot reach: the normal to the plane they span.
+    _, _, vt = np.linalg.svd(J.T)
+    unreachable = vt[-1]
+
+    dq = chain.ik_step([3, 4], OBSERVED_POSE, unreachable * 0.001)
+    moved = dict(OBSERVED_POSE)
+    for m, d in dq.items():
+        moved[m] += d
+    got = chain.tip_position(moved) - chain.tip_position(OBSERVED_POSE)
+    assert float(np.linalg.norm(got)) < 1e-5, (
+        "two joints produced motion along their own null direction, which is impossible; "
+        "the jacobian is wrong"
+    )
+
+
+def test_a_trajectory_has_one_waypoint_per_step(chain):
+    direction = chain.tip_velocity_direction(4, OBSERVED_POSE)
+    way = chain.line_trajectory(PULL_MOTORS, OBSERVED_POSE, direction, 0.090, steps=30)
+    assert len(way) == 30
+    assert all(set(w) >= set(PULL_MOTORS) for w in way)
+
+
+def test_zero_steps_is_rejected(chain):
+    with pytest.raises(ValueError):
+        chain.line_trajectory(PULL_MOTORS, OBSERVED_POSE, np.array([0, 1, 0.0]), 0.09, steps=0)

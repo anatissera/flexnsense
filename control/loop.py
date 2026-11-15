@@ -51,6 +51,72 @@ class AxisCalibration:
         return int(round(self.sign * step_m * self.ticks_per_metre))
 
 
+@dataclass(frozen=True)
+class CoordinatedAxis:
+    """A straight pull along the tether, using several joints at once.
+
+    The reason this exists rather than `AxisCalibration`: a revolute joint moves the gripper
+    along an **arc**. Over a few millimetres that is indistinguishable from a line, so a short
+    bench test would not catch it, but one full-range repetition needs 72 to 88 mm of travel
+    (`config/calibration/bench.md`). Over that distance a single joint leaves the tether's axis
+    by more than 20 mm, measured from NormaCore's URDF. The tether does not bend, so that
+    deviation becomes side-load on the finger or slack in the line, and neither is the exercise
+    the controller believes it is running.
+
+    `motors` must be able to span three dimensions, which takes **three independent joints**:
+    two give a rank-2 jacobian whose reachable directions are a plane, so a pull that happens
+    to lie in it works while the return stroke misses by millimetres. `scripts/which_motor.py`
+    and `lib.kinematics.Chain.jacobian` are how that is checked for a given pose.
+
+    `direction` is the tether's axis in the arm's base frame, pointing the way that **increases**
+    tension. Yielding moves the opposite way, so `ControlLoop` can keep checking the result
+    against the measured force exactly as it does for a single axis.
+    """
+
+    motors: list[int]
+    direction: tuple[float, float, float]
+    #: Largest tick change any one joint may be given in a single cycle. The per-cycle step is
+    #: already bounded in metres by `AdmittanceParams.max_step_m`; this is the second bound, in
+    #: the joint space, so a badly conditioned pose cannot turn a small tip motion into a large
+    #: joint motion (see `lib.kinematics.Chain.ik_step` on damping).
+    max_ticks_per_cycle: int = 60
+
+    def __post_init__(self) -> None:
+        if len(self.motors) < 3:
+            raise ValueError(
+                f"a straight pull needs at least three independent joints, got {self.motors}. "
+                "Two span only a plane, which fails on the return stroke"
+            )
+        if len(set(self.motors)) != len(self.motors):
+            raise ValueError(f"repeated motor in {self.motors}")
+        if self.max_ticks_per_cycle <= 0:
+            raise ValueError(f"max_ticks_per_cycle must be positive, got {self.max_ticks_per_cycle}")
+        norm = sum(c * c for c in self.direction) ** 0.5
+        if norm < 1e-9:
+            raise ValueError("direction must not be the zero vector")
+
+    def unit_direction(self):
+        import numpy as np
+
+        d = np.array(self.direction, dtype=float)
+        return d / np.linalg.norm(d)
+
+    def ticks_for(self, step_m: float, pose_ticks: dict[int, float], chain) -> dict[int, int]:
+        """Tick changes that move the gripper `step_m` along the tether, sharing the work.
+
+        `step_m` is positive to give way, matching `AxisCalibration.ticks_for`, so the motion
+        is along the direction that *reduces* tension.
+        """
+        delta = self.unit_direction() * (-step_m)
+        raw = chain.ik_step(self.motors, pose_ticks, delta)
+        out = {m: int(round(v)) for m, v in raw.items()}
+        biggest = max((abs(v) for v in out.values()), default=0)
+        if biggest > self.max_ticks_per_cycle:
+            scale = self.max_ticks_per_cycle / biggest
+            out = {m: int(round(v * scale)) for m, v in out.items()}
+        return out
+
+
 @dataclass
 class CycleRecord:
     """One cycle, for the session log and the force-displacement curve (roadmap item 6)."""
@@ -86,13 +152,24 @@ class ControlLoop:
         params: AdmittanceParams,
         axis: AxisCalibration,
         gate: SafetyGate | None = None,
+        coordinated: "CoordinatedAxis | None" = None,
     ):
+        """`axis` names the joint whose travel is tracked, and drives the arm on its own when
+        `coordinated` is None.
+
+        Pass `coordinated` to pull along a straight line with several joints instead. `axis`
+        stays required either way: the travel limit and the yield-direction check both measure
+        progress against one joint's register, and keeping that unchanged means the safety
+        path is identical whether one motor moves or three.
+        """
         self.limits = limits
         self.params = params
         self.axis = axis
+        self.coordinated = coordinated
         self.gate = gate if gate is not None else SafetyGate(limits)
         self.state = LoopState()
         self._yield_started_at: tuple[float, float] | None = None  # (t, force) at yield start
+        self._chain = None   # lazily loaded URDF, only when coordinated motion is used
 
     # ------------------------------------------------------------------ one cycle, pure part
     def decide(
@@ -148,8 +225,14 @@ class ControlLoop:
 
     # ------------------------------------------------------------------ one cycle, with I/O
     async def step(self, client, bus_serial: str, force_n: float | None, frame_t: float,
-                   position_ticks: int | None, now: float | None = None) -> Decision:
-        """Run one cycle and command the arm. Returns the decision taken."""
+                   position_ticks: int | None, now: float | None = None,
+                   pose_ticks: dict[int, float] | None = None) -> Decision:
+        """Run one cycle and command the arm. Returns the decision taken.
+
+        `pose_ticks` is every joint's current reading, and is required when this loop was built
+        with a `CoordinatedAxis`: a straight pull is solved from the whole pose, not from one
+        joint's position. It is ignored for a single-axis loop.
+        """
         from lib.station import set_position
 
         now = time.monotonic() if now is None else now
@@ -157,8 +240,13 @@ class ControlLoop:
 
         commanded = position_ticks
         if decision.action is Action.YIELD and step_m > 0 and position_ticks is not None:
-            commanded = position_ticks + self.axis.ticks_for(step_m)
-            await set_position(client, bus_serial, self.axis.motor_id, commanded)
+            if self.coordinated is not None:
+                commanded = await self._command_coordinated(
+                    client, bus_serial, step_m, pose_ticks, position_ticks
+                )
+            else:
+                commanded = position_ticks + self.axis.ticks_for(step_m)
+                await set_position(client, bus_serial, self.axis.motor_id, commanded)
 
         self.state.last_t = now
         self.state.records.append(
@@ -166,6 +254,34 @@ class ControlLoop:
                         self.state.travel_m, commanded)
         )
         return decision
+
+    async def _command_coordinated(self, client, bus_serial: str, step_m: float,
+                                   pose_ticks: dict[int, float] | None,
+                                   position_ticks: int) -> int:
+        """Solve the straight-line step and command every joint it uses.
+
+        Returns the tracked motor's new tick value, so travel bookkeeping and the yield
+        direction check keep working unchanged: the loop still measures its own progress
+        against one joint even though several are moving.
+        """
+        from lib.station import set_position
+
+        if not pose_ticks:
+            # No pose, no inverse kinematics. Commanding the tracked joint alone would pull the
+            # finger along an arc instead of the tether's line, so refuse to move at all.
+            return position_ticks
+
+        if self._chain is None:
+            from lib.kinematics import load_chain
+
+            self._chain = load_chain()
+
+        deltas = self.coordinated.ticks_for(step_m, pose_ticks, self._chain)
+        for motor_id, delta in deltas.items():
+            if delta:
+                await set_position(client, bus_serial, motor_id,
+                                   int(round(pose_ticks[motor_id] + delta)))
+        return position_ticks + deltas.get(self.axis.motor_id, 0)
 
     async def release(self, client, bus_serial: str, back_off_m: float = 0.01) -> None:
         """Unload the spring and stop. Safe to call more than once.
