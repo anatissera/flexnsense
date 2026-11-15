@@ -157,11 +157,38 @@ def test_the_committed_bench_calibration_loads_and_reports_what_is_missing():
     c = BenchCalibration.load(path)
     assert c.tether_n_per_m == pytest.approx(56.2)
     assert not c.complete
-    assert c.missing == ["ticks_per_metre", "yield_sign", "excursion_m"]
-    # The measured half is usable now; the unmeasured half still refuses.
-    assert c.stretch_to_reach_m(1.96) == pytest.approx(0.0349, abs=0.001)
+    # What is still blocked on the arm being powered, and only that.
+    assert c.missing == ["ticks_per_metre", "yield_sign"]
     with pytest.raises(NotMeasured):
         c.require_axis()
+    # The measured parts are usable now.
+    assert c.stretch_to_reach_m(1.96) == pytest.approx(0.0349, abs=0.001)
+    for finger in ("index", "middle", "ring", "pinky"):
+        assert 0.09 < c.require_excursion_m(finger) < 0.12, finger
+
+
+def test_a_full_range_rep_exceeds_the_default_travel_limit():
+    """The consequence of the two measured numbers, pinned so it cannot be forgotten.
+
+    At constant force the arm displaces one for one with the finger, so one full-range rep is
+    the excursion minus the ramp to the cap. `SafetyLimits.max_travel_m` defaults to 0.05 m and
+    is between a third and a half of that, so it would fire partway through the first rep of
+    every block. See config/calibration/bench.md.
+    """
+    from pathlib import Path
+
+    from lib.units import grams_force_to_newtons
+
+    c = BenchCalibration.load(Path(__file__).resolve().parents[2] / "config/calibration/bench.json")
+    cap = grams_force_to_newtons(200)
+    ramp_m = c.stretch_to_reach_m(cap) - c.stretch_to_reach_m(cap * 0.25)
+    for finger in ("index", "middle", "ring", "pinky"):
+        arm_travel = c.require_excursion_m(finger) - ramp_m
+        assert arm_travel > 0.05, (
+            f"{finger}: a full-range rep needs {arm_travel * 1000:.0f} mm of arm travel, so if "
+            "this ever stops exceeding 50 mm the default limit may have been fixed, and "
+            "bench.md's table wants updating"
+        )
 
 
 def test_the_measured_tether_is_stiffer_than_the_datasheet_shortcut():
