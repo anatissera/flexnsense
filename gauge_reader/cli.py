@@ -276,9 +276,11 @@ class StickerPipeline:
 
     @staticmethod
     def make_tracker(calib, config=None):
-        from gauge_reader.stickers import StickerConfig, StickerTracker
+        from gauge_reader.stickers import StickerConfig, StickerProfile, StickerTracker
         if config is None:
-            config = StickerConfig(u_range=tuple(calib.u_range()))
+            prof = getattr(calib, "ref_profile", None)
+            config = StickerConfig(u_range=tuple(calib.u_range()),
+                                   profile=StickerProfile.from_dict(prof) if prof else None)
         return StickerTracker(config, s1_hint=getattr(calib, "s1_ref", None), s2_hint=getattr(calib, "s2_ref", None))
 
     @classmethod
@@ -912,7 +914,21 @@ class _CalibrateUI:
         if self.mode == "stickers":
             from gauge_reader.calibration import StickerCalibration
             s1, s2 = self.stickers()
-            calib = StickerCalibration.from_clicks(s1, s2, p0, p1, g0=self.args.g0, g1=self.args.g1)
+            profile = None
+            if self.found_stickers is None:
+                # clicked by hand: the references are not two matching round dots, so learn what they look like
+                # and snap the clicks to the centres of the red marks under them
+                from gauge_reader.stickers import measure_profile
+                measured = measure_profile(self.frozen, s1, s2)
+                if measured is None:
+                    self.sticker_clicks = []
+                    self.flash("no red mark under a click - click sticker 1, then sticker 2 again", 4)
+                    return
+                prof, s1, s2 = measured
+                profile = prof.to_dict()
+                print(f"references learned: S1={_fmt_pt(s1)} S2={_fmt_pt(s2)} area ratio {prof.area_ratio:.1f}")
+            calib = StickerCalibration.from_clicks(s1, s2, p0, p1, g0=self.args.g0, g1=self.args.g1,
+                                                   ref_profile=profile)
         else:
             from gauge_reader.calibration import Calibration
             calib = Calibration.from_clicks(p0, p1, g0=self.args.g0, g1=self.args.g1)
