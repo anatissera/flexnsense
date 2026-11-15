@@ -33,7 +33,11 @@ Read the PESOLA's red indicator from a fixed camera and output grams + a confide
 
 The control loop from the README, plus the safety layer that does **not** depend on it: servo-level torque cap, software position limits, vision watchdog that releases tension, velocity ceiling, e-stop.
 
-Depends on 1 or 2 for a force signal.
+Force comes from the camera alone: item 1 came back negative, there is no current signal on this arm ([docs/force-calibration-result.md](./docs/force-calibration-result.md)).
+
+Written, tested in software, **not yet run against the arm**: `control/safety.py` (the gate: HOLD / YIELD / RELEASE), `control/admittance.py` (the law), `control/loop.py` (the wiring to the camera and Station), `control/simulate.py` (closed-loop simulation for choosing constants). Design and what the simulation established about B: [docs/admittance-design.md](./docs/admittance-design.md).
+
+Still to do: measure `ticks_per_metre` and the yield direction on the bench, then a bench run against a spring and a weight before any finger.
 
 ## 4. Simulation rig - `feature/sim-rig`
 

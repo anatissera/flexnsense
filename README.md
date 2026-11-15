@@ -12,7 +12,7 @@ By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
 [![NormaCore ElRobot](https://img.shields.io/badge/arm-NormaCore_ElRobot_7%2B1_DOF-0b7285)](./docs/elrobot.md)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](./SETUP.md)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)](./gauge_reader)
-[![Tests: 168 passing](https://img.shields.io/badge/tests-168_passing-success)](./tests)
+[![Tests: 326 passing](https://img.shields.io/badge/tests-326_passing-success)](./tests)
 [![Status: prototype](https://img.shields.io/badge/status-prototype-orange)](#status)
 
 ![Arm A holds the hand, the finger pulls on a PESOLA spring scale held by arm B, a camera reads grams, the clinician sets the cap remotely](docs/images/concept.svg)
@@ -81,7 +81,7 @@ Two independent signals:
 
 The arm is the **NormaCore ElRobot**, not an SO-101: same servo family (Feetech ST3215), so the force path below is unchanged in kind, but there is no LeRobot support for this arm - everything goes through NormaCore's own software, Station, instead. What that means in practice: [docs/elrobot.md](./docs/elrobot.md).
 
-The plan: **calibrate the servo current against the camera**, run the control loop on current for speed, and keep the camera as an independent check and as the gram readout the clinician sees ([docs/force-calibration.md](./docs/force-calibration.md)). The risk: the 345:1 gearbox may add a dead zone and hysteresis larger than a 200 g (1.96 N) signal. The day-one calibration experiment finds out before anything is built on top of it.
+The plan was to calibrate servo current against the camera and run the control loop on current for speed. **Run against real hardware, result negative**: the 345:1 gearbox leaves no usable current signal, just a ~1 mA noise floor regardless of applied force - see [docs/force-calibration-result.md](./docs/force-calibration-result.md). Force sensing is entirely on the camera; the control loop runs at the camera's rate, and a lost or low-confidence reading has no fallback signal to fall back on, only the "release and stop" behaviour in Safety below.
 
 **Gauge reader.** Two red dots drawn on the PESOLA's tube act as fixed references. Each frame, the camera finds the three red spots in a row (dot, marker, dot); the marker's position *between* the dots is a fraction that does not change when the scale moves, turns or comes closer, and calibration turns it into grams. When a dot is covered, it reports a reason instead of a number. Details: [docs/scale-reader.md](./docs/scale-reader.md).
 
@@ -92,15 +92,18 @@ The plan: **calibrate the servo current against the camera**, run the control lo
 Admittance control with a deadband, clinically *assist-as-needed*. The gauge reads grams, matching the PESOLA and the clinician's cap, but everything past that reading is in newtons (SI), see AGENTS.md "Units":
 
 ```python
-F = estimate_force()                        # newtons; calibrated servo current, filtered
+F = read_force()                            # newtons, from the camera; None if the marker was not seen
 F_threshold = grams_force_to_newtons(200)   # the clinician's cap is set in grams, 200 gf = 1.96 N
-if F < F_threshold:
+if F is None or F > F_max or stale:
+    release_and_stop()          # never guess a force, never hold tension blind
+elif F <= F_threshold:
     hold_position()             # the arm is the anchor
 else:
-    v = k * (F - F_threshold)   # yield proportionally to the excess
-    v = clip(v, 0, v_max)       # always slow
-    move(v, direction_that_reduces_F)
+    v = min((F - F_threshold) / B, v_max)   # yield proportionally to the excess
+    move(v * dt, direction_that_reduces_F)  # dt from real frame timestamps
 ```
+
+Implemented in `control/`: the gate (`safety.py`), the law (`admittance.py`), the wiring to camera and Station (`loop.py`), and a closed-loop simulation for choosing constants (`simulate.py`). The simulation established that the damping `B` is bounded by the gap between the cap and the ceiling (overshoot settles at `B x pull speed`), and that a fast yank is handled by the gate releasing rather than by the loop tracking it: [docs/admittance-design.md](./docs/admittance-design.md).
 
 This is deliberately **not** a learned policy. ACT and Diffusion Policy execute action chunks open-loop and cannot react to contact forces mid-chunk, the exact failure a device pulling on a post-surgical finger must not have. They also need 50–200 demonstrations and ~16 GB of VRAM, against a 4 GB laptop GPU and two days. RL from scratch is out for the same reason.
 
@@ -128,11 +131,11 @@ The work is split into the subtasks of [ROADMAP.md](./ROADMAP.md), one branch an
 
 | # | Subtask | Branch | Status |
 |---|---|---|---|
-| 1 | Force calibration: can servo current stand in for a force sensor? | `feature/force-calibration` | 🟡 in progress ([#4](https://github.com/anatissera/leukerbad-hackathon/pull/4)) |
+| 1 | Force calibration: can servo current stand in for a force sensor? | `feature/force-calibration` | ❌ answered: no ([docs/force-calibration-result.md](./docs/force-calibration-result.md)) |
 | 2 | Gauge reader: PESOLA → grams + confidence from a camera | `feature/gauge-reader` | ✅ merged ([#5](https://github.com/anatissera/leukerbad-hackathon/pull/5)) |
-| 3 | Admittance controller + safety layer | `feature/admittance-control` | ⚪ planned |
+| 3 | Admittance controller + safety layer | `feature/admittance-control` | 🟡 written, not yet on hardware |
 | 4 | Simulation rig (MuJoCo + spring) | `feature/sim-rig` | ⚪ planned |
-| 5 | Hand tracking / range of motion | `feature/hand-tracking` | 🟡 in progress ([#16](https://github.com/anatissera/leukerbad-hackathon/pull/16)) |
+| 5 | Hand tracking / range of motion | `feature/hand-tracking` | ✅ merged ([#16](https://github.com/anatissera/leukerbad-hackathon/pull/16)) |
 | 6 | Session metrics: force–displacement, stiffness | `feature/session-metrics` | ⚪ planned |
 | 7 | Remote clinician dashboard | `feature/remote-dashboard` | ⚪ planned |
 | - | ElRobot (NormaCore Station) instead of LeRobot: the arm we actually have | `feature/elrobot-support` | 🟡 in progress ([#17](https://github.com/anatissera/leukerbad-hackathon/pull/17)) |
@@ -158,6 +161,7 @@ otherwise.
 lib/              shared helpers for any script: camera, .env settings, Kalman filter, geometry, Station client
 gauge_reader/     subtask 2: read the PESOLA scale through a camera (python -m gauge_reader)
 hand_tracking/    subtask 5: finger flexion angles through a camera (python -m hand_tracking)
+control/          subtask 3: the admittance controller, its safety gate and a simulation
 scripts/          robot and calibration scripts, against Station (force calibration)
 scripts/lerobot/  NOT our hardware: the original SO-101-via-LeRobot scripts, parked in case we ever port
 tests/            tests per package: tests/lib/, tests/gauge_reader/, tests/hand_tracking/

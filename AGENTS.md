@@ -73,11 +73,16 @@ lib/              shared helpers with no knowledge of any one device; use them f
 gauge_reader/     roadmap item 2: read the PESOLA spring scale through a camera (python -m gauge_reader)
 hand_tracking/    roadmap item 5: finger flexion angles through a camera (python -m hand_tracking)
   landmarks.py    pure geometry on MediaPipe's 21 landmarks; no mediapipe/cv2 import, so it is unit-testable
+control/          roadmap item 3: the admittance controller
+  safety.py       the gate: one force reading -> HOLD / YIELD / RELEASE. Pure, exhaustively tested
+  admittance.py   the law: overshoot -> how far to move this cycle. Pure
+  loop.py         the only part that touches hardware: camera reading -> gate -> law -> Station
+  simulate.py     closed-loop simulation, for choosing B and friends without a finger
 dashboard/        Next.js web dashboard (own package.json; run pnpm from here)
 scripts/          robot and calibration scripts (e.g. force calibration), against Station
 scripts/lerobot/  NOT our hardware: original SO-101-via-LeRobot scripts, parked in case we ever port
-tests/lib/, tests/gauge_reader/, tests/hand_tracking/
-docs/             user-facing guides (docs/elrobot.md, docs/scale-reader.md, docs/force-calibration.md, docs/hand-tracking.md)
+tests/lib/, tests/gauge_reader/, tests/hand_tracking/, tests/control/
+docs/             user-facing guides (docs/elrobot.md, docs/scale-reader.md, docs/force-calibration.md, docs/hand-tracking.md, docs/admittance-design.md)
 ```
 
 - Code that any script could reuse (camera, filtering, settings, maths) goes in `lib/`. Keep `lib/` free of device-specific logic, with one deliberate exception: `lib/station.py` is where the Station client lives, so no script reimplements the wire protocol.
