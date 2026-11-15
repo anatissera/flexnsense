@@ -210,10 +210,6 @@ export default function ChatPanel({
       <div className="panel-head m-0 px-4">
         <span className="t-section">Ask about the scene</span>
         <span className="flex items-center gap-2">
-          <button onClick={voice === "off" ? startVoice : stopVoice}
-            className={`btn btn-sm ${voice === "live" ? "btn-danger" : ""}`}>
-            {voice === "off" ? "Voice" : voice === "connecting" ? "Connecting…" : "End voice"}
-          </button>
           {tools > 0 && <span className="t-small faint">{tools} tool call round{tools > 1 ? "s" : ""}</span>}
           <button className="btn btn-icon" onClick={() => setOpen(false)} aria-label="Collapse">–</button>
         </span>
@@ -248,6 +244,19 @@ export default function ChatPanel({
       <form className="flex gap-1.5 border-t border-(--line) p-3" onSubmit={(e) => { e.preventDefault(); send(input); }}>
         <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask a question (any language)…"
           className="field min-w-0 flex-1" />
+        <button
+          type="button"
+          onClick={voice === "off" ? startVoice : stopVoice}
+          className={`btn px-2.5 ${voice === "live" ? "btn-danger" : ""} ${voice === "connecting" ? "animate-pulse" : ""}`}
+          aria-label={voice === "off" ? "Start voice" : voice === "connecting" ? "Connecting voice, press to cancel" : "End voice"}
+          title={voice === "off" ? "Start voice" : voice === "connecting" ? "Connecting…" : "End voice"}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <rect x="9" y="2" width="6" height="12" rx="3" />
+            <path d="M5 11a7 7 0 0 0 14 0" />
+            <path d="M12 18v4" />
+          </svg>
+        </button>
         <button disabled={busy || !input.trim()} className="btn btn-primary">Send</button>
       </form>
     </div>
