@@ -65,3 +65,7 @@ recordings/
 
 # Hand tracking: downloaded model, not committed
 models/*.task
+
+# Raw hand-tracking recordings: bulk per-session data, like recordings/. The fitted numbers
+# they produce are committed (config/calibration/bench.json), the recordings themselves are not.
+data/*.jsonl
