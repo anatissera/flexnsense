@@ -1,0 +1,9 @@
+.env
+runs/
+__pycache__/
+*.pyc
+# the trained policies are downloaded from Hugging Face (see README.md), not kept in git
+policies/**/*.onnx
+policies/**/*.onnx.data
+policies/**/*.pt
+media/
