@@ -200,3 +200,25 @@ Two things to know when it does not work:
   is roadmap item 6, which combines this with the force reading).
 - Lighting and occlusion affect MediaPipe's detection same as any camera-based method; when no
   hand is found, the CSV row is blank rather than guessing.
+
+## In the browser: the same maths in TypeScript
+
+The dashboard carries ports of the pure hand-tracking geometry, so a page can use it with no
+backend. Python stays the tested side; `tests/session/test_ts_port.py` runs both on the same
+randomised inputs and fails if they disagree.
+
+- `dashboard/app/lib/excursion.ts`: `fitExcursion`, `tipMinusWrist`, and an `ExcursionRecorder`
+  that a "calibrate range of motion" control can feed from the tracker's `onFrame` (pass it
+  `frame.world`) and read once the sweep ends. Mirror of `hand_tracking/excursion.py`.
+- `dashboard/app/lib/handGeometry.ts`: one flexion angle per finger in degrees (PIP for four
+  fingers, IP for the thumb), same convention as above. Mirror of `hand_tracking/landmarks.py`.
+- `landmarksToPose` in `HandTracker.tsx` was already the twin of `hand_tracking/pose.py`.
+
+In the dashboard, pressing **Start** in the Rep machine switches on the camera (with the model chosen
+under **Model** in the right-hand panel) and a **Hand measurements** card appears under the tracker:
+live flexion in degrees for each finger, and a range-of-motion sweep (pick a finger, press Start sweep,
+move it slowly from straight to fully bent, press Stop) that reports the tip travel in mm, how much of
+the motion lay along one line, and a warning when it did not. The card is `components/HandMeasurements.tsx`.
+
+Run the parity test with `python -m pytest tests/session/test_ts_port.py`. It needs `node` and
+`pnpm install` in `dashboard/`, and skips itself otherwise.

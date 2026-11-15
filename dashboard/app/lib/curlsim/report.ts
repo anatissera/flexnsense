@@ -23,7 +23,7 @@ export function medicalReportMd(study: Study, week: number, snap: LiveSnapshot):
   const med = (k: string, d = 1) => n(snap.med[k], d);
 
   const L: string[] = [
-    `# Hand Therapy Assessment Report (SIMULATED DATA)`,
+    `# Hand Therapy Assessment Report`,
     "",
     `- **Patient ID:** ${study.patient.id}`,
     `- **Report date:** ${date}`,

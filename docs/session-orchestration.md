@@ -405,3 +405,34 @@ up.
    model is the same either way, so this can be decided late.
 5. **The dataset format gap** between Station Parquet and what the SmolVLA and ACT notebooks
    expect. It belongs to arm 2 and it has no owner yet.
+
+## In the browser: a rehearsal copy of the rep machine
+
+`dashboard/app/lib/session/` holds TypeScript ports of `session/modes.py`, `instructions.py`,
+`fingers.py`, `protocol.py` and `reps.py`, plus `dashboard/app/lib/units.ts` for the gram-force
+to newton conversion. They exist so the dashboard can rehearse and simulate a session, for
+example driving the guide hand from hand-tracking angles when no arm is attached.
+
+- **The Python machine stays the one that matters.** The browser has no force gauge and no arm.
+  The machine that decides when a real arm pulls a real finger is the Python one, behind
+  `control.safety.SafetyGate`, and the dashboard is a view of it (see `sessionSnapshot.ts`).
+  Do not drive hardware from the TypeScript copy.
+- **Where to see it.** The floating panel at the bottom left of the dashboard, which used to be the
+  fixed-timeline "Flex guide", is now the **Rep machine** (`components/GuideHand.tsx`). It keeps the
+  WebXR hand and the voice, and replaces the 5-rep timeline with `RepMachine` running against a
+  simulated patient and arm (`lib/session/simulation.ts`). Pick a mode, reps and cap, then press
+  **Start**: the webcam hand tracker is switched on, the panel says "Show your hand to the camera",
+  and the sequence begins on the first frame in which a hand is detected. The camera is switched off
+  again when the set ends or you press Stop, if the panel was the one that started it. The hand is
+  tinted blue when it is the patient's move and amber when the arm is moving, the voice speaks the
+  machine's instruction table, and the panel shows the force against the cap, the travel and the rep
+  count. Tick "Simulate a lost force reading" while the arm is pulling to watch the deadman abandon
+  the block. The force and arm are simulated, so none of the numbers are measurements, and the real
+  hand is only used to start the sequence.
+- **Not ported:** `orchestrator.py`, `interlock.py` and `arm2.py` (two-arm custody and the hook
+  move are hardware coordination), and `Block.check_against`, which needs the measured bench
+  constants in `calibration.py`.
+- **Kept in step by a test.** `tests/session/test_ts_port.py` replays the same recorded input
+  traces through both rep machines and compares every step: phase, law, driver, instruction,
+  counts and the log note. The traces come from a closed-loop simulation, so they reach counted
+  reps, abandoned attempts and the deadman. Change a threshold on one side and that test fails.
