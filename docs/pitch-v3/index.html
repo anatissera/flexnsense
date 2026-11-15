@@ -794,13 +794,14 @@ body.editing [contenteditable]:focus{outline-style:solid}
   }
 
   /* === SLIDE 11: the journey, one press at a time =========================
-     Press next: a moment opens large (80 % of the stage) and stays.
-     Press next again: it shrinks into its circle on the zig-zag, its caption
-     is written, and the following moment opens. Wins sit high, failures low.
-     After the last moment, next moves to the following slide.              */
+     On entering the slide the first moment opens large (80 % of the stage),
+     stays for HOLD ms, then shrinks into its circle on the zig-zag and its
+     caption is written. Each press of next does the same for the following
+     moment, so only one is ever open. Pressing next while a moment is open
+     closes it early. After the last one, next moves to the following slide. */
   let stepper = null;                                 // the active slide's own "next" handler
   function startJourney(s) {
-    const MX = 192, MY = 108, W = 1536, H = 864, R = 75;
+    const HOLD = 3000, MX = 192, MY = 108, W = 1536, H = 864, R = 75;
     const evs = [...s.querySelectorAll('.ev')], n = evs.length;
     const line = s.querySelector('#zigline'), veil = s.querySelector('#veil');
     const pts = evs.map((e, i) => ({ x: n > 1 ? 190 + i * 1540 / (n - 1) : 960, y: +e.dataset.y || (e.dataset.dir === 'down' ? 770 : 540) }));
@@ -831,7 +832,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
       sm.append(cap.querySelector('small').textContent); b.textContent = cap.querySelector('b').textContent;
       lab.append(sm, b); m.appendChild(lab);
     });
-    let at = -1, open = -1, busy = false;             // last moment shown, the one open now, mid-shrink
+    let at = -1, open = -1, busy = false, hold = 0;   // last moment shown, the one open now, mid-shrink, its timer
     function show(i) {
       const e = evs[i], m = e.querySelector('.m'), v = e.querySelector('video'), { big } = rects(i);
       at = open = i; setLine(i);
@@ -839,10 +840,13 @@ body.editing [contenteditable]:focus{outline-style:solid}
       m.animate([{ ...big, opacity: 0, transform: 'scale(.96)' }, { ...big, opacity: 1, transform: 'none' }],
                 { duration: 400, easing: 'ease-out', fill: 'forwards' });
       if (v) { try { v.currentTime = 0; } catch (err) {} v.play().catch(() => {}); }
+      hold = setTimeout(() => tuck(i), 400 + HOLD); timers.push(hold);
     }
     function tuck(i) {
+      if (open !== i) return;
       const e = evs[i], m = e.querySelector('.m'), v = e.querySelector('video'), { big, small } = rects(i);
-      busy = true; e.classList.add('shrink');
+      clearTimeout(hold); open = -1; busy = true;
+      e.classList.add('shrink'); veil.classList.remove('on');
       const a = m.animate([big, small], { duration: 750, easing: 'cubic-bezier(.65,0,.25,1)', fill: 'forwards' });
       a.onfinish = () => {
         e.classList.remove('show', 'shrink'); e.classList.add('done');
@@ -852,15 +856,14 @@ body.editing [contenteditable]:focus{outline-style:solid}
       };
     }
     function advance() {
-      if (open < 0 && at >= n - 1) return false;       // all shown: let the deck move on
-      if (busy) return true;
-      if (open < 0) { show(at + 1); return true; }
-      const i = open; open = -1;
-      tuck(i);
-      if (i < n - 1) later(300, () => show(i + 1)); else veil.classList.remove('on');
+      if (open >= 0) { tuck(open); return true; }      // a moment is open: close it early
+      if (busy) return true;                            // mid-shrink: wait
+      if (at >= n - 1) return false;                    // all shown: let the deck move on
+      show(at + 1);
       return true;
     }
     if (reduce) { evs.forEach(e => e.classList.add('done')); setLine(n - 1, true); at = n - 1; }
+    else if (n) later(700, () => { if (at < 0) show(0); });
     stepper = { advance };
     return () => {
       timers.forEach(clearTimeout); stepper = null;
