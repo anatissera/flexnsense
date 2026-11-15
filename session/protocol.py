@@ -21,11 +21,10 @@ from typing import Iterator, Mapping, Sequence
 
 from lib.units import grams_force_to_newtons, newtons_to_grams_force
 from session.calibration import BenchCalibration
+from session.fingers import FINGERS, normalise
 from session.modes import Mode, mode_by_name
 
-#: The fingers a block may name. Same five as the dashboard's `Finger` type
-#: (dashboard/app/lib/curlsim/types.ts), deliberately, so a block round-trips to the UI.
-FINGERS = ("thumb", "index", "middle", "ring", "little")
+__all__ = ["FINGERS", "Block", "Protocol"]
 
 
 @dataclass(frozen=True)
@@ -47,7 +46,14 @@ class Block:
 
     def __post_init__(self) -> None:
         if self.finger not in FINGERS:
-            raise ValueError(f"unknown finger {self.finger!r}; known fingers are {list(FINGERS)}")
+            # Raises with the accepted spellings; a clinician writing "pinky" in a protocol
+            # file should be told the canonical name, not just rejected.
+            raise ValueError(
+                f"block names the finger {self.finger!r}, which is not canonical. Use "
+                f"{normalise(self.finger)!r}."
+                if _is_alias(self.finger)
+                else f"unknown finger {self.finger!r}; known fingers are {list(FINGERS)}"
+            )
         mode = mode_by_name(self.mode)  # raises with the list of known modes
         if self.reps < 1:
             raise ValueError(f"reps must be at least 1, got {self.reps}")
@@ -137,7 +143,9 @@ class Block:
         )
         rom = raw.get("rom_target_m")
         return cls(
-            finger=str(raw["finger"]),
+            # Normalised on the way in, so a file written against the tracker's vocabulary
+            # loads without the author having to know which spelling the session layer uses.
+            finger=normalise(str(raw["finger"])),
             mode=str(raw["mode"]),
             reps=int(raw["reps"]),  # type: ignore[arg-type]
             cap_n=cap_n,
@@ -243,3 +251,11 @@ class Protocol:
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(self.to_dict(), indent=2) + "\n")
+
+
+def _is_alias(name: str) -> bool:
+    """Whether `name` is a known non-canonical spelling, so the error can name the fix."""
+    try:
+        return normalise(name) != name
+    except ValueError:
+        return False

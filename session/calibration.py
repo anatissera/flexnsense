@@ -35,6 +35,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
 
+from session.fingers import normalise, normalise_keys
+
 #: Nominal stiffness of a PESOLA 600 g: full scale over ~110 mm of pointer travel. **For
 #: `control.simulate` only.** It is a datasheet-shaped guess that ignores the cord and the
 #: attachments, and the whole reason `tether_n_per_m` exists is that the real number has to
@@ -66,11 +68,17 @@ HOW_TO_MEASURE: dict[str, str] = {
         "which is why control.loop checks it against the measured force rather than trusting it."
     ),
     "excursion_m": (
-        "Put the hand in the exact session pose and run `python -m hand_tracking run`. Move the "
-        "finger slowly from full extension to full flexion and record the fingertip's `world` "
-        "position (metres) at both ends. The excursion is the distance between those two points "
-        "projected onto the tether axis, which is what lib.geometry.Axis is for. Repeat per "
-        "finger, or at least measure the worst case."
+        "Put the hand in the exact session pose and run `python -m hand_tracking run --jsonl "
+        "out.jsonl`. The --jsonl flag is required: a bare `run` logs only flexion angles, not "
+        "the world coordinates this needs. Move the finger slowly from full extension to full "
+        "flexion. For each frame take the fingertip position MINUS the wrist position, both "
+        "from `world`; do not difference the raw fingertip positions between frames, because "
+        "MediaPipe's `world` is hand-centred and its origin shifts with the pose, so the "
+        "difference would mix the fingertip's travel with that shift. The excursion is the "
+        "change in that tip-minus-wrist vector between the two extremes, projected onto the "
+        "tether axis (lib.geometry.Axis). Repeat per finger, or at least measure the worst "
+        "case. Either finger vocabulary is accepted: the tracker says \"pinky\" and a "
+        "prescription says \"little\", and session.fingers reconciles them."
     ),
 }
 
@@ -115,6 +123,10 @@ class BenchCalibration:
     measured_in_pose: str | None = None
 
     def __post_init__(self) -> None:
+        # Canonicalise the finger keys however the calibration was built, not only when it was
+        # loaded from a file: a measurement script that constructs one directly speaks the
+        # tracker's vocabulary ("pinky"), and a prescription looks it up as "little".
+        object.__setattr__(self, "excursion_m", normalise_keys(self.excursion_m))
         if self.tether_n_per_m is not None and self.tether_n_per_m <= 0:
             raise ValueError(f"tether_n_per_m must be positive, got {self.tether_n_per_m}")
         if self.ticks_per_metre is not None and self.ticks_per_metre <= 0:
@@ -164,11 +176,15 @@ class BenchCalibration:
         return self.ticks_per_metre, self.yield_sign
 
     def require_excursion_m(self, finger: str) -> float:
-        if finger not in self.excursion_m:
-            if not self.excursion_m:
-                raise NotMeasured("excursion_m")
+        """The excursion for `finger`, accepting either finger vocabulary.
+
+        A measurement comes off the hand tracker as "pinky" and a prescription names it
+        "little"; `session.fingers` owns that reconciliation, so neither side has to.
+        """
+        key = normalise(finger)
+        if key not in self.excursion_m:
             raise NotMeasured("excursion_m")
-        return self.excursion_m[finger]
+        return self.excursion_m[key]
 
     def uncertainty_fraction_at(self, stretch_m: float) -> float | None:
         """Relative error on a distance inferred from force, over a stretch of `stretch_m`.
@@ -207,7 +223,7 @@ class BenchCalibration:
             tether_n_per_m=_opt_float(raw.get("tether_n_per_m")),
             ticks_per_metre=_opt_float(raw.get("ticks_per_metre")),
             yield_sign=_opt_int(raw.get("yield_sign")),
-            excursion_m={str(k): float(v) for k, v in excursion.items()},  # type: ignore[call-overload]
+            excursion_m={k: float(v) for k, v in excursion.items()},  # type: ignore[call-overload]
             displacement_uncertainty_m=_opt_float(raw.get("displacement_uncertainty_m")),
             measured_in_pose=_opt_str(raw.get("measured_in_pose")),
         )
