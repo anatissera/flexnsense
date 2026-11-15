@@ -163,7 +163,8 @@ lib/              shared helpers for any script: camera, .env settings, Kalman f
 gauge_reader/     subtask 2: read the PESOLA scale through a camera (python -m gauge_reader)
 hand_tracking/    subtask 5: finger flexion angles through a camera (python -m hand_tracking)
 control/          subtask 3: the admittance controller, its safety gate and a simulation
-scripts/          robot and calibration scripts, against Station (force calibration)
+session/          subtask 5b: exercise modes, the prescription, the session and rep machines, the two-arm interlock
+scripts/          robot and calibration scripts, against Station (force calibration, bench measurements)
 scripts/lerobot/  NOT our hardware: the original SO-101-via-LeRobot scripts, parked in case we ever port
 tests/            tests per package: tests/lib/, tests/gauge_reader/, tests/hand_tracking/
 docs/             guides and diagrams

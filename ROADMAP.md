@@ -65,7 +65,7 @@ fingers, and the interlock that guarantees arm 1 and arm 2 are never active at t
 The exercise prescription is **data** (finger, mode, reps, cap, hold, stretch target), not a
 trained policy.
 
-Designed, nothing implemented: [docs/session-orchestration.md](./docs/session-orchestration.md).
+Designed in [docs/session-orchestration.md](./docs/session-orchestration.md). Written so far, all pure and tested without hardware: `session/modes.py` (the two modes as data), `session/protocol.py` (the prescription), `session/instructions.py` (what the patient is told), `session/calibration.py` (the bench constants, as explicit absences), `session/snapshot.py` plus `dashboard/app/lib/sessionSnapshot.ts` (the UI contract), `session/interlock.py` (the two-arm custody rule) and `session/orchestrator.py` (the session machine). Still to write: `session/reps.py` (the per-rep machine) and `session/server.py` (the state stream the dashboard reads).
 Active mode's work phase is the existing admittance law; the delta on the control side is the
 device-driven phase, where `Decision.may_move` is backwards, dropout tolerance has to go to
 zero, and a range-of-motion target replaces the monotonicity guard. That doc also inventories
