@@ -177,6 +177,7 @@ ok, frame, ts, idx = src.read()
 | [docs/force-calibration.md](./docs/force-calibration.md) | The servo-current calibration experiment |
 | [docs/scale-reader.md](./docs/scale-reader.md) | The gauge reader: setup, calibration, precision, troubleshooting |
 | [docs/hand-tracking.md](./docs/hand-tracking.md) | Hand landmarks: model, the flexion angle, running it |
+| [docs/pitch-v2/](./docs/pitch-v2/) | Pitch deck, version 2: an HTML deck with real footage (open `index.html` locally). Version 1 is [docs/Pitch.pptx](./docs/Pitch.pptx) |
 | [AGENTS.md](./AGENTS.md) | Git workflow, branch naming, rules for contributors and coding agents |
 
 `main` is protected: work on the roadmap branch and open a PR. Commits and PRs do not credit AI tools (see [AGENTS.md](./AGENTS.md)).
