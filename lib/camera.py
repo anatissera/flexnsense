@@ -6,11 +6,18 @@
     ok, frame, ts, idx = src.read()               # BGR frame, timestamp in seconds, frame index
     src.release()
 
-    python -m lib.camera                          # list cameras and their numbers (macOS)
+    python -m lib.camera                          # list cameras and their numbers (macOS and Linux)
 
-macOS details handled here: AVFoundation backend, cameras chosen by name (an iPhone via Continuity Camera shows
-up as "<name>'s iPhone Camera"), a warm-up that waits for real (non-black) frames, tolerance of short frame gaps
-while an iPhone reconnects, and hints when permission or the iPhone connection is missing.
+The operating system is detected in one place, host_os(), and everything that differs hangs off it:
+
+macOS: AVFoundation backend, cameras listed with system_profiler (ffmpeg as fallback) and chosen by name (an
+iPhone via Continuity Camera shows up as "<name>'s iPhone Camera"), and hints when permission or the iPhone
+connection is missing.
+
+Linux: V4L2 backend, so camera number N is /dev/videoN. Cameras are listed from /sys/class/video4linux (no
+extra tool needed, neither v4l2-ctl nor ffmpeg), and the hint points at the `video` group.
+
+Both: a warm-up that waits for real (non-black) frames and tolerance of short frame gaps.
 """
 from __future__ import annotations
 
@@ -31,20 +38,42 @@ MAC_CAMERA_HINT = (
     "macOS: allow camera access for the app running Python - System Settings -> Privacy & Security -> Camera -> "
     "enable your terminal / IDE (Terminal, iTerm, VS Code, ...), then restart it. Also try another camera number."
 )
+LINUX_CAMERA_HINT = (
+    "Linux: camera number N is /dev/videoN (list them: python -m lib.camera). Check that your user may read it "
+    "(ls -l /dev/video*; add yourself to the group with: sudo usermod -aG video $USER, then log out and in) and "
+    "that no other program (browser, another script) holds the camera."
+)
+V4L_SYSFS = Path("/sys/class/video4linux")   # one directory per /dev/videoN, with its `name` and `index`
+V4L_DEV = Path("/dev")
 IPHONE_HINT = ("  iPhone (Continuity Camera): lock the phone, keep it still in landscape near the Mac, Wi-Fi + Bluetooth on,\n"
                "  same Apple ID; the phone should show 'Connected to <Mac>'. Opening Photo Booth and picking the iPhone\n"
                "  in its Camera menu forces the connection. List cameras: python -m lib.camera")
 
 
-def list_cameras() -> list[tuple[int, str]]:
-    """(index, name) of the video devices, with the indices OpenCV uses (macOS). Empty if unknown.
+def host_os() -> str:
+    """'macos', 'linux' or 'other'. The only place in this module that looks at sys.platform."""
+    if sys.platform == "darwin":
+        return "macos"
+    if sys.platform.startswith("linux"):
+        return "linux"
+    return "other"
 
-    OpenCV's AVFoundation backend numbers the cameras sorted by their unique ID, which is NOT the order ffmpeg
+
+def list_cameras() -> list[tuple[int, str]]:
+    """(index, name) of the video devices, with the indices OpenCV uses. Empty if unknown."""
+    os_name = host_os()
+    if os_name == "macos":
+        return _list_cameras_macos()
+    if os_name == "linux":
+        return _list_cameras_linux()
+    return []
+
+
+def _list_cameras_macos() -> list[tuple[int, str]]:
+    """OpenCV's AVFoundation backend numbers the cameras sorted by their unique ID, which is NOT the order ffmpeg
     lists them in: with a USB webcam plugged in, ffmpeg's index 1 can be OpenCV's index 0. So the names come
     from system_profiler (name + unique ID), sorted the way OpenCV sorts; ffmpeg is only the fallback.
     """
-    if sys.platform != "darwin":
-        return []
     try:
         out = subprocess.run(["system_profiler", "SPCameraDataType", "-json"],
                              capture_output=True, text=True, timeout=15).stdout
@@ -59,6 +88,60 @@ def list_cameras() -> list[tuple[int, str]]:
                          capture_output=True, text=True).stderr
     video = out.split("audio devices")[0]
     return [(int(i), n.strip()) for i, n in re.findall(r"\[(\d+)\] (.+)", video) if "Capture screen" not in n]
+
+
+def _list_cameras_linux() -> list[tuple[int, str]]:
+    """V4L2 devices: (N, name) for each /dev/videoN, N being the number OpenCV's V4L2 backend opens.
+
+    Names come from /sys/class/video4linux/videoN/name. One USB camera usually creates two nodes, the picture
+    and a metadata node that cannot be opened as a camera; the kernel numbers a device's nodes in `index`, and
+    the picture node is index 0, so the others are left out. Without sysfs (some containers) the fallback is
+    the bare /dev/videoN list.
+    """
+    cams: list[tuple[int, str]] = []
+    try:
+        nodes = sorted(V4L_SYSFS.glob("video[0-9]*"))
+    except OSError:
+        nodes = []
+    for node in nodes:
+        if not node.name[5:].isdigit():
+            continue
+        try:
+            if int((node / "index").read_text().strip()) != 0:
+                continue
+        except (OSError, ValueError):
+            pass    # no index file: keep the node rather than hide a camera
+        try:
+            name = (node / "name").read_text().strip()
+        except OSError:
+            name = ""
+        # UVC cameras often report "ROG EYE S: ROG EYE S"
+        head, sep, tail = name.partition(": ")
+        if sep and head == tail:
+            name = head
+        cams.append((int(node.name[5:]), name or f"/dev/{node.name}"))
+    if not cams:
+        try:
+            cams = [(int(d.name[5:]), str(d)) for d in V4L_DEV.glob("video[0-9]*") if d.name[5:].isdigit()]
+        except OSError:
+            cams = []
+    return sorted(cams)
+
+
+def camera_backends() -> list[int]:
+    """OpenCV capture backends to try, in order, for a camera given by number."""
+    os_name = host_os()
+    if os_name == "macos":
+        return [cv2.CAP_AVFOUNDATION]
+    if os_name == "linux":
+        # V4L2 first so that number N is /dev/videoN, as list_cameras() says; then whatever OpenCV picks.
+        return [cv2.CAP_V4L2, cv2.CAP_ANY]
+    return [cv2.CAP_ANY]
+
+
+def camera_hint() -> str | None:
+    """What to check when a camera does not open or sends nothing, for this operating system."""
+    return {"macos": MAC_CAMERA_HINT, "linux": LINUX_CAMERA_HINT}.get(host_os())
 
 
 def resolve_camera(cam: int | str) -> int | str:
@@ -153,12 +236,18 @@ def open_video(path: str | Path) -> FrameSource:
 def open_camera(camera: int | str | None = None, width: int = 1920, height: int = 1080) -> FrameSource:
     """Open a live camera (number, name fragment such as 'iphone', or URL); waits for a real picture."""
     cam = resolve_camera(camera if camera is not None else default_camera())
-    backend = cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY
-    cap = cv2.VideoCapture(cam, backend) if isinstance(cam, int) else cv2.VideoCapture(cam)
+    if isinstance(cam, int):
+        for backend in camera_backends():
+            cap = cv2.VideoCapture(cam, backend)
+            if cap.isOpened():
+                break
+            cap.release()
+    else:
+        cap = cv2.VideoCapture(cam)
     if not cap.isOpened():
         print(f"error: cannot open camera {cam!r}", file=sys.stderr)
-        if sys.platform == "darwin":
-            print(MAC_CAMERA_HINT, file=sys.stderr)
+        if camera_hint():
+            print(camera_hint(), file=sys.stderr)
         raise SystemExit(2)
     for line in configure_camera(cap, width, height):
         print("camera: " + line)
@@ -176,12 +265,12 @@ def open_camera(camera: int | str | None = None, width: int = 1920, height: int 
         time.sleep(0.03)
     if not ok:
         print(f"error: camera {cam!r} opened but delivers no frames", file=sys.stderr)
-        if sys.platform == "darwin":
-            print(MAC_CAMERA_HINT, file=sys.stderr)
+        if camera_hint():
+            print(camera_hint(), file=sys.stderr)
         raise SystemExit(2)
     if not lit:
         print(f"warning: camera {cam!r} sends only black frames.", file=sys.stderr)
-        if sys.platform == "darwin":
+        if host_os() == "macos":
             print(IPHONE_HINT, file=sys.stderr)
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     src = FrameSource(cap, True, fps if fps > 0 else 30.0, f"camera {cam}")
@@ -198,7 +287,10 @@ def open_source(camera: int | str | None = None, video: str | Path | None = None
 def main() -> int:
     cams = list_cameras()
     if not cams:
-        print("could not list cameras (needs macOS + ffmpeg); try camera 0, 1, 2 ...")
+        why = {"macos": "system_profiler and ffmpeg gave nothing",
+               "linux": f"no /dev/video* device and nothing in {V4L_SYSFS}: is a camera plugged in?",
+               }.get(host_os(), "listing is supported on macOS and Linux only")
+        print(f"could not list cameras ({why}); try camera 0, 1, 2 ...")
         return 1
     for i, n in cams:
         print(f"  {i}   {n}")

@@ -6,8 +6,9 @@ Reads a **Pesola Medio-Line 600 g** spring scale through a camera and shows the 
 
 - The Pesola 600 g scale (0–600 g, 5 g per line). Datasheet: [pesola-medio-line-40600-datasheet.pdf](pesola-medio-line-40600-datasheet.pdf) (item 40600: capacity 600 g, division 5 g, precision ±0.3 %, scale length 100 mm, tube 12 mm).
 - **Two red dots** drawn or stuck on the scale's tube (see below).
-- A camera: the laptop camera, or an iPhone via Continuity Camera (better picture).
+- A camera: the laptop camera, a USB webcam, or (on a Mac) an iPhone via Continuity Camera (better picture).
 - Python 3.12 and this repository.
+- macOS or Linux. The operating system is detected automatically; Linux needs a few system packages (below).
 
 ## Set up the scale: two red dots
 
@@ -32,6 +33,22 @@ uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python -r requirements.txt
 ```
 
+On Linux (Ubuntu), also install the system packages and give your user access to the cameras:
+
+```bash
+sudo apt-get install -y ffmpeg libgl1 libglib2.0-0 v4l-utils
+sudo usermod -aG video $USER      # then log out and in again
+```
+
+Details, and what each package is for: [SETUP.md](../SETUP.md), section 2.
+
+| | macOS | Linux |
+|---|---|---|
+| Camera backend | AVFoundation | V4L2 |
+| Camera number `N` | OpenCV's own order (sorted by unique ID) | `/dev/videoN` |
+| Where the names come from | `system_profiler` (fallback: `ffmpeg`) | `/sys/class/video4linux/videoN/name` |
+| iPhone by name (`--camera iphone`) | yes (Continuity Camera) | no: use a number or the webcam's name, e.g. `--camera rog` |
+
 ## Use it
 
 Open the control panel:
@@ -40,7 +57,7 @@ Open the control panel:
 .venv/bin/python -m gauge_reader.launcher
 ```
 
-1. Pick the **camera** (an iPhone appears by name) and keep **Mode = Stickers**.
+1. Pick the **camera** (cameras appear by name; on a Mac an iPhone is preselected) and keep **Mode = Stickers**.
 2. Press **1 · Calibrate**. With **nothing hanging on the scale**, in the camera window:
    - **SPACE** freezes the picture.
    - Click the **0** line, then the **600** line.
@@ -60,10 +77,11 @@ Optional: to double-check, hang a known weight during calibration, press **w** i
 The control panel runs these commands; they also work on their own:
 
 ```bash
-.venv/bin/python -m gauge_reader cameras                       # list cameras and their numbers
+.venv/bin/python -m gauge_reader cameras                       # list cameras and their numbers (macOS and Linux)
 .venv/bin/python -m gauge_reader calibrate --camera iphone     # sticker mode (default); --mode fixed for a clamped scale
 .venv/bin/python -m gauge_reader calibrate --resume            # reload the saved calibration: re-zero, add weights
 .venv/bin/python -m gauge_reader run --camera iphone           # live reading + CSV in recordings/
+.venv/bin/python -m gauge_reader run --camera 2               # Linux: /dev/video2 (or a name fragment, or the path itself)
 .venv/bin/python -m gauge_reader run --headless --video clip.mp4 --csv out.csv
 
 # tests without hardware: synthetic hand-held video with exact ground truth, then score it
@@ -169,7 +187,10 @@ Limits: each mark must be fully visible, clearly red in the picture and fixed to
 
 | Problem | What to do |
 |---|---|
-| Camera does not open | macOS System Settings → Privacy & Security → Camera → allow your terminal or IDE. |
+| Camera does not open (macOS) | System Settings → Privacy & Security → Camera → allow your terminal or IDE. |
+| Camera does not open (Linux) | Camera `N` is `/dev/videoN`: list them with `python -m gauge_reader cameras`. Check `ls -l /dev/video*` and that you are in the `video` group (`sudo usermod -aG video $USER`, then log out and in). Close any other program using the camera. |
+| No camera listed (Linux) | Plug the camera in and check `ls /dev/video*`. `v4l2-ctl --list-devices` (package `v4l-utils`) shows what the kernel sees. |
+| `cv2.imshow` error "The function is not implemented" (Linux) | That Python has `opencv-python-headless` (LeRobot installs it), which has no windows. Use this repo's `.venv`. |
 | iPhone picture is black | Lock the iPhone, keep it still in landscape near the Mac (Wi-Fi and Bluetooth on, same Apple ID). It should say "Connected to Mac". Opening Photo Booth and choosing the iPhone forces the connection. |
 | "Stickers not found" at calibration | Both dots and the marker must be visible. Check there are **two** dots plus the marker. You can also click dot 1, then dot 2, by hand (see "Other red marks as references" below). |
 | Reads a few grams at 0 g | Press **z** with nothing on the scale (zero), then **s** to save. |
