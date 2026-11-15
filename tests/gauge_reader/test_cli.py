@@ -465,7 +465,9 @@ def test_calibrate_stickers_clicked_by_hand(moving_video, tmp_path, monkeypatch)
     FakeGUI(monkeypatch, script)
     assert main(["calibrate", "--video", str(moving_video), "--calib", str(out)]) == 0
     c = load_calibration(out)
-    assert c.mode == "stickers" and c.s1_ref == pytest.approx(s1) and c.s2_ref == pytest.approx(s2)
+    # hand clicks snap to the centre of the red mark under them, and its look is learned
+    assert c.mode == "stickers" and c.s1_ref == pytest.approx(s1, abs=1.0) and c.s2_ref == pytest.approx(s2, abs=1.0)
+    assert c.ref_profile is not None and c.ref_profile["area_ratio"] == pytest.approx(1.0, abs=0.3)
 
 
 def test_calibrate_stickers_from_args(moving_video, tmp_path, monkeypatch, capsys):

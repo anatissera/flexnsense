@@ -34,6 +34,26 @@ Point = tuple[float, float]
 
 
 @dataclass
+class StickerProfile:
+    """What the two references of ONE scale look like, measured at calibration when they are not the two
+    matching round dots the generic rules expect (e.g. a printed red band at one end and a small mark at the
+    other). With a profile the tracker accepts only a pair that looks like these two, in this order."""
+    area_ratio: float      # area of reference 1 / area of reference 2
+    elong1: float          # major / minor std of each reference
+    elong2: float
+    redness1: float        # mean R - max(G, B) of each reference
+    redness2: float
+
+    def to_dict(self) -> dict:
+        return {"area_ratio": self.area_ratio, "elong1": self.elong1, "elong2": self.elong2,
+                "redness1": self.redness1, "redness2": self.redness2}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "StickerProfile":
+        return cls(*(float(d[k]) for k in ("area_ratio", "elong1", "elong2", "redness1", "redness2")))
+
+
+@dataclass
 class StickerConfig:
     red: DetectorConfig = field(default_factory=DetectorConfig)   # colour thresholds, reuse red_mask
     min_area_px: int = 8
@@ -59,6 +79,14 @@ class StickerConfig:
                                        # clicked line (users click the printed ticks at the tube edge, not the marker track)
     ambiguity_du: float = 0.01         # two different readings with scores this close -> "ambiguous"
     ambiguity_score: float = 0.15
+    # --- references learned at calibration (None: the generic "two matching round dots" rules above) ---
+    profile: StickerProfile | None = None
+    profile_area_tol: float = 2.5      # the pair's area ratio may differ from the profile's by this factor
+    profile_elong_tol: float = 1.5     # a reference may be this much more elongated than at calibration
+    profile_redness_tol: float = 0.7   # ... and must keep this fraction of its calibration redness
+    profile_click_radius_px: float = 40.0   # calibration: a clicked reference is the red blob within this distance
+    profile_marker_min_area_frac: float = 0.08   # marker mask area >= this x the smaller reference's area (the
+                                                 # references can be much larger than the marker, unlike two dots)
 
 
 @dataclass
@@ -200,7 +228,11 @@ class StickerTracker:
         cfg = self.config
         all_blobs = _blobs(img, cfg, offset)
         overlay = [(float(b.c[0]), float(b.c[1]), b.area) for b in all_blobs]
-        blobs = [b for b in all_blobs if not b.clipped and b.redness >= cfg.min_redness]
+        prof = cfg.profile
+        floor = cfg.min_redness
+        if prof is not None:   # a learned reference may be duller than min_redness; each role is checked in _fits
+            floor = min(floor, cfg.profile_redness_tol * min(prof.redness1, prof.redness2))
+        blobs = [b for b in all_blobs if not b.clipped and b.redness >= floor]
         if not blobs:
             return StickerDetection.fail("no-scale", overlay)
         tracking = self._dist is not None and self._gap < cfg.track_max_gap
@@ -216,21 +248,31 @@ class StickerTracker:
                 dist = float(np.hypot(*dvec))
                 if dist < cfg.min_sticker_dist_px:
                     continue
-                if max(a.area, b.area) > cfg.sticker_area_ratio * min(a.area, b.area):
-                    continue
                 dchg = abs(dist - self._dist) / self._dist if tracking else 0.0
                 if dchg > cfg.max_dist_change:
                     continue
                 d = dvec / dist
                 nrm = np.array([-d[1], d[0]])
                 asp_a, asp_b = a.spread(nrm) / a.spread(d), b.spread(nrm) / b.spread(d)
-                if max(asp_a, asp_b) > cfg.sticker_max_aspect or max(a.elong, b.elong) > cfg.sticker_max_elong:
-                    continue
+                if prof is None:
+                    if max(a.area, b.area) > cfg.sticker_area_ratio * min(a.area, b.area):
+                        continue
+                    if max(asp_a, asp_b) > cfg.sticker_max_aspect or max(a.elong, b.elong) > cfg.sticker_max_elong:
+                        continue
+                    fit_keep = fit_swap = max(a.area, b.area) / min(a.area, b.area)
+                    shape_term = max(asp_a, asp_b) / cfg.sticker_max_aspect
+                    marker_min_area = cfg.marker_min_area_frac * 0.5 * (a.area + b.area)
+                else:   # the pair must look like the calibrated references, in one order or the other
+                    fit_keep, fit_swap = self._fits(a, b), self._fits(b, a)
+                    if fit_keep is None and fit_swap is None:
+                        continue
+                    shape_term = 0.5
+                    marker_min_area = cfg.profile_marker_min_area_frac * min(a.area, b.area)
                 for ic in range(n):
                     if ic in (ia, ib):
                         continue
                     c = blobs[ic]
-                    if c.area < cfg.marker_min_area_frac * 0.5 * (a.area + b.area):
+                    if c.area < marker_min_area or c.redness < cfg.min_redness:
                         continue
                     rel = c.c - a.c
                     uc = float(rel @ d) / dist
@@ -243,7 +285,12 @@ class StickerTracker:
                     # orientation: which end is sticker 1 (the 0 g end)
                     s1, s2, u = a, b, uc
                     undecided = False
-                    if refs is not None:
+                    if (fit_keep is None) != (fit_swap is None):   # the profile tells the two ends apart
+                        if fit_keep is None:
+                            s1, s2, u = b, a, 1.0 - uc
+                        if not (lo_u <= u <= hi_u):
+                            continue
+                    elif refs is not None:
                         r1, r2 = refs
                         keep = np.hypot(*(a.c - r1)) + np.hypot(*(b.c - r2))
                         swap = np.hypot(*(b.c - r1)) + np.hypot(*(a.c - r2))
@@ -263,9 +310,9 @@ class StickerTracker:
                                 s1, s2, u = b, a, 1.0 - uc
                     score = (off / cfg.max_offaxis_frac
                              + (dchg / cfg.max_dist_change if tracking else 0.0)
-                             + max(asp_a, asp_b) / cfg.sticker_max_aspect
+                             + shape_term
                              + cfg.marker_min_aspect / asp_c
-                             + 0.5 * (max(a.area, b.area) / min(a.area, b.area) - 1.0))
+                             + 0.5 * ((fit_keep if s1 is a else fit_swap) - 1.0))
                     cands.append((score, u, s1, s2, c, dist, undecided))
 
         if not cands:
@@ -278,10 +325,30 @@ class StickerTracker:
             if abs(other[1] - best[1]) > cfg.ambiguity_du:
                 return StickerDetection.fail("ambiguous", overlay)
         score, u, s1, s2, mk, dist, undecided = best
-        red = float(np.clip(min(s1.redness, s2.redness, mk.redness) / cfg.red.redness_full_conf, 0, 1))
+        full = cfg.red.redness_full_conf
+        if prof is None:
+            red = min(s1.redness, s2.redness, mk.redness) / full
+        else:   # a learned reference is judged against its own calibration redness
+            red = min(s1.redness / min(full, prof.redness1), s2.redness / min(full, prof.redness2), mk.redness / full)
+        red = float(np.clip(red, 0, 1))
         conf = red * float(np.clip(1.0 - 0.15 * score, 0.1, 1.0)) * (0.5 if undecided else 1.0)
         p1, p2 = _pt(s1.c), _pt(s2.c)
         return StickerDetection(True, float(u), p1, p2, _pt(mk.c), float(dist), Axis(p1, p2), conf, "", overlay)
+
+    def _fits(self, x: _Blob, y: _Blob) -> float | None:
+        """Profile mode: how far (x as reference 1, y as reference 2) is from the calibrated pair, as the factor
+        between their area ratio and the profile's (1 = identical); None if they do not look like that pair."""
+        cfg, p = self.config, self.config.profile
+        ratio = x.area / max(y.area, 1)
+        dev = max(ratio / p.area_ratio, p.area_ratio / ratio)
+        if dev > cfg.profile_area_tol:
+            return None
+        for blob, elong, redness in ((x, p.elong1, p.redness1), (y, p.elong2, p.redness2)):
+            if blob.elong > max(cfg.sticker_max_elong, cfg.profile_elong_tol * elong):
+                return None
+            if blob.redness < min(cfg.min_redness, cfg.profile_redness_tol * redness):
+                return None
+        return float(dev)
 
     def _why(self, blobs: list[_Blob]) -> str:
         """Best guess why no triplet was found. Never a reading, only a reason for the UI."""
@@ -327,3 +394,24 @@ def find_stickers_near_line(frame_bgr: np.ndarray, p0, p1, config: StickerConfig
     if best1 is None or best2 is None:
         return None
     return _pt(best1[1].c), _pt(best2[1].c)
+
+
+def measure_profile(frame_bgr: np.ndarray, s1, s2, config: StickerConfig | None = None):
+    """At calibration, when the references were clicked by hand: take the red blob under each click and return
+    (profile, s1_centre, s2_centre) with sub-pixel centres; None if a click is not on a red blob (or both clicks
+    hit the same one). The profile lets the tracker find references that are not two matching round dots."""
+    cfg = _cfg(config)
+    blobs = [b for b in _blobs(frame_bgr, cfg) if not b.clipped]
+    picked = []
+    for click in (s1, s2):
+        p = np.asarray(click, dtype=np.float64)
+        near = [(float(np.hypot(*(b.c - p))), i) for i, b in enumerate(blobs)]
+        near = [t for t in near if t[0] <= cfg.profile_click_radius_px]
+        if not near:
+            return None
+        picked.append(blobs[min(near)[1]])
+    b1, b2 = picked
+    if b1 is b2:
+        return None
+    profile = StickerProfile(b1.area / max(b2.area, 1), b1.elong, b2.elong, b1.redness, b2.redness)
+    return profile, _pt(b1.c), _pt(b2.c)

@@ -52,3 +52,17 @@ def test_open_source_video_file(tmp_path):
 def test_open_video_missing_file(tmp_path):
     with pytest.raises(SystemExit):
         camera.open_source(video=tmp_path / "nope.mp4")
+
+
+def test_list_cameras_uses_opencv_order(monkeypatch):
+    # OpenCV numbers cameras sorted by unique ID, not in the order the system lists them
+    import json
+    import subprocess
+    import types
+    listing = {"SPCameraDataType": [
+        {"_name": "MacBook Air Camera", "spcamera_unique-id": "6C707041-05AC-0010-000C-000000000001"},
+        {"_name": "ROG EYE S", "spcamera_unique-id": "0x1200000b0519c0"},
+        {"_name": "Someone's iPhone Camera", "spcamera_unique-id": "E45F980F-8AB2-4CAD-A46A-A71E00000001"}]}
+    monkeypatch.setattr(camera.sys, "platform", "darwin")
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: types.SimpleNamespace(stdout=json.dumps(listing), stderr=""))
+    assert camera.list_cameras() == [(0, "ROG EYE S"), (1, "MacBook Air Camera"), (2, "Someone's iPhone Camera")]
