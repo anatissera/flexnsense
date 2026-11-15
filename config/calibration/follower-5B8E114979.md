@@ -4,8 +4,11 @@ Calibrated by hand in Station's web UI (ST3215 bus calibration page) on 2026-11-
 confirmed by reading it back through `scripts/calibrate.py` (PR #17, Station client).
 
 This range lives on the servos themselves (firmware), not on any computer - if it is ever
-reset (a factory reset, a firmware reflash, replacing a servo), recalibrate in the web UI and
-update this file. It is not auto-restored by reconnecting to a different machine.
+reset (a factory reset, a firmware reflash, replacing a servo), **this is recoverable without
+redoing the manual move-every-joint flow**: `follower-5B8E114979.json` has the same numbers in
+a machine-readable form, and `scripts/restore_calibration.py` writes them straight back to the
+servos. See that script's docstring before using it - it skips the manual calibration step on
+purpose, which only belongs the first time a joint's real range is unknown.
 
 | Motor | range_min | range_max |
 |---|---|---|

@@ -5,6 +5,7 @@ from lib.station import (
     _POSITION_ADDR,
     _TEMPERATURE_ADDR,
     _VOLTAGE_ADDR,
+    build_freeze_arcs,
     parse_motor_state,
 )
 
@@ -66,3 +67,25 @@ def test_full_sized_blob_with_no_fields_set_reads_as_zero_not_none():
     assert state.current_ma == 0
     assert state.temperature_c == 0
     assert state.voltage_v == 0.0
+
+
+def test_build_freeze_arcs_shape():
+    arcs = build_freeze_arcs({1: (1085, 3011), 8: (1242, 2854)})
+    assert set(arcs) == {(1, 1085, 3011, (1085 + 3011) // 2), (8, 1242, 2854, (1242 + 2854) // 2)}
+
+
+def test_build_freeze_arcs_midpoint_is_mean_of_range():
+    (motor_id, lo, hi, midpoint), = build_freeze_arcs({5: (139, 3957)})
+    assert motor_id == 5 and lo == 139 and hi == 3957
+    assert midpoint == (139 + 3957) // 2
+
+
+def test_build_freeze_arcs_empty_input():
+    assert build_freeze_arcs({}) == []
+
+
+def test_build_freeze_arcs_preserves_all_motors():
+    ranges = {i: (i * 100, i * 100 + 50) for i in range(1, 9)}
+    arcs = build_freeze_arcs(ranges)
+    assert len(arcs) == 8
+    assert {a[0] for a in arcs} == set(range(1, 9))

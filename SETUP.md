@@ -69,8 +69,14 @@ scripted procedure for either. Each bus shows a serial number on its card; note 
 need it for everything below. Our `scripts/calibrate.py` only checks that this has already
 been done - run it after, not instead of, the web UI step.
 
-Once calibrated, commit the result so the team doesn't redo it per laptop:
-[config/calibration/README.md](./config/calibration/README.md).
+Once calibrated, commit the result so the team doesn't redo it per laptop: a
+`config/calibration/<bus serial>.json` + `.md` pair (see the existing ones for the format). If
+a calibration is ever lost (servo reset, reflash, replaced servo), restore it from that file
+without redoing the manual web UI step:
+
+```bash
+python scripts/restore_calibration.py config/calibration/<bus serial>.json
+```
 
 ## 5. The Python client (for our scripts)
 

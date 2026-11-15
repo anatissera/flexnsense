@@ -97,10 +97,13 @@ of the whole workspace.
 ## Calibration has two unrelated meanings here, don't conflate them
 
 1. **Joint range calibration** (`range_min`/`range_max` per motor) - done once per physical
-   arm, by hand, in Station's web UI. No script for this exists on either side (NormaCore
-   doesn't publish one, and we don't write one over a manual-only UI flow). Committed to the
-   repo once done: [`config/calibration/README.md`](../config/calibration/README.md).
-   `scripts/calibrate.py` only checks that this has already happened; it does not perform it.
+   arm, by hand, in Station's web UI. No script performs the first calibration (NormaCore
+   doesn't publish one, and we don't write one over a manual-only UI flow): it has to come
+   from actually moving each joint through its real range. Once done, it is committed to the
+   repo as a `config/calibration/<bus>.json` + `.md` pair. `scripts/calibrate.py` only checks
+   that a bus is already calibrated; `scripts/restore_calibration.py` writes a saved `.json`
+   back to the servos' firmware if the calibration is ever lost (a reset, a reflash, a
+   replaced servo) - recovery, not a substitute for the one manual calibration.
 2. **Force calibration** (servo current -> grams) - our own experiment, run through
    `scripts/log_force_calibration.py`, described in
    [force-calibration.md](./force-calibration.md). Needs (1) done first, since an

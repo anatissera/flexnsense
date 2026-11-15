@@ -171,3 +171,38 @@ async def set_position(client, bus_serial: str, motor_id: int, position: int) ->
         type=drivers.StationCommandType.STC_ST3215_COMMAND, body=write_cmd.encode()
     )
     await send_commands(client, [cmd])
+
+
+def build_freeze_arcs(ranges: dict[int, tuple[int, int]]) -> list[tuple[int, int, int, int]]:
+    """{motor_id: (range_min, range_max)} -> [(motor_id, min_angle, max_angle, midpoint), ...].
+
+    Pure and protobuf-free, so it is unit-tested directly (see tests/lib/test_station.py).
+    `midpoint` is not something we ever read back from a motor (InferenceState.MotorState has
+    no such field) - it is derived here as the arithmetic mean, a reasonable default, not a
+    recovered original value.
+    """
+    return [(motor_id, lo, hi, (lo + hi) // 2) for motor_id, (lo, hi) in ranges.items()]
+
+
+async def freeze_calibration(client, bus_serial: str, ranges: dict[int, tuple[int, int]]) -> None:
+    """Write a joint-range calibration straight to the servos' firmware, skipping the manual
+    move-every-joint-through-its-range flow in Station's web UI.
+
+    For restoring a calibration recorded in config/calibration/ after it was lost (servo reset,
+    replacement, reflash) - not for performing a first calibration, which still has to be done
+    by hand once, by actually moving the joint, so `ranges` reflects where the joint can really go.
+    """
+    _, _, send_commands, st3215, commands, drivers = _import_generated()
+
+    arcs = [
+        st3215.FreezeMotorArc(motor_id=mid, min_angle=lo, max_angle=hi, midpoint=mid_)
+        for mid, lo, hi, mid_ in build_freeze_arcs(ranges)
+    ]
+    freeze_cmd = st3215.Command(
+        target_bus_serial=bus_serial,
+        freeze_calibration=st3215.FreezeCalibrationCommand(freeze=True, arcs=arcs),
+    )
+    cmd = commands.DriverCommand(
+        type=drivers.StationCommandType.STC_ST3215_COMMAND, body=freeze_cmd.encode()
+    )
+    await send_commands(client, [cmd])
