@@ -65,6 +65,8 @@ Cosas del dataset que rompen el entrenamiento si se ignoran:
   44-63 y 64-83. La cámara `table` cambió de encuadre a partir del 44. Un modelo entrenado solo con
   la primera sesión falla en las otras (ACT de 63 episodios sobre el episodio 70, que no vio:
   error mediano de 100 a 330 ticks en bucle abierto).
+- En `selftest.py`, el ACT con yemas da en el episodio 70 un error mediano de 5 a 31 ticks por
+  motor. No es comparable con el dato anterior: ese episodio sí está en su entrenamiento.
 - **Los motores 5 y 7 casi no se mueven** (std 0.012 y 0.003 en `position_norm`).
 - **El gripper se cierra porque el goal va por delante de la posición** (goal 0.025 frente a 0.037
   cerrado): una policy que promedia aprieta menos que las demos.
@@ -81,7 +83,7 @@ Cosas del dataset que rompen el entrenamiento si se ignoran:
 | SmolVLA (NormaCore), chunk 50 | 43 ep, estado 8 | 12 000 | HF `JustoDario/flexnsense_smolvla` (público) | No |
 | Diffusion Policy, horizon 16 | 43 ep, estado 8 | 20 000 de 30 000 (pausado) | solo local | No |
 | ACT, chunk 30 | 63 ep, estado 8 | 30 000 | HF `JustoDario/flexnsense_act_skill1_rightindex2middle_63ep` (privado) | No |
-| ACT, chunk 30, **con yemas** | 83 ep, estado 13 | 30 000 | solo local (lanzado el 15-nov; ver el log) | No |
+| ACT, chunk 30, **con yemas** | 83 ep, estado 13 | 30 000 | HF `JustoDario/flexnsense_act_skill1_rightindex2middle_83ep_hand` (privado) | No |
 
 En la máquina de entrenamiento (RTX PRO 4000 Blackwell, 24 GB) todo cuelga de `/opt/data/justo`:
 `env.sh` (entorno de LeRobot), `checkpoints/<RUN>/`, `logs/<RUN>.log`, `datasets/flexnsense_skill1_raw`
@@ -103,7 +105,7 @@ Los scripts de `inference/` reconocen solos el tipo de checkpoint; solo cambia l
 | Checkpoint | `--checkpoint` | Hace falta además | Re-planifica cada |
 |---|---|---|---|
 | ACT, estado 8 | carpeta `pretrained_model` (o la descargada de HF) | nada | 15 ticks (1.5 s) |
-| ACT, estado 13 (yemas) | carpeta `pretrained_model` | WiLoR en la máquina del robot: `WILOR_ROOT`, `--hand-source wilor` (sección 3d) | 15 ticks |
+| ACT, estado 13 (yemas) | carpeta `pretrained_model` | WiLoR en la máquina del robot: `WILOR_ROOT`, `--hand-source wilor`; lo normal es el montaje en dos procesos (sección 3d) | 15 ticks |
 | Diffusion | carpeta `pretrained_model` | `diffusers` (`uv pip install -e "lerobot[diffusion]"`) | 8 ticks (0.8 s) |
 | SmolVLA | carpeta con `elrobot.json` | `smolvla_py` en el path (lo pone `setup_env.sh`) | 15 ticks; `--n-action-steps` hasta 50 |
 
@@ -111,6 +113,8 @@ Orden recomendado siempre: `selftest.py` → `--dry-run` → `--max-ticks 30` �
 
 ### A.4 Qué falta
 
+0. Hay dos prompts de un solo uso para el agente del portátil del robot: `prompt.txt` (ACT de 63
+   episodios) y `prompt2.txt` (ACT con yemas). Cada uno se borra de la rama al terminar su prueba.
 1. **Probar en el brazo** SmolVLA, ACT de 63 episodios y ACT con yemas, y compararlos: 10 intentos
    por policy desde las mismas posiciones, contando éxitos. La loss y `selftest.py` no predicen
    el comportamiento real (son bucle abierto sobre episodios, la mayoría vistos al entrenar).
@@ -444,8 +448,13 @@ python run_local.py --checkpoint <pretrained_model> --bus-serial <SERIAL_FOLLOWE
 ```
 
 - `hand_source.py` usa `hand_tracking/wilor_source.py` de este repo (`WilorTracker`, modo rápido
-  fp16): necesita el entorno de WiLoR (torch, ultralytics) **en el mismo Python** que la policy.
+  fp16): necesita el entorno de WiLoR (torch, ultralytics) en el Python que ejecuta `control.py`.
   En una RTX 3050: ~90 ms por imagen y ~1.7 GB de VRAM, además de la policy.
+- **WiLoR y LeRobot en entornos distintos: dos procesos en la misma máquina.** `policy_server.py`
+  en el entorno de LeRobot y `robot_client.py --server localhost:9000 --hand-source wilor` en el
+  de WiLoR. El cliente solo necesita numpy, pillow, pyarrow y `NORMA_CORE` (station_py usa la
+  librería estándar), no LeRobot. Probado en la máquina de entrenamiento con el cliente en un
+  venv sin torch y las yemas calculadas en vivo con MediaPipe.
 - En cada petición de chunk se imprime `[mano N ms: índice (x, y) corazón (x, y)]` o `SIN MANO`.
 - El paso 1 es obligatorio la primera vez: `check_hand.py` no se ha podido ejecutar con WiLoR en
   la máquina de entrenamiento (no tiene WiLoR), solo con MediaPipe. Si no da OK, la configuración
