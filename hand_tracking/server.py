@@ -16,8 +16,12 @@ with, and it means no buffering or dropping logic on either side.
 Frames are decoded, measured and discarded. Nothing is written to disk, which is the same promise
 the in-browser tracker makes.
 """
-from __future__ import annotations
-
+#
+# Note there is deliberately no `from __future__ import annotations` here, unlike the rest of
+# hand_tracking. It would turn the annotations below into strings, and FastAPI resolves those
+# against the module's globals; since fastapi is imported inside build_app (so that this module
+# stays importable without it), `WebSocket` would not be found there. FastAPI would then read
+# `ws: WebSocket` as a query parameter and reject every handshake with a 403.
 import argparse
 import sys
 import time
@@ -28,16 +32,24 @@ DEFAULT_PORT = 8765
 
 def build_app(wilor_root: str, *, fast: bool = True, conf: float = 0.3):
     """The FastAPI app, with the model loaded once up front rather than per connection."""
-    import cv2
-    import numpy as np
-    from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-    from fastapi.responses import JSONResponse
-
     from hand_tracking.wilor_source import WilorTracker
 
     print(f"loading WiLoR from {wilor_root} (fast={fast}) ...", flush=True)
     tracker = WilorTracker(wilor_root, fast=fast, conf=conf)
     print("WiLoR ready", flush=True)
+    return app_for(tracker)
+
+
+def app_for(tracker):
+    """Wire the routes around anything with ``.track(image, t_ms)`` and ``.device``.
+
+    Split out from :func:`build_app` so the routes can be tested against a stub, with no GPU and
+    no checkpoint: see tests/hand_tracking/test_server.py.
+    """
+    import cv2
+    import numpy as np
+    from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+    from fastapi.responses import JSONResponse
 
     app = FastAPI()
 
