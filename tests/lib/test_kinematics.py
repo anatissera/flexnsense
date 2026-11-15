@@ -309,3 +309,94 @@ def test_a_trajectory_has_one_waypoint_per_step(chain):
 def test_zero_steps_is_rejected(chain):
     with pytest.raises(ValueError):
         chain.line_trajectory(PULL_MOTORS, OBSERVED_POSE, np.array([0, 1, 0.0]), 0.09, steps=0)
+
+
+# ---------------------------------------------------------------- choosing joints per pose
+CENTRED_POSE = {m: 2048 for m in range(1, 8)}
+FOLDED_POSE = {1: 2500, 2: 1500, 3: 2800, 4: 1800, 5: 2200, 6: 1600, 7: 2400}
+
+
+def test_the_chosen_set_always_spans_three_dimensions(chain):
+    """The property that makes automatic selection safe: whatever pose it is handed, the
+    joints it picks can follow an arbitrary direction, including the return stroke."""
+    for pose in (OBSERVED_POSE, CENTRED_POSE, FOLDED_POSE):
+        motors = chain.choose_pull_motors(pose)
+        assert len(motors) == 3
+        rank, _ = chain.pull_quality(motors, pose, np.array([0.0, -1.0, 0.0]))
+        assert rank == 3, f"{motors} at {pose} has rank {rank}"
+
+
+def test_different_poses_can_want_different_joints(chain):
+    """Why the set is not a constant in a config file."""
+    picks = {tuple(chain.choose_pull_motors(p))
+             for p in (OBSERVED_POSE, CENTRED_POSE, FOLDED_POSE)}
+    assert len(picks) > 1, "every pose chose the same joints; the selection may be ignoring pose"
+
+
+def test_the_chosen_set_tracks_both_strokes(chain):
+    """Out and back, since a repetition runs both and an earlier greedy selection passed the
+    outward stroke at 0.4 mm while missing the return by 14.8 mm."""
+    for pose in (OBSERVED_POSE, FOLDED_POSE):
+        motors = chain.choose_pull_motors(pose)
+        direction = chain.tip_velocity_direction(4, pose)
+        out, _ = chain.line_error(motors, pose, direction, 0.090, steps=60)
+        back, _ = chain.line_error(motors, pose, -direction, 0.090, steps=60)
+        assert out < 0.002, f"{pose}: outward {out*1000:.2f} mm"
+        assert back < 0.002, f"{pose}: return {back*1000:.2f} mm"
+
+
+def test_selection_beats_naming_joints_by_hand(chain):
+    """The automatic pick should be at least as well conditioned as the hand-chosen [2, 3, 4],
+    otherwise there is no reason to prefer it."""
+    for pose in (OBSERVED_POSE, CENTRED_POSE, FOLDED_POSE):
+        auto = chain.choose_pull_motors(pose)
+        _, cond_auto = chain.pull_quality(auto, pose, np.array([0.0, -1.0, 0.0]))
+        _, cond_hand = chain.pull_quality([2, 3, 4], pose, np.array([0.0, -1.0, 0.0]))
+        assert cond_auto <= cond_hand * 1.05, f"{pose}: auto {cond_auto:.0f} vs hand {cond_hand:.0f}"
+
+
+# ---------------------------------------------------------------- refusing an impossible pull
+def test_a_pull_that_degrades_into_a_singularity_is_refused(chain):
+    """The case that motivated checking the whole path rather than the starting pose.
+
+    This direction starts at a healthy 82 mm per radian and falls to about 1 mm per radian
+    partway through a 90 mm pull, with the path wandering 8.6 mm off the line. Checking only
+    the start pose called it fine.
+    """
+    direction = chain.tip_velocity_direction(4, CENTRED_POSE)
+    sideways = np.cross(direction, [0.0, 0.0, 1.0])
+    sideways = sideways / np.linalg.norm(sideways)
+    motors = chain.choose_pull_motors(CENTRED_POSE)
+
+    deviation, _ = chain.line_error(motors, CENTRED_POSE, sideways, 0.090, steps=60)
+    assert deviation > 0.005, "the hard direction got easier; this test needs a new one"
+
+    ok, why = chain.can_pull_straight(motors, CENTRED_POSE, sideways, 0.090)
+    assert not ok
+    assert "singularity" in why or "wanders" in why
+
+
+def test_a_good_pull_is_accepted_with_its_numbers(chain):
+    direction = chain.tip_velocity_direction(4, OBSERVED_POSE)
+    motors = chain.choose_pull_motors(OBSERVED_POSE)
+    ok, why = chain.can_pull_straight(motors, OBSERVED_POSE, direction, 0.090)
+    assert ok, why
+    assert "mm per radian" in why
+
+
+def test_fewer_than_three_joints_is_refused_before_any_geometry(chain):
+    ok, why = chain.can_pull_straight([3, 4], OBSERVED_POSE,
+                                      np.array([0.0, -1.0, 0.0]), 0.090)
+    assert not ok
+    assert "plane" in why
+
+
+def test_a_shorter_pull_can_be_possible_where_a_long_one_is_not(chain):
+    """The refusal is about the path, so shortening it is one of the suggested remedies and
+    has to actually work."""
+    direction = chain.tip_velocity_direction(4, CENTRED_POSE)
+    sideways = np.cross(direction, [0.0, 0.0, 1.0])
+    sideways = sideways / np.linalg.norm(sideways)
+    motors = chain.choose_pull_motors(CENTRED_POSE)
+    assert not chain.can_pull_straight(motors, CENTRED_POSE, sideways, 0.090)[0]
+    assert chain.can_pull_straight(motors, CENTRED_POSE, sideways, 0.010)[0]

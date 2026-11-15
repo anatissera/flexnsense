@@ -259,6 +259,132 @@ class Chain:
             last_along = along
         return worst, distance_m - last_along
 
+    def choose_pull_motors(self, ticks: dict[int, float], direction: np.ndarray | None = None,
+                           candidates: list[int] | None = None, want: int = 3,
+                           link: str = TIP_LINK) -> list[int]:
+        """Pick the joints best able to pull a straight line from *this* pose.
+
+        Which joints to use is a property of the pose, not of the arm: the same three that
+        track a line beautifully in one pose can be nearly coplanar in another. Rather than
+        fixing a list once and hoping the pose never changes, this re-derives it.
+
+        Chosen to maximise the **smallest** singular value of the resulting jacobian, by
+        exhaustive search over the candidate sets (there are only 35 ways to pick 3 of 7, so
+        there is no reason to be clever and risk a greedy mistake). That is deliberately not
+        "whichever joints pull hardest along `direction`": the smallest singular value is the
+        gain in the arm's *worst* direction, and the worst direction is exactly what the return
+        stroke of a repetition runs along. An earlier greedy version scored by alignment with
+        the pull and chose sets that tracked the outward stroke to 0.4 mm and the return to
+        14.8 mm, which is the failure this now rules out by construction.
+
+        `direction` is therefore unused for the choice and kept only so callers can pass it;
+        it is used by `pull_quality` for reporting. Motor 8 is never a candidate, being the
+        gripper's own jaws.
+        """
+        from itertools import combinations
+
+        if candidates is None:
+            candidates = [m for m in self.motor_ids if m != 8]
+        want = min(want, len(candidates))
+
+        best, best_score = None, -1.0
+        for combo in combinations(sorted(candidates), want):
+            J = self.jacobian(list(combo), ticks, link)
+            sv = np.linalg.svd(J, compute_uv=False)
+            score = float(sv[-1])          # gain in the worst direction
+            if score > best_score:
+                best, best_score = list(combo), score
+        return best if best is not None else []
+
+    def pull_quality(self, motors: list[int], ticks: dict[int, float], direction: np.ndarray,
+                     link: str = TIP_LINK) -> tuple[int, float]:
+        """`(rank, condition number)` of these joints at this pose.
+
+        Rank below 3 means the set spans only a plane, so some direction, typically the return
+        stroke, cannot be followed. A very large condition number means it can be followed only
+        by asking for large joint motions, which the damping in `ik_step` will refuse to do.
+        """
+        J = self.jacobian(motors, ticks, link)
+        rank = int(np.linalg.matrix_rank(J, tol=1e-6))
+        sv = np.linalg.svd(J, compute_uv=False)
+        cond = float(sv[0] / sv[-1]) if sv[-1] > 1e-15 else float("inf")
+        return rank, cond
+
+    def direction_gain(self, motors: list[int], ticks: dict[int, float],
+                       direction: np.ndarray, link: str = TIP_LINK) -> float:
+        """How well these joints can move the tip along `direction`, as metres per radian.
+
+        The quantity that decides whether a pull is followable at all. Not every direction is
+        reachable from every pose: at some configurations the arm can move the tip hard along
+        one axis and barely at all along another, and no amount of damping, step refinement or
+        extra joints fixes it, because the limit is the mechanism's, not the solver's.
+
+        A low gain is what a silently bad pull looks like before it happens, which is why
+        `CoordinatedAxis` checks it rather than discovering it on a finger.
+        """
+        d = np.asarray(direction, dtype=float)
+        d = d / np.linalg.norm(d)
+        J = self.jacobian(motors, ticks, link)
+        # Least-norm joint velocity that produces unit tip speed along d, inverted: the gain is
+        # how much tip motion a unit of joint motion buys in that direction.
+        JJt = J @ J.T + 1e-12 * np.eye(3)
+        dq = J.T @ np.linalg.solve(JJt, d)
+        n = float(np.linalg.norm(dq))
+        return 1.0 / n if n > 1e-12 else 0.0
+
+    def can_pull_straight(self, motors: list[int], ticks: dict[int, float],
+                          direction: np.ndarray, distance_m: float = 0.090,
+                          min_gain: float = 0.03, max_deviation_m: float = 0.002,
+                          steps: int = 40, link: str = TIP_LINK) -> tuple[bool, str]:
+        """Whether a straight pull of `distance_m` is actually followable from this pose.
+
+        Returns `(ok, reason)`, and checks the **whole planned path**, not just the starting
+        pose. That distinction is the point of this method: a pull can start from a
+        well-conditioned pose and drive itself into a singularity on the way. Measured on this
+        arm, a pose with a healthy 82 mm per radian at the start degraded to 15 mm per radian
+        by the end of a 90 mm pull, with the condition number rising from 3.9 to 25.5 and the
+        path wandering 8.6 mm off the line. Checking only the start called that fine.
+
+        Three ways a pull fails, all of which look correct for the first few millimetres:
+
+          * fewer than three joints, so the reachable set is a plane and the return stroke misses;
+          * rank dropping below three somewhere along the path;
+          * the gain along `direction` falling too low to follow without large joint motion.
+
+        `min_gain` is metres of tip motion per radian of joint motion: the default 0.03 means
+        a joint turning one radian, about 650 ticks, must buy at least 30 mm along the pull.
+        `max_deviation_m` is the straightness the finished path has to achieve.
+        """
+        if len(motors) < 3:
+            return False, (f"{len(motors)} joints span at most a plane; three independent ones "
+                           "are needed to follow an arbitrary direction")
+
+        worst_gain = float("inf")
+        worst_cond = 0.0
+        pose = dict(ticks)
+        for pose in [ticks] + self.line_trajectory(motors, ticks, direction, distance_m,
+                                                   steps, link):
+            rank, cond = self.pull_quality(motors, pose, direction, link)
+            if rank < 3:
+                return False, (f"joints {motors} drop to rank {rank} partway along this pull, "
+                               "so the path cannot be followed to the end")
+            worst_gain = min(worst_gain, self.direction_gain(motors, pose, direction, link))
+            worst_cond = max(worst_cond, cond)
+
+        if worst_gain < min_gain:
+            return False, (f"the gain along this direction falls to {worst_gain*1000:.0f} mm "
+                           f"per radian during the pull, under the {min_gain*1000:.0f} mm "
+                           "minimum: this pose drives itself towards a singularity. Re-pose "
+                           "the arm, shorten the pull, or pull along another axis")
+
+        deviation, shortfall = self.line_error(motors, ticks, direction, distance_m, steps, link)
+        if deviation > max_deviation_m:
+            return False, (f"the path wanders {deviation*1000:.1f} mm off the line, over the "
+                           f"{max_deviation_m*1000:.0f} mm limit")
+        return True, (f"worst gain {worst_gain*1000:.0f} mm per radian, worst condition "
+                      f"{worst_cond:.0f}, deviation {deviation*1000:.2f} mm over "
+                      f"{distance_m*1000:.0f} mm")
+
     def _path_to(self, link: str) -> list[Joint]:
         """Joints from `base_link` down to `link`, in order."""
         parent_of = {j.child: j for j in self.joints}

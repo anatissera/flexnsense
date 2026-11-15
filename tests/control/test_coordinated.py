@@ -191,3 +191,41 @@ def test_a_dropout_still_stops_a_coordinated_pull(fake_station):
         assert fake_station.commands == []
 
     asyncio.run(run())
+
+
+# ---------------------------------------------------------------- choosing joints per pose
+def test_for_pose_picks_the_joints_itself():
+    """What makes this usable without knowing the pose in advance: the caller supplies the
+    pose and the pull, not a list of motor ids."""
+    from lib.kinematics import load_chain
+
+    chain = load_chain()
+    direction = chain.tip_velocity_direction(4, POSE)
+    a = CoordinatedAxis.for_pose(POSE, direction, chain)
+    assert len(a.motors) == 3
+    rank, _ = chain.pull_quality(a.motors, POSE, direction)
+    assert rank == 3
+
+
+def test_for_pose_refuses_a_pull_this_pose_cannot_follow():
+    """Refusing is the point: the alternative is an arm that tracks the first few millimetres
+    and then wanders off the tether's line with a finger attached."""
+    from lib.kinematics import load_chain
+
+    chain = load_chain()
+    centred = {m: 2048 for m in range(1, 8)}
+    direction = chain.tip_velocity_direction(4, centred)
+    sideways = np.cross(direction, [0.0, 0.0, 1.0])
+    sideways = sideways / np.linalg.norm(sideways)
+
+    with pytest.raises(ValueError, match="cannot pull straight"):
+        CoordinatedAxis.for_pose(centred, sideways, chain)
+
+
+def test_for_pose_carries_the_direction_through():
+    from lib.kinematics import load_chain
+
+    chain = load_chain()
+    direction = chain.tip_velocity_direction(4, POSE)
+    a = CoordinatedAxis.for_pose(POSE, direction, chain)
+    assert np.allclose(a.unit_direction(), direction / np.linalg.norm(direction), atol=1e-9)
