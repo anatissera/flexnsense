@@ -788,9 +788,9 @@ def cmd_evaluate(args) -> int:
 # --------------------------------------------------------------------------------------------- calibrate
 
 AIM_HELP = ["Aim the camera square-on at the scale. Magenta = suggested red marker.",
-            "SPACE freeze frame to click the axis    q quit"]
+            "SPACE freeze frame to click the axis    n next camera    q quit"]
 AIM_HELP_STICKERS = ["Hold the scale with both red stickers visible (not under your fingers). Magenta = red spots.",
-                     "SPACE freeze frame to click the 0 g and 600 g lines    q quit"]
+                     "SPACE freeze frame to click the 0 g and 600 g lines    n next camera    q quit"]
 CLICK_HELP = ["Click 1: on the 0 g line, where the marker travels.  Click 2: on the 600 g (full-scale) line.",
               "r reset clicks    ENTER/SPACE accept (after 2 clicks)    ESC back to live"]
 LINES_HELP_STICKERS = ["Click 1: on the 0 g line, where the marker travels.  Click 2: on the 600 g line.",
@@ -819,6 +819,32 @@ class _CalibrateUI:
         self.quit_warned = False
         self.show_mask = False
         self.msg, self.msg_until = "", 0.0
+        self.cam = None
+        if not getattr(args, "video", None):
+            try:
+                self.cam = camera.resolve_camera(args.camera if args.camera is not None else camera.default_camera())
+            except SystemExit:
+                self.cam = None
+
+    def switch_camera(self):
+        """Aim state, key n: release the camera and open the next index (wrapping to 0 when there is none)."""
+        if not isinstance(self.cam, int):
+            self.flash("n: camera switching needs a numeric --camera index (not a video or URL)")
+            return
+        old = self.cam
+        self.src.release()
+        for cand in (old + 1, 0):
+            if cand == old:
+                continue
+            try:
+                self.src = open_camera_source(cand, self.args)
+            except SystemExit:
+                continue
+            self.cam = cand
+            self.flash(f"camera {cand}: {self.src.width}x{self.src.height}")
+            return
+        self.src = open_camera_source(old, self.args)
+        self.flash(f"no other camera found, staying on {old}")
 
     def flash(self, text, secs=3.0):
         print(text)
@@ -973,7 +999,9 @@ class _CalibrateUI:
                     continue
                 break
             self.quit_warned = False
-            if self.state == "aim" and key == ord(" "):
+            if self.state == "aim" and key == ord("n"):
+                self.switch_camera()
+            elif self.state == "aim" and key == ord(" "):
                 self.frozen, self.state = frame.copy(), "click"
                 self.reset_clicks()
             elif self.state == "click":
@@ -1070,6 +1098,10 @@ def calibration_from_args(args, src: FrameSource | None = None):
     return StickerCalibration.from_clicks(s1, s2, args.p0, args.p1, g0=args.g0, g1=args.g1)
 
 
+def open_camera_source(cam: int, args) -> FrameSource:
+    return camera.open_camera(camera=cam, width=args.width, height=args.height)
+
+
 def cmd_calibrate(args) -> int:
     src = open_source(args)
     ui = _CalibrateUI(args, src)
@@ -1081,7 +1113,7 @@ def cmd_calibrate(args) -> int:
             ui.start_live(_load_calibration(args.calib))    # the mode comes from the file
         return ui.loop()
     finally:
-        src.release()
+        ui.src.release()
 
 
 # --------------------------------------------------------------------------------------------- CLI
