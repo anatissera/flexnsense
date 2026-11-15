@@ -74,7 +74,8 @@ hand_tracking/    roadmap item 5: finger flexion angles through a camera (python
   landmarks.py    pure geometry on MediaPipe's 21 landmarks; no mediapipe/cv2 import, so it is unit-testable
 dashboard/        Next.js web dashboard (own package.json; run pnpm from here)
 scripts/          robot and calibration scripts (e.g. force calibration)
-tests/lib/, tests/gauge_reader/, tests/hand_tracking/
+robot_training/   ElRobot policy training: NormaCore Parquet -> LeRobotDataset, ACT training, HF upload, inference through Station (own README; needs its own LeRobot env, see robot_training/setup_env.sh)
+tests/lib/, tests/gauge_reader/, tests/hand_tracking/, tests/robot_training/
 docs/             user-facing guides (docs/scale-reader.md, docs/force-calibration.md, docs/hand-tracking.md)
 ```
 

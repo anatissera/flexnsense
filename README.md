@@ -154,7 +154,8 @@ lib/              shared helpers for any script: camera, .env settings, Kalman f
 gauge_reader/     subtask 2: read the PESOLA scale through a camera (python -m gauge_reader)
 hand_tracking/    subtask 5: finger flexion angles through a camera (python -m hand_tracking)
 scripts/          robot and calibration scripts (force calibration)
-tests/            tests per package: tests/lib/, tests/gauge_reader/, tests/hand_tracking/
+robot_training/   train ACT policies on ElRobot datasets recorded with NormaCore Station, upload them, run them on the arm (robot_training/README.md)
+tests/            tests per package: tests/lib/, tests/gauge_reader/, tests/hand_tracking/, tests/robot_training/
 docs/             guides and diagrams
 ```
 
