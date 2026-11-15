@@ -2,12 +2,18 @@
 
 One branch per subtask, one PR into `main`. Order matters where noted.
 
+## 0. ElRobot via NormaCore Station, not LeRobot - `feature/elrobot-support`
+
+**Also blocks everything else that touches the arm.** There is no LeRobot support for the
+ElRobot; every script talks to it through NormaCore's own binary, Station, via `lib/station.py`.
+See [docs/elrobot.md](./docs/elrobot.md).
+
 ## 1. Force calibration - `feature/force-calibration`
 
 **Blocks everything else.** Establish whether servo current can stand in for a force sensor.
 
-- Log `Present_Current` / `Present_Load` from arm B's servos while known forces are applied along the therapy axis.
-- Sweep up and back down to expose hysteresis from the 1/345 gearbox.
+- Log current from arm B's servos (via Station's `st3215/inference` queue) while known forces are applied along the therapy axis.
+- Sweep up and back down to expose hysteresis from the 345:1 gearbox.
 - Fit grams = f(current − baseline); report the dead zone and the noise floor.
 
 Guide: [docs/force-calibration.md](./docs/force-calibration.md).
@@ -27,11 +33,15 @@ Read the PESOLA's red indicator from a fixed camera and output grams + a confide
 
 The control loop from the README, plus the safety layer that does **not** depend on it: servo-level torque cap, software position limits, vision watchdog that releases tension, velocity ceiling, e-stop.
 
-Depends on 1 or 2 for a force signal.
+Force comes from the camera alone: item 1 came back negative, there is no current signal on this arm ([docs/force-calibration-result.md](./docs/force-calibration-result.md)).
+
+Written, tested in software, **not yet run against the arm**: `control/safety.py` (the gate: HOLD / YIELD / RELEASE), `control/admittance.py` (the law), `control/loop.py` (the wiring to the camera and Station), `control/simulate.py` (closed-loop simulation for choosing constants). Design and what the simulation established about B: [docs/admittance-design.md](./docs/admittance-design.md).
+
+Still to do: measure `ticks_per_metre` and the yield direction on the bench, then a bench run against a spring and a weight before any finger.
 
 ## 4. Simulation rig - `feature/sim-rig`
 
-MuJoCo SO-101 model (`TheRobotStudio/SO-ARM100` → `Simulation/SO101`) plus a linear spring (F = k·x, k measurable from the PESOLA in minutes) and a scripted "patient finger" trajectory.
+MuJoCo model plus a linear spring (F = k·x, k measurable from the PESOLA in minutes) and a scripted "patient finger" trajectory. NormaCore ships URDF/STEP/STL for the ElRobot (`hardware/elrobot/simulation` in their repo), but it hasn't been checked for use here yet.
 
 Purpose is **de-risking the controller without a human in the loop** - oscillation, force overshoot, behaviour when the force reading freezes or spikes. Not for generating training data.
 
@@ -43,7 +53,7 @@ Finger range of motion during the session. MediaPipe Hand Landmarker on CPU is t
 
 The 4 GB question is now answered: WiLoR in fp16 peaks at 1.69 GB of VRAM on the RTX 3050 and runs at 11 FPS on 640x480 with two hands once its pyrender overlay is dropped (the dashboard draws its own hand, so that overlay, 73% of the cost, is not needed). Benchmark and the full argument in [docs/hand-tracking.md](./docs/hand-tracking.md). 11 FPS and a 2.5 GB checkpoint behind a server process mean WiLoR is the precision-capture path, not the live one: MediaPipe stays the default in the dashboard. Both already emit the same `HandFrame` (`hand_tracking/frame.py`, `dashboard/app/lib/handFrame.ts`), so the remaining work is the WiLoR service itself, not the plumbing around it.
 
-Independent of 1–4.
+Independent of 0–4; camera-only, does not touch the arm.
 
 ## 6. Session metrics - `feature/session-metrics`
 
