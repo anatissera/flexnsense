@@ -71,6 +71,32 @@ h2{font-size:84px;margin-top:22px}
 .stage.onphoto #foot .lock{color:#fff}
 .stage.onphoto .mkr{box-shadow:none}
 
+/* === STORY SLIDES (version 4): the question, the patient, the gap, what comes next === */
+.q .kb,.pt .kb,.gp .kb{position:absolute;inset:0}
+.q .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,20,31,.55) 0%,rgba(14,20,31,.35) 40%,rgba(14,20,31,.9) 100%)}
+.q .txt{position:absolute;left:120px;right:120px;bottom:150px;color:#fff}
+.q h1{font-size:132px;font-weight:800;letter-spacing:-.035em;margin-top:26px}
+.q .lead{color:rgba(255,255,255,.9);font-size:44px;margin-top:36px}
+.pt .kb img{object-position:50% 60%}
+.pt .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(14,20,31,.9) 0%,rgba(14,20,31,.62) 34%,rgba(14,20,31,0) 62%),linear-gradient(180deg,rgba(14,20,31,0) 70%,rgba(14,20,31,.7) 100%)}
+.pt .txt{position:absolute;left:120px;top:112px;width:800px;color:#fff}
+.pt h2{font-size:76px}
+.pt .lead{color:rgba(255,255,255,.92);margin-top:40px;font-size:40px}
+.gp .shade{position:absolute;inset:0;background:linear-gradient(270deg,rgba(244,247,251,.94) 0%,rgba(244,247,251,.8) 36%,rgba(244,247,251,0) 62%)}
+.gp .txt{position:absolute;left:1010px;top:112px;width:790px}
+.gp h2{font-size:76px}
+.gp .lead{margin-top:40px;font-size:40px;color:var(--ink)}
+.note{position:absolute;right:120px;bottom:104px;font:700 19px var(--f-data);letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.7)}
+.note.dark{color:var(--ink-2)}
+.nx .head{width:940px}
+.nx .rows{margin-top:60px;gap:40px}
+.nx .row{padding-top:30px}
+.nx .row h3{font-size:46px}
+.nx .row p{font-size:34px;margin-top:10px}
+.nx .pic{position:absolute;right:120px;top:300px;width:700px;height:520px}
+.nx .pic img{object-position:50% 50%}
+.nx .pic figcaption{position:absolute;left:28px;bottom:26px;color:#fff;font:700 19px var(--f-data);letter-spacing:.14em;text-transform:uppercase;text-shadow:0 1px 10px rgba(0,0,0,.7)}
+
 /* === 1 · TITLE ============================================================ */
 .s1 .left{position:absolute;left:120px;top:0;bottom:0;width:1040px;display:flex;flex-direction:column;justify-content:center}
 .logo{width:150px;height:150px;color:var(--ink);overflow:visible;margin:0 0 34px -6px}
@@ -89,6 +115,7 @@ h2{font-size:84px;margin-top:22px}
 .meta{display:flex;align-items:center;gap:20px;margin-top:58px;font:700 24px var(--f-data);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);white-space:nowrap}
 .meta i{width:6px;height:6px;border-radius:50%;background:var(--ink-3)}
 .s1 .hero{position:absolute;right:0;top:0;bottom:0;width:700px}
+.s1 .hero video{width:100%;height:100%;object-fit:cover}
 .s1 .hero figcaption{position:absolute;left:36px;bottom:36px;color:#fff;font:700 24px var(--f-data);letter-spacing:.16em;text-transform:uppercase;text-shadow:0 1px 10px rgba(0,0,0,.6)}
 
 /* === 2 · CHALLENGE ======================================================== */
@@ -221,28 +248,49 @@ h2{font-size:84px;margin-top:22px}
 .person b{display:block;font-size:28px;letter-spacing:-.02em;margin-top:32px;white-space:nowrap}
 .person span{display:block;font-size:25px;color:var(--ink-2);margin-top:8px;line-height:1.32;font-weight:500}
 
-/* === 10 · TIMELINE (the marker travels to demo day) ======================= */
+/* === 10 · TIMELINE (a zig-zag: wins go up, failures go down) ============= */
 .s10 .head{width:1680px}
-.axis{position:absolute;left:260px;top:560px;width:1400px;height:2px;background:var(--ink);transform-origin:left;transform:scaleX(0)}
-.slide.active .axis{animation:grow 2.2s var(--ease) .3s both}
-@keyframes grow{to{transform:scaleX(1)}}
-.tmk{position:absolute;top:553px;left:260px;width:38px;height:16px;margin-left:-19px;border-radius:8px;background:var(--red);box-shadow:0 0 0 6px var(--paper);opacity:0}
-.slide.active .tmk{animation:travel 2.2s var(--ease) .3s both,pulse 2s ease-out 2.7s infinite}
-@keyframes travel{0%{left:260px;opacity:1}100%{left:1660px;opacity:1}}
-@keyframes pulse{0%{box-shadow:0 0 0 6px var(--paper),0 0 0 6px rgba(230,59,46,.5)}100%{box-shadow:0 0 0 6px var(--paper),0 0 0 28px rgba(230,59,46,0)}}
-.stop{position:absolute;width:440px;margin-left:-220px;text-align:center}
-.stop .tick{position:absolute;left:50%;top:548px;width:2px;height:26px;margin-left:-1px;background:var(--ink)}
-.stop .day{position:absolute;left:0;right:0;bottom:calc(1080px - 520px)}
-.stop .day small{display:block;font:700 26px var(--f-data);letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
-.stop .day b{display:block;font-size:60px;letter-spacing:-.025em;line-height:1.05;margin-top:6px}
-.stop ul{position:absolute;left:0;right:0;top:606px;list-style:none;font-size:29px;line-height:1.5;color:var(--ink-2);font-weight:500}
-.stop ul .night{margin-top:18px;font-size:25px;color:var(--ink-3)}
-.stop ul .night em{font:700 21px var(--f-data);letter-spacing:.14em;text-transform:uppercase;font-style:normal;display:block}
-.stop.wrap{top:0;height:1080px}
+.zig{position:absolute;inset:0;width:1920px;height:1080px;pointer-events:none}
+.zig polyline{fill:none;stroke:var(--ink);stroke-width:3;stroke-linejoin:round;stroke-linecap:round;transition:stroke-dashoffset .6s var(--ease)}
+.ev{position:absolute;width:0;height:0;margin:0;z-index:2}
+.ev.show{z-index:20}
+.ev.shrink{z-index:21}
+.ev .m{position:absolute;left:-75px;top:-75px;width:150px;height:150px;border-radius:75px;overflow:hidden;background:var(--ink);opacity:0;box-shadow:0 0 0 6px var(--paper),0 0 0 9px var(--ink)}
+.ev[data-dir="down"] .m{box-shadow:0 0 0 6px var(--paper),0 0 0 9px var(--red)}
+.ev.show .m{opacity:1;box-shadow:0 60px 120px -40px rgba(7,11,18,.7)}
+.ev.done .m{opacity:1}
+.ev .m img,.ev .m video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:var(--pos,50% 50%)}
+.ev .lab{position:absolute;left:0;right:0;bottom:0;padding:140px 60px 48px;background:linear-gradient(rgba(14,20,31,0),rgba(14,20,31,.82));color:#fff;opacity:0;transition:opacity .25s ease}
+.ev.show:not(.shrink) .lab{opacity:1}
+.ev .lab small{display:block;font:700 28px var(--f-data);letter-spacing:.16em;text-transform:uppercase;opacity:.8}
+.ev .lab b{display:block;font-size:60px;letter-spacing:-.025em;line-height:1.1;margin-top:8px}
+.ev .lab i{display:inline-block;width:38px;height:16px;border-radius:8px;background:var(--red);margin-right:18px;vertical-align:.12em}
+.ev figcaption{position:absolute;left:-112px;width:224px;text-align:center;opacity:0}
+.ev[data-dir="up"] figcaption{bottom:100px}
+.ev[data-dir="down"] figcaption{top:100px}
+.ev.done figcaption{animation:write .7s var(--ease) both}
+@keyframes write{from{opacity:1;clip-path:inset(0 100% 0 0)}to{opacity:1;clip-path:inset(0 0 0 0)}}
+.ev figcaption small{display:block;font:700 20px var(--f-data);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.ev[data-dir="down"] figcaption small{color:var(--red)}
+.ev figcaption b{display:block;font-size:25px;line-height:1.2;letter-spacing:-.01em;margin-top:6px}
+.veil{position:absolute;inset:0;background:rgba(14,20,31,.62);opacity:0;transition:opacity .4s ease;z-index:10;pointer-events:none}
+.veil.on{opacity:1}
 
 /* === 11 · THANK YOU ======================================================= */
 .s11 .kb{position:absolute;inset:0}
-.s11 .card{position:absolute;left:50%;top:50%;width:1000px;margin:-300px 0 0 -500px;height:600px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(244,247,251,.86);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:36px;box-shadow:0 50px 100px -40px rgba(7,11,18,.6)}
+.s11 .team img{object-position:50% 38%;transition:filter 1.3s ease}
+.s11 .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,20,31,0) 60%,rgba(14,20,31,.85) 100%)}
+.s11 .cap{position:absolute;left:120px;bottom:80px;display:flex;align-items:center;gap:14px;font-size:30px;font-weight:600;color:rgba(255,255,255,.85);--pin:#0E141F}
+.s11 .cap svg{width:48px;height:48px;color:#fff}
+.s11 .cap .wm{color:#fff}
+.s11 .fin{position:absolute;inset:0;clip-path:circle(0% at 50% 50%);transition:clip-path 1.3s cubic-bezier(.7,0,.2,1)}
+.s11 .ring{position:absolute;left:50%;top:50%;width:240px;height:240px;margin:-120px;border-radius:50%;border:6px solid var(--red);opacity:0;transform:scale(0)}
+.s11.swap .fin{clip-path:circle(75% at 50% 50%)}
+.s11.swap .team img{filter:blur(14px) brightness(.7)}
+.s11.swap .ring{animation:iris 1.3s cubic-bezier(.7,0,.2,1) both}
+@keyframes iris{0%{opacity:1;transform:scale(0)}80%{opacity:.9}100%{opacity:0;transform:scale(10)}}
+.s11 .card{position:absolute;left:50%;top:50%;width:1000px;margin:-300px 0 0 -500px;height:600px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(244,247,251,.86);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:36px;box-shadow:0 50px 100px -40px rgba(7,11,18,.6);opacity:0;transform:translateY(40px) scale(.94);transition:opacity .7s var(--ease),transform .9s var(--ease)}
+.s11.swap .card{opacity:1;transform:none;transition-delay:.75s}
 .s11 .ch{width:112px;height:112px;border-radius:14px;overflow:hidden;animation:wave 3.2s ease-in-out infinite}
 .s11 .ch img{width:100%;height:100%}
 .s11 h1{font-size:112px;font-weight:800;letter-spacing:-.03em;margin-top:40px;text-align:center}
@@ -279,7 +327,50 @@ body.editing [contenteditable]:focus{outline-style:solid}
 
 <div class="stage nofoot" id="stage">
 
-<!-- ===== 1 · TITLE ===== -->
+<!-- ========================= ACT 1 · A PERSON ========================= -->
+<section class="slide q" data-name="The question" data-foot="photo">
+  <div class="kb"><img src="assets/leukerbad.jpg" alt="A street in Leukerbad at night"></div>
+  <div class="shade"></div>
+  <div class="txt">
+    <div class="kicker light" data-a="up" style="--d:300ms">Leukerbad, Valais</div>
+    <h1 data-a="up" style="--d:450ms">What could a robot do<br>in a mountain village?</h1>
+    <p class="lead" data-a="up" style="--d:1500ms">Here, the specialist is often far away.</p>
+  </div>
+</section>
+
+<section class="slide pt" data-name="The patient" data-foot="photo">
+  <div class="kb"><img src="assets/story/patient.jpg" alt="A hand with a surgical bandage around the wrist, resting on a kitchen table"></div>
+  <div class="shade"></div>
+  <div class="txt">
+    <div class="kicker light" data-a="up" style="--d:300ms">The patient</div>
+    <h2 data-a="up" style="--d:450ms">Jordan, 58, had orthopedic hand surgery this autumn.</h2>
+    <p class="lead" data-a="up" style="--d:1100ms">To recover, the fingers have to move early. Gently. Every day.</p>
+  </div>
+  <div class="note" data-a="fade" style="--d:1400ms">Illustrative patient · generated image</div>
+</section>
+
+<section class="slide gp" data-name="The gap">
+  <div class="kb"><img src="assets/story/gap.jpg" alt="An empty therapy room"></div>
+  <div class="shade"></div>
+  <div class="txt">
+    <div class="kicker" data-a="up" style="--d:300ms">The gap</div>
+    <h2 data-a="up" style="--d:450ms">His hand therapist can't be at every session.</h2>
+    <p class="lead" data-a="up" style="--d:1100ms">The specialist may be in the city, or in another country. And the exercise is delicate: too much force harms, too little and the finger stiffens.</p>
+  </div>
+  <div class="note dark" data-a="fade" style="--d:1400ms">Generated image</div>
+</section>
+
+<section class="slide s2" data-name="Challenge">
+  <div class="head">
+    <div class="kicker" data-a="up">And Jordan is not alone</div>
+    <div class="big" data-a="up" style="--d:120ms"><span class="count" data-to="10">10</span><small>million</small></div>
+    <p class="stmt" data-a="up" style="--d:300ms">workers in Europe will retire by 2035, taking critical rehab-care know-how with them.</p>
+    <p class="lead" data-a="up" style="--d:440ms">A major risk to care capacity: daily help, rehabilitation and mobility.</p>
+  </div>
+  <figure class="pic photo kb" data-a="reveal" style="--d:200ms"><img src="assets/seniors.jpg" alt="Two seniors looking at a lake"></figure>
+</section>
+
+<!-- ========================= ACT 2 · THE ANSWER ========================= -->
 <section class="slide s1" data-name="Title" data-foot="none">
   <div class="left">
     <svg class="logo" viewBox="0 0 64 64" role="img" aria-label="Flex'N Sense logo" data-a="fade">
@@ -294,31 +385,19 @@ body.editing [contenteditable]:focus{outline-style:solid}
       <circle cx="10" cy="46" r="2.5" fill="#F4F7FB"/>
     </svg>
     <h1 class="wm" data-a="up" style="--d:250ms">Flex<i class="ap"></i>N Sense</h1>
-    <p class="lead" data-a="up" style="--d:420ms">Robot-assisted finger rehabilitation after hand surgery, with a force limit the physiotherapist sets remotely.</p>
+    <p class="lead" data-a="up" style="--d:420ms">A robot arm that gives way. Finger rehabilitation at home after orthopedic hand surgery, with a force limit the physiotherapist sets remotely.</p>
     <div class="meta" data-a="up" style="--d:580ms"><span>Leukerbad Robotics Hackathon 2026</span><i></i><span>Elderly Care &amp; Rehabilitation</span></div>
   </div>
   <figure class="hero kb" data-a="reveal" style="--d:150ms">
-    <img src="assets/leukerbad.jpg" alt="A street in Leukerbad at night">
-    <figcaption>Leukerbad, Valais</figcaption>
+    <video data-auto muted loop playsinline preload="auto" poster="assets/video/tether.jpg" src="assets/video/tether.mp4"></video>
+    <figcaption>Our bench in Leukerbad</figcaption>
   </figure>
 </section>
 
-<!-- ===== 2 · CHALLENGE ===== -->
-<section class="slide s2" data-name="Challenge">
-  <div class="head">
-    <div class="kicker" data-a="up">The challenge</div>
-    <div class="big" data-a="up" style="--d:120ms"><span class="count" data-to="10">10</span><small>million</small></div>
-    <p class="stmt" data-a="up" style="--d:300ms">workers in Europe will retire by 2035, taking critical rehab-care know-how with them.</p>
-    <p class="lead" data-a="up" style="--d:440ms">A major risk to care capacity: daily help, rehabilitation and mobility.</p>
-  </div>
-  <figure class="pic photo kb" data-a="reveal" style="--d:200ms"><img src="assets/seniors.jpg" alt="Two seniors looking at a lake"></figure>
-</section>
-
-<!-- ===== 3 · OBJECTIVE ===== -->
 <section class="slide s3" data-name="Objective">
   <div class="head">
-    <div class="kicker" data-a="up">Our objective</div>
-    <h2 data-a="up" style="--d:100ms">Hand rehabilitation at home, after surgery.</h2>
+    <div class="kicker" data-a="up">The promise</div>
+    <h2 data-a="up" style="--d:100ms">Hand rehabilitation at home, after orthopedic surgery.</h2>
     <div class="rows">
       <div class="row" data-a="up" style="--d:300ms"><h3>Home rehabilitation for the hand</h3><p>After surgery, for example for carpal tunnel syndrome.</p></div>
       <div class="row" data-a="up" style="--d:460ms"><h3>Supervised remotely</h3><p>A specialist physiotherapist controls and follows each session.</p></div>
@@ -328,23 +407,21 @@ body.editing [contenteditable]:focus{outline-style:solid}
   <figure class="p2 photo kb" data-a="reveal" style="--d:500ms"><img src="assets/remote-call.jpg" alt="A senior on a video call with a physiotherapist"></figure>
 </section>
 
-<!-- ===== 4 · SOLUTION ===== -->
 <section class="slide s4" data-name="Solution" data-foot="photo">
   <div class="kb"><img src="assets/hand-pesola.jpg" alt="A finger tied to a PESOLA spring scale held by a robot gripper"></div>
   <div class="shade"></div>
   <div class="head">
     <div class="kicker light" data-a="up" style="--d:200ms">Our solution</div>
-    <h2 data-a="up" style="--d:320ms">A versatile rehabilitation cobot</h2>
+    <h2 data-a="up" style="--d:320ms">Safety from physics, not only from software.</h2>
   </div>
   <p class="lead" data-a="up" style="--d:520ms">The finger pulls against a robot arm through a spring scale. At the physiotherapist's limit, the arm gives way.</p>
 </section>
 
-<!-- ===== 5 · LOOP ===== -->
 <section class="slide s5" data-name="Context">
   <div class="head">
-    <div class="kicker" data-a="up">Context</div>
+    <div class="kicker" data-a="up">Who gains</div>
     <h2 data-a="up" style="--d:100ms">Three in the loop.</h2>
-    <p class="lead" data-a="up" style="--d:220ms">The physiotherapist sets the limit. The robot guides. The patient exercises at home.</p>
+    <p class="lead" data-a="up" style="--d:220ms">The physiotherapist sets the limit and reaches more patients. The robot guides. Jordan exercises at home.</p>
   </div>
   <svg class="loop" viewBox="0 0 1920 1080" aria-hidden="true">
     <path class="base" style="--d:600ms" d="M1124 396 L916 644"/>
@@ -365,7 +442,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
   <div class="edge" style="left:1200px;top:740px;--d:1500ms" data-a="fade">force-limited exercise</div>
 </section>
 
-<!-- ===== 6 · HOW IT WORKS ===== -->
+<!-- ========================= ACT 3 · THE PROOF ========================= -->
 <section class="slide s6" data-name="How it works" data-enter="tether">
   <div class="head">
     <div class="kicker" data-a="up">How it works</div>
@@ -441,7 +518,6 @@ body.editing [contenteditable]:focus{outline-style:solid}
   </svg>
 </section>
 
-<!-- ===== 7 · REAL FOOTAGE ===== -->
 <section class="slide s7" data-name="Real footage" data-enter="reel">
   <div class="head">
     <div class="kicker" data-a="up">Real footage</div>
@@ -478,7 +554,6 @@ body.editing [contenteditable]:focus{outline-style:solid}
   </div>
 </section>
 
-<!-- ===== 8 · USER INTERFACE ===== -->
 <section class="slide s8" data-name="User interface">
   <div class="head">
     <div class="kicker" data-a="up">User interface</div>
@@ -486,24 +561,23 @@ body.editing [contenteditable]:focus{outline-style:solid}
   </div>
   <div class="shot" data-a="up" style="--d:220ms"><video data-auto muted loop playsinline preload="auto" poster="assets/dash/run.jpg" src="assets/dash/run.mp4"></video></div>
   <svg class="lines" viewBox="0 0 1920 1080" aria-hidden="true">
-    <path style="--d:800ms" d="M402 382 H481"/><circle style="--d:800ms" cx="481" cy="382" r="9"/>
-    <path style="--d:950ms" d="M402 563 H481"/><circle style="--d:950ms" cx="481" cy="563" r="9"/>
-    <path style="--d:1100ms" d="M402 844 H481"/><circle style="--d:1100ms" cx="481" cy="844" r="9"/>
+    <path style="--d:800ms" d="M402 382 H446"/><circle style="--d:800ms" cx="446" cy="382" r="9"/>
+    <path style="--d:950ms" d="M402 563 H446"/><circle style="--d:950ms" cx="446" cy="563" r="9"/>
+    <path style="--d:1100ms" d="M402 844 H446"/><circle style="--d:1100ms" cx="446" cy="844" r="9"/>
     <path style="--d:1250ms" d="M927 316 V616"/><circle style="--d:1250ms" cx="927" cy="616" r="9"/>
-    <path style="--d:1400ms" d="M1518 440 H1451"/><circle style="--d:1400ms" cx="1451" cy="440" r="9"/>
-    <path style="--d:1550ms" d="M1518 679 H1451"/><circle style="--d:1550ms" cx="1451" cy="679" r="9"/>
-    <path style="--d:1700ms" d="M1518 894 H1451"/><circle style="--d:1700ms" cx="1451" cy="894" r="9"/>
+    <path style="--d:1400ms" d="M1518 380 H1451"/><circle style="--d:1400ms" cx="1451" cy="380" r="9"/>
+    <path style="--d:1550ms" d="M1518 730 H1451"/><circle style="--d:1550ms" cx="1451" cy="730" r="9"/>
+    <path style="--d:1700ms" d="M1518 934 H1451"/><circle style="--d:1700ms" cx="1451" cy="934" r="9"/>
   </svg>
   <div class="call l" style="top:364px;--d:800ms" data-a="up">Legend</div>
   <div class="call l" style="top:545px;--d:950ms" data-a="up">Exercise wizard</div>
   <div class="call l" style="top:814px;--d:1100ms" data-a="up">Chat<small>patient, physio, AI assistant</small></div>
   <div class="call" style="left:727px;top:272px;width:400px;text-align:center;--d:1250ms" data-a="up">Digital twin</div>
-  <div class="call r" style="top:422px;--d:1400ms" data-a="up">Patient data</div>
-  <div class="call r" style="top:650px;--d:1550ms" data-a="up">Real-time data<small>for the therapist</small></div>
-  <div class="call r" style="top:876px;--d:1700ms" data-a="up">KPI dashboard</div>
+  <div class="call r" style="top:362px;--d:1400ms" data-a="up">Patient data</div>
+  <div class="call r" style="top:701px;--d:1550ms" data-a="up">Real-time data<small>for the therapist</small></div>
+  <div class="call r" style="top:916px;--d:1700ms" data-a="up">KPI dashboard</div>
 </section>
 
-<!-- ===== 9 · INSIDE THE DASHBOARD ===== -->
 <section class="slide s8b" data-name="Recovery">
   <div class="head">
     <div class="kicker" data-a="up">Inside the dashboard</div>
@@ -513,7 +587,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
   <div class="tiles">
     <figure class="tile vid" data-a="up" style="--d:250ms">
       <video data-auto muted loop playsinline preload="auto" poster="assets/dash/hand.jpg" src="assets/dash/hand.mp4"></video>
-      <figcaption><b>Digital twin</b><span>The 3D hand curls the finger. The red arrow is the force at the fingertip.</span></figcaption>
+      <figcaption><b>Digital twin</b><span>The 3D hand and its flexor tendons, seen from any side.</span></figcaption>
     </figure>
     <figure class="tile" data-a="up" style="--d:400ms">
       <div class="pic"><img src="assets/dash/recovery.png" alt="Chart: recovery index of each finger over the weeks since surgery"></div>
@@ -526,11 +600,32 @@ body.editing [contenteditable]:focus{outline-style:solid}
   </div>
 </section>
 
-<!-- ===== 10 · TEAM ===== -->
+<!-- ========================= ACT 4 · THE PEOPLE AND WHAT IS NEXT ========================= -->
+<section class="slide s10" data-name="Timeline" data-enter="journey">
+  <div class="head">
+    <div class="kicker" data-a="up">How we got here</div>
+    <h2 data-a="up" style="--d:100ms">Three days in Leukerbad.</h2>
+  </div>
+  <svg class="zig" viewBox="0 0 1920 1080" aria-hidden="true"><polyline id="zigline" points=""/></svg>
+  <!-- One figure per moment, in order. data-dir="up" is a win, "down" is a failure.
+       data-y is the height of its circle on the 1080 px stage. Media: an image, or a video of 3 s. -->
+  <div id="evs">
+    <figure class="ev" data-dir="up" data-y="590"><div class="m"><img src="assets/mountains.jpg" alt=""></div><figcaption><small>Sat 10:00</small><b>Team formed, arms set up</b></figcaption></figure>
+    <figure class="ev" data-dir="up" data-y="550"><div class="m"><video src="assets/timeline/camera.mp4" poster="assets/timeline/camera.jpg" muted playsinline loop preload="auto"></video></div><figcaption><small>Sat 16:00</small><b>Camera reads the scale</b></figcaption></figure>
+    <figure class="ev" data-dir="down" data-y="770"><div class="m"><img src="assets/timeline/bench.jpg" alt=""></div><figcaption><small>Sat 20:00</small><b>Library headaches</b></figcaption></figure>
+    <figure class="ev" data-dir="up" data-y="560" style="--pos:50% 42%"><div class="m"><img src="assets/timeline/team.jpg" alt=""></div><figcaption><small>Sat 23:00</small><b>Late-night testing</b></figcaption></figure>
+    <figure class="ev" data-dir="up" data-y="520"><div class="m"><video src="assets/timeline/tether.mp4" poster="assets/timeline/tether.jpg" muted playsinline loop preload="auto"></video></div><figcaption><small>Sun 01:50</small><b>Arm gives way at the limit</b></figcaption></figure>
+    <figure class="ev" data-dir="down" data-y="770"><div class="m"><video src="assets/timeline/fail.mp4" poster="assets/timeline/fail.jpg" muted playsinline loop preload="auto"></video></div><figcaption><small>Sun 12:00</small><b>First trained policy fails</b></figcaption></figure>
+    <figure class="ev" data-dir="up" data-y="540"><div class="m"><video src="assets/timeline/dash.mp4" poster="assets/timeline/dash.jpg" muted playsinline loop preload="auto"></video></div><figcaption><small>Sun 18:00</small><b>Dashboard shows live force</b></figcaption></figure>
+    <figure class="ev" data-dir="up" data-y="490"><div class="m"><img src="assets/leukerbad.jpg" alt=""></div><figcaption><small>Mon 13:00</small><b>Pitch and live demo</b></figcaption></figure>
+  </div>
+  <div class="veil" id="veil"></div>
+</section>
+
 <section class="slide s9" data-name="Team" data-enter="team">
   <div class="head">
     <div class="kicker" data-a="up">The team</div>
-    <h2 data-a="up" style="--d:100ms">Six people, twelve flags.</h2>
+    <h2 data-a="up" style="--d:100ms">One international team.</h2>
   </div>
   <div class="flags" id="flags">
     <div class="flag" style="--d:300ms;--w:0s"><div class="cloth"><img src="assets/flags/fr.svg" alt="France"></div></div>
@@ -556,36 +651,33 @@ body.editing [contenteditable]:focus{outline-style:solid}
   </div>
 </section>
 
-<!-- ===== 11 · TIMELINE ===== -->
-<section class="slide s10" data-name="Timeline">
+<section class="slide nx" data-name="What comes next">
   <div class="head">
-    <div class="kicker" data-a="up">Timeline</div>
-    <h2 data-a="up" style="--d:100ms">Three days in Leukerbad.</h2>
+    <div class="kicker" data-a="up">What comes next</div>
+    <h2 data-a="up" style="--d:100ms">Today, one finger. Next, the whole body.</h2>
+    <div class="rows">
+      <div class="row" data-a="up" style="--d:300ms"><h3>Built this weekend</h3><p>A force-limited exercise for one finger.</p></div>
+      <div class="row" data-a="up" style="--d:460ms"><h3>Next: one hand clinic</h3><p>A pilot with hand-surgery patients.</p></div>
+      <div class="row" data-a="up" style="--d:620ms"><h3>Then: orthopedic rehabilitation</h3><p>Wrist, shoulder, knee.</p></div>
+    </div>
   </div>
-  <div class="axis"></div>
-  <div class="stop wrap" style="left:260px;--d:400ms" data-a="fade">
-    <div class="day"><small>Saturday</small><b>Build</b></div><i class="tick"></i>
-    <ul><li>Team formed, arms set up</li><li>Camera force reader</li><li>Dashboard, hand tracking</li><li class="night"><em>At night</em>Fun time, library headaches, dinner</li></ul>
-  </div>
-  <div class="stop wrap" style="left:960px;--d:1200ms" data-a="fade">
-    <div class="day"><small>Sunday</small><b>Integrate</b></div><i class="tick"></i>
-    <ul><li>Force-limited control on the arm</li><li>Calibration against the scale</li><li>End-to-end test</li><li class="night"><em>At night</em>Demo rehearsal</li></ul>
-  </div>
-  <div class="stop wrap" style="left:1660px;--d:2000ms" data-a="fade">
-    <div class="day"><small>Monday</small><b>Demo day</b></div><i class="tick"></i>
-    <ul><li>Final build until 12:00</li><li>Pitch and live demo, 13:00</li><li>Awards, 17:00</li></ul>
-  </div>
-  <i class="tmk"></i>
+  <figure class="pic photo kb" data-a="reveal" style="--d:250ms"><img src="assets/story/next.jpg" alt="Concept: a small robot helping a man bend his knee on a therapy bench"><figcaption>Concept image</figcaption></figure>
 </section>
 
-<!-- ===== 12 · THANK YOU ===== -->
-<section class="slide s11" data-name="Thank you" data-foot="none">
-  <div class="kb"><img src="assets/mountains.jpg" alt="Swiss Alps"></div>
-  <div class="card" data-a="up" style="--d:200ms">
-    <div class="ch"><img src="assets/flags/ch.svg" alt="Switzerland"></div>
-    <h1>Thank you,<br>Switzerland!</h1>
-    <div class="sig"><svg viewBox="0 0 64 64"><use href="#mark"/></svg><span class="wm">Flex<i class="ap"></i>N Sense</span><span>· Leukerbad Robotics Hackathon 2026</span></div>
+<section class="slide s11" data-name="Thank you" data-foot="none" data-enter="finale">
+  <!-- First the team photo. Pressing next opens an iris onto the thank-you card. -->
+  <div class="kb team"><img src="assets/timeline/team.jpg" alt="The Flex'N Sense team at their bench in Leukerbad"></div>
+  <div class="shade"></div>
+  <div class="cap" data-a="up" style="--d:300ms"><svg viewBox="0 0 64 64"><use href="#mark"/></svg><span class="wm">Flex<i class="ap"></i>N Sense</span><span>· the team, Saturday night</span></div>
+  <div class="fin">
+    <div class="kb"><img src="assets/mountains.jpg" alt="Swiss Alps"></div>
+    <div class="card">
+      <div class="ch"><img src="assets/flags/ch.svg" alt="Switzerland"></div>
+      <h1>Thank you,<br>Switzerland!</h1>
+      <div class="sig"><svg viewBox="0 0 64 64"><use href="#mark"/></svg><span class="wm">Flex<i class="ap"></i>N Sense</span><span>· Leukerbad Robotics Hackathon 2026</span></div>
+    </div>
   </div>
+  <i class="ring"></i>
 </section>
 
 <footer id="foot">
@@ -620,7 +712,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
   ruler.querySelectorAll('.t').forEach(t => t.remove());
   slides.forEach((_, i) => { const t = document.createElement('span'); t.className = 't'; t.style.left = (i / (N - 1) * 100) + '%'; ruler.insertBefore(t, mkr); });
 
-  const enter = { tether: startTether, reel: startReel, team: startTeam };
+  const enter = { tether: startTether, reel: startReel, team: startTeam, journey: startJourney, finale: startFinale };
 
   function go(n, force) {
     n = Math.max(0, Math.min(N - 1, n));
@@ -765,8 +857,94 @@ body.editing [contenteditable]:focus{outline-style:solid}
     return () => timers.forEach(clearTimeout);
   }
 
+  /* === SLIDE 11: the journey, one press at a time =========================
+     On entering the slide the first moment opens large (80 % of the stage),
+     stays for HOLD ms, then shrinks into its circle on the zig-zag and its
+     caption is written. Each press of next does the same for the following
+     moment, so only one is ever open. Pressing next while a moment is open
+     closes it early. After the last one, next moves to the following slide. */
+  let stepper = null;                                 // the active slide's own "next" handler
+  function startJourney(s) {
+    const HOLD = 3000, MX = 192, MY = 108, W = 1536, H = 864, R = 75;
+    const evs = [...s.querySelectorAll('.ev')], n = evs.length;
+    const line = s.querySelector('#zigline'), veil = s.querySelector('#veil');
+    const pts = evs.map((e, i) => ({ x: n > 1 ? 190 + i * 1540 / (n - 1) : 960, y: +e.dataset.y || (e.dataset.dir === 'down' ? 770 : 540) }));
+    let len = 0;
+    const cum = pts.map((p, i) => i ? (len += Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y)) : 0);
+    const timers = [], later = (ms, fn) => timers.push(setTimeout(fn, ms));
+    const setLine = (i, instant) => {
+      line.style.transition = instant ? 'none' : '';
+      line.style.strokeDashoffset = len - (i < 0 ? 0 : cum[i]);
+    };
+    const rects = i => ({
+      big: { left: (MX - pts[i].x) + 'px', top: (MY - pts[i].y) + 'px', width: W + 'px', height: H + 'px', borderRadius: '28px' },
+      small: { left: -R + 'px', top: -R + 'px', width: 2 * R + 'px', height: 2 * R + 'px', borderRadius: R + 'px' },
+    });
+    line.setAttribute('points', pts.map(p => p.x.toFixed(1) + ',' + p.y).join(' '));
+    line.style.strokeDasharray = len + ' ' + len;
+    setLine(-1, true);
+    veil.classList.remove('on');
+    evs.forEach((e, i) => {
+      e.style.left = pts[i].x + 'px'; e.style.top = pts[i].y + 'px';
+      e.classList.remove('show', 'shrink', 'done');
+      const m = e.querySelector('.m'), cap = e.querySelector('figcaption');
+      m.getAnimations().forEach(a => a.cancel());
+      m.querySelectorAll('.lab').forEach(l => l.remove());
+      const lab = document.createElement('div'); lab.className = 'lab';
+      const sm = document.createElement('small'), b = document.createElement('b');
+      if (e.dataset.dir === 'down') sm.appendChild(document.createElement('i'));
+      sm.append(cap.querySelector('small').textContent); b.textContent = cap.querySelector('b').textContent;
+      lab.append(sm, b); m.appendChild(lab);
+    });
+    let at = -1, open = -1, busy = false, hold = 0;   // last moment shown, the one open now, mid-shrink, its timer
+    function show(i) {
+      const e = evs[i], m = e.querySelector('.m'), v = e.querySelector('video'), { big } = rects(i);
+      at = open = i; setLine(i);
+      e.classList.add('show'); veil.classList.add('on');
+      m.animate([{ ...big, opacity: 0, transform: 'scale(.96)' }, { ...big, opacity: 1, transform: 'none' }],
+                { duration: 400, easing: 'ease-out', fill: 'forwards' });
+      if (v) { try { v.currentTime = 0; } catch (err) {} v.play().catch(() => {}); }
+      hold = setTimeout(() => tuck(i), 400 + HOLD); timers.push(hold);
+    }
+    function tuck(i) {
+      if (open !== i) return;
+      const e = evs[i], m = e.querySelector('.m'), v = e.querySelector('video'), { big, small } = rects(i);
+      clearTimeout(hold); open = -1; busy = true;
+      e.classList.add('shrink'); veil.classList.remove('on');
+      const a = m.animate([big, small], { duration: 750, easing: 'cubic-bezier(.65,0,.25,1)', fill: 'forwards' });
+      a.onfinish = () => {
+        e.classList.remove('show', 'shrink'); e.classList.add('done');
+        m.getAnimations().forEach(x => x.cancel());
+        if (v) v.pause();
+        busy = false;
+      };
+    }
+    function advance() {
+      if (open >= 0) { tuck(open); return true; }      // a moment is open: close it early
+      if (busy) return true;                            // mid-shrink: wait
+      if (at >= n - 1) return false;                    // all shown: let the deck move on
+      show(at + 1);
+      return true;
+    }
+    if (reduce) { evs.forEach(e => e.classList.add('done')); setLine(n - 1, true); at = n - 1; }
+    else if (n) later(700, () => { if (at < 0) show(0); });
+    stepper = { advance };
+    return () => {
+      timers.forEach(clearTimeout); stepper = null;
+      evs.forEach(e => { e.querySelector('.m').getAnimations().forEach(a => a.cancel()); const v = e.querySelector('video'); if (v) v.pause(); });
+    };
+  }
+
+  /* === SLIDE 12: the team photo, then an iris opens onto the thank-you card === */
+  function startFinale(s) {
+    s.classList.remove('swap');
+    stepper = { advance() { if (s.classList.contains('swap')) return false; s.classList.add('swap'); return true; } };
+    return () => { stepper = null; s.classList.remove('swap'); };
+  }
+  function next() { if (!(stepper && stepper.advance())) go(cur + 1); }
+
   /* === EDIT MODE: press E, click any text, type. Cmd/Ctrl+S saves a copy. == */
-  const EDITABLE = '.slide h1,.slide h2,.slide h3,.slide h5,.slide p,.slide li,.slide .kicker,.slide .lbl b,.slide .lbl span,.slide .edge,.slide .call,.slide figcaption b,.slide figcaption span,.person b,.person span,.tile b,.tile span,.simnote,.meta span,.stop .day small,.stop .day b,.big small,.sig span';
+  const EDITABLE = '.slide h1,.slide h2,.slide h3,.slide h5,.slide p,.slide li,.slide .kicker,.slide .lbl b,.slide .lbl span,.slide .edge,.slide .call,.slide figcaption b,.slide figcaption span,.person b,.person span,.tile b,.tile span,.simnote,.meta span,.stop .day small,.stop .day b,.big small,.sig span,.cap span,.note,.row h3,.row p,.pic figcaption,.ev figcaption small,.ev figcaption b';
   const hint = document.getElementById('hint');
   function setEditing(on) {
     editing = on;
@@ -780,10 +958,14 @@ body.editing [contenteditable]:focus{outline-style:solid}
     const doc = document.documentElement.cloneNode(true);
     doc.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
     doc.querySelector('body').classList.remove('editing');
-    doc.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    doc.querySelectorAll('.slide').forEach(s => s.classList.remove('active', 'swap'));
     doc.querySelectorAll('.person').forEach(p => p.classList.remove('in'));
     doc.querySelectorAll('.clip').forEach((c, k) => { c.classList.toggle('on', k === 0); c.classList.remove('paused'); c.removeAttribute('style'); });
     doc.querySelector('#flags').classList.remove('docked');
+    doc.querySelectorAll('.ev').forEach(e => { e.classList.remove('show', 'shrink', 'done'); e.style.left = e.style.top = ''; if (!e.getAttribute('style')) e.removeAttribute('style'); });
+    doc.querySelectorAll('.ev .lab').forEach(l => l.remove());
+    doc.querySelector('#veil').className = 'veil';
+    doc.querySelector('#zigline').removeAttribute('style'); doc.querySelector('#zigline').setAttribute('points', '');
     doc.querySelector('#stage').className = 'stage nofoot';
     doc.querySelector('#stage').removeAttribute('style');
     doc.querySelector('#ticks').replaceChildren();
@@ -802,7 +984,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
     if (editing) { if (e.key === 'Escape') setEditing(false); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key;
-    if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(k)) { e.preventDefault(); go(cur + 1); }
+    if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(k)) { e.preventDefault(); next(); }
     else if (['ArrowLeft', 'PageUp', 'Backspace'].includes(k)) { e.preventDefault(); go(cur - 1); }
     else if (k === 'Home') go(0);
     else if (k === 'End') go(N - 1);
@@ -812,7 +994,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
     else if (reelApi && ['1', '2', '3'].includes(k)) reelApi.open(+k - 1);
     else if (reelApi && (k === 'p' || k === 'P')) reelApi.toggle();
   });
-  addEventListener('click', e => { if (editing) return; e.clientX < innerWidth * 0.25 ? go(cur - 1) : go(cur + 1); });
+  addEventListener('click', e => { if (editing) return; e.clientX < innerWidth * 0.25 ? go(cur - 1) : next(); });
   let tx = null;
   addEventListener('touchstart', e => tx = e.touches[0].clientX, { passive: true });
   addEventListener('touchend', e => { if (tx == null || editing) return; const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 50) go(cur + (d < 0 ? 1 : -1)); tx = null; });
