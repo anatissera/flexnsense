@@ -5,7 +5,8 @@ Por cada frame nuevo de inference/normvla (~10 Hz, el mismo ritmo del dataset):
   2. Si la cola de acciones está vacía -> pedir chunk (local o remoto) y guardar n_action_steps.
   3. Sacar una acción (goal_norm 8) -> ticks con range_min/range_max -> GoalSafety -> sync write.
 
-`get_chunk(state, jpeg_by_view, task)` es una corrutina que devuelve (chunk (T,8), n_action_steps, info).
+`get_chunk(state, jpeg_by_view, task, prev)` es una corrutina que devuelve (chunk (T,8), n_action_steps, info);
+`prev` = (state, jpeg_by_view) del frame anterior (None en el primero), para policies con n_obs_steps > 1.
 """
 
 from __future__ import annotations
@@ -21,7 +22,12 @@ from pathlib import Path
 import numpy as np
 
 from station_io import (CameraMapper, FrameShapeError, GoalSafety, VIEWS, fetch_fresh_obs, goal_command, goal_norm_to_ticks,
-                        new_station_client, safe_enable_torque, send_commands, set_torque)
+                        decode_rgb, new_station_client, safe_enable_torque, send_commands, set_torque)
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))      # robot_training/ -> hand_features
+from hand_features import HAND_DIM, HAND_VIEW, HandFill  # noqa: E402
+
+HAND_SOURCE_OVERRIDE = None   # selftest.py pone aquí una fuente que devuelve las columnas grabadas
 
 TASK = ""   # ACT ignora la frase; las policies con lenguaje (SmolVLA) la necesitan: --task
 FOLLOWER_SERIAL = "5B3D050113"
@@ -45,6 +51,10 @@ def add_robot_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--yes", action="store_true", help="no pedir confirmación antes de mover")
     g.add_argument("--max-ticks", type=int, default=0, help="parar tras N ticks (0 = sin límite)")
     g.add_argument("--timeout", type=float, default=5.0)
+    h = p.add_argument_group("yemas de los dedos (solo policies entrenadas con --hand)")
+    h.add_argument("--hand-source", choices=["wilor", "mediapipe"], default="wilor",
+                   help="la misma fuente que en el dataset: wilor (--hand dataset) o mediapipe (--hand mediapipe)")
+    h.add_argument("--wilor-root", default=None, help="checkout de WiLoR (por defecto $WILOR_ROOT)")
     s = p.add_argument_group("seguridad (ticks)")
     s.add_argument("--max-step-ticks", type=int, default=150, help="máx. cambio del goal por tick (brazo)")
     s.add_argument("--gripper-max-step-ticks", type=int, default=400, help="máx. cambio del goal por tick (gripper)")
@@ -85,6 +95,38 @@ async def _confirm(prompt: str) -> bool:
     return line.strip().lower() in ("s", "si", "sí", "y", "yes")
 
 
+def _hand_adder(args):
+    """Devuelve f(state8, jpeg_by_view) -> state13, o None si la policy no usa las yemas de los dedos.
+
+    Solo se llama al pedir un chunk (no en cada tick): WiLoR tarda ~90 ms por imagen.
+    """
+    hand_dim = getattr(args, "hand_dim", 0)
+    if not hand_dim:
+        return None
+    if hand_dim != HAND_DIM:
+        raise SystemExit(f"la policy espera un estado de {8 + hand_dim} valores; este código sabe dar 8 o {8 + HAND_DIM}")
+    source = HAND_SOURCE_OVERRIDE
+    if source is None:
+        from hand_source import make_hand_source
+        source = make_hand_source(args.hand_source, args.wilor_root)
+        print(f"yemas de los dedos: {args.hand_source} sobre la cámara '{HAND_VIEW}'")
+    fill, last = HandFill(), [None]
+
+    def add(state, jpeg_by_view):
+        t0 = time.perf_counter()
+        tips = source(decode_rgb(jpeg_by_view[HAND_VIEW]))
+        last[0] = (tips, (time.perf_counter() - t0) * 1000)
+        return np.concatenate([np.asarray(state, np.float32), fill.step(tips)])
+
+    def info():
+        tips, ms = last[0]
+        where = "SIN MANO" if tips is None else f"índice ({tips[0]:.2f}, {tips[1]:.2f}) corazón ({tips[2]:.2f}, {tips[3]:.2f})"
+        return f" [mano {ms:.0f} ms: {where}]"
+
+    add.info = info
+    return add
+
+
 async def run_control(args, get_chunk, log: logging.Logger) -> None:
     motor_ids = [int(x) for x in args.motor_ids.split(",")]
     n = len(motor_ids)
@@ -119,6 +161,8 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
                             gripper_max_step=args.gripper_max_step_ticks, max_delta=args.max_delta_ticks)
         queue: deque = deque()
         tick, aborts, last_id = 0, 0, obs.frame_id
+        prev = None      # (state, jpeg_by_view) del tick anterior
+        add_hand = _hand_adder(args)
         mode = "DRY-RUN (no se envía nada)" if args.dry_run else "ENVIANDO goals"
         print(f"\n{mode}. Ctrl-C para parar.\n")
         while not args.max_ticks or tick < args.max_ticks:
@@ -128,8 +172,16 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
             t0 = time.perf_counter()
             info = ""
             if not queue:
-                chunk, n_steps, info = await get_chunk(obs.state, cams.by_view(obs.jpegs), args.task)
+                jpegs = cams.by_view(obs.jpegs)
+                if add_hand:        # 8 joints -> 13: las yemas del frame anterior primero, por el relleno causal
+                    prev = (add_hand(*prev), prev[1]) if prev is not None else None
+                    state, hand_info = add_hand(obs.state, jpegs), add_hand.info()
+                else:
+                    state, hand_info = obs.state, ""
+                chunk, n_steps, info = await get_chunk(state, jpegs, args.task, prev)
+                info += hand_info
                 queue.extend(np.asarray(chunk)[:n_steps])
+            prev = (obs.state, cams.by_view(obs.jpegs))
             target = goal_norm_to_ticks(queue.popleft(), obs.ranges)
             goal, msg = safety.apply(target, obs.positions)
             ms = (time.perf_counter() - t0) * 1000

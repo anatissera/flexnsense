@@ -37,9 +37,19 @@ def _pick_device(device: str | None) -> str:
 
 
 class _JpegMixin:
-    def predict_from_jpegs(self, state: np.ndarray, jpeg_by_view: dict[str, bytes], task: str = "") -> tuple[np.ndarray, float]:
+    n_obs_steps = 1   # >1: la policy necesita también la observación del tick anterior (`prev`)
+    state_dim = 8     # 13 = 8 joints + 5 de las yemas de los dedos (hand_features.py); las añade control.py
+
+    def predict_from_jpegs(self, state: np.ndarray, jpeg_by_view: dict[str, bytes], task: str = "",
+                           prev: tuple[np.ndarray, dict[str, bytes]] | None = None) -> tuple[np.ndarray, float]:
+        """`prev` = (state, jpeg_by_view) del frame anterior de Station; solo se usa si n_obs_steps > 1."""
         t0 = time.perf_counter()
-        chunk = self.predict_chunk(state, {v: decode_rgb(j) for v, j in jpeg_by_view.items()}, task)
+        rgb = {v: decode_rgb(j) for v, j in jpeg_by_view.items()}
+        if self.n_obs_steps > 1:
+            prev_rgb = (prev[0], {v: decode_rgb(j) for v, j in prev[1].items()}) if prev is not None else None
+            chunk = self.predict_chunk(state, rgb, task, prev=prev_rgb)
+        else:
+            chunk = self.predict_chunk(state, rgb, task)
         if self.device == "cuda":
             torch.cuda.synchronize()
         return chunk, (time.perf_counter() - t0) * 1000
@@ -69,17 +79,34 @@ class PolicyRunner(_JpegMixin):
         expected = [f"observation.images.{v}" for v in VIEWS]
         if sorted(self.image_keys) != sorted(expected):
             raise RuntimeError(f"la policy espera cámaras {self.image_keys}, este código da {expected}")
-        self.chunk_size = int(getattr(cfg, "chunk_size", 1))
-        self.n_action_steps = int(getattr(cfg, "n_action_steps", self.chunk_size))
+        self.n_action_steps = int(getattr(cfg, "n_action_steps", getattr(cfg, "chunk_size", 1)))
+        # Diffusion Policy no tiene chunk_size: predice `horizon` y devuelve n_action_steps acciones.
+        self.chunk_size = int(getattr(cfg, "chunk_size", self.n_action_steps))
+        self.n_obs_steps = int(getattr(cfg, "n_obs_steps", 1))
+        self.state_dim = int(cfg.input_features["observation.state"].shape[0])
 
-    @torch.no_grad()
-    def predict_chunk(self, state: np.ndarray, rgb_by_view: dict[str, np.ndarray], task: str = "") -> np.ndarray:
-        """state (8,) position_norm; rgb_by_view: {vista: HxWx3 uint8}. Devuelve (chunk_size, 8) goal_norm."""
+    def _batch(self, state: np.ndarray, rgb_by_view: dict[str, np.ndarray], task: str) -> dict:
         obs = {"observation.state": torch.from_numpy(np.asarray(state, dtype=np.float32))}
         for v, img in rgb_by_view.items():
             obs[f"observation.images.{v}"] = torch.from_numpy(np.array(img, dtype=np.uint8, copy=True)).permute(2, 0, 1).float() / 255.0
         obs["task"] = task
-        batch = self.pre(obs)
+        return self.pre(obs)
+
+    @torch.no_grad()
+    def predict_chunk(self, state: np.ndarray, rgb_by_view: dict[str, np.ndarray], task: str = "",
+                      prev: tuple[np.ndarray, dict[str, np.ndarray]] | None = None) -> np.ndarray:
+        """state (8,) position_norm; rgb_by_view: {vista: HxWx3 uint8}. Devuelve (T, 8) goal_norm.
+
+        Con n_obs_steps > 1 (Diffusion Policy) la policy recibe [anterior, actual], igual que en el
+        entrenamiento (frames consecutivos a 10 Hz). Sin `prev` (primer tick) se repite el actual,
+        como hace LeRobot al empezar un episodio.
+        """
+        batch = self._batch(state, rgb_by_view, task)
+        if self.n_obs_steps > 1:
+            old = self._batch(prev[0], prev[1], task) if prev is not None else batch
+            keys = ["observation.state", *self.image_keys]
+            hist = [old] * (self.n_obs_steps - 1) + [batch]
+            batch = {**batch, **{k: torch.stack([h[k] for h in hist], dim=1) for k in keys}}
         actions = self.policy.predict_action_chunk(batch)          # (1, chunk, 8) normalizado
         actions = self.post(actions)                                # desnormalizado -> goal_norm
         return actions.squeeze(0).float().cpu().numpy()

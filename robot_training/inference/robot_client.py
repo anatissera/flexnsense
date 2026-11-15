@@ -41,15 +41,20 @@ def main() -> None:
               f"ejecuta {hello['n_action_steps']} | vistas {hello['views']}")
         if hello.get("auth_required"):
             await send_msg(writer, {"type": "auth", "token": args.token or ""})
+        args.hand_dim = int(hello.get("state_dim", 8)) - 8     # 5 si la policy usa las yemas de los dedos
         seq = 0
 
-        async def get_chunk(state, jpeg_by_view, task):
+        async def get_chunk(state, jpeg_by_view, task, prev=None):
             nonlocal seq
             seq += 1
             views = list(hello["views"])
             t0 = asyncio.get_running_loop().time()
-            await send_msg(writer, {"type": "obs", "seq": seq, "state": np.asarray(state).tolist(),
-                                    "views": views, "task": task}, [jpeg_by_view[v] for v in views])
+            msg = {"type": "obs", "seq": seq, "state": np.asarray(state).tolist(), "views": views, "task": task}
+            blobs = [jpeg_by_view[v] for v in views]
+            if prev is not None and hello.get("n_obs_steps", 1) > 1:   # la policy pide también el frame anterior
+                msg["prev_state"] = np.asarray(prev[0]).tolist()
+                blobs += [prev[1][v] for v in views]
+            await send_msg(writer, msg, blobs)
             h, _ = await asyncio.wait_for(recv_msg(reader), args.request_timeout)
             if h.get("type") == "error":
                 raise SystemExit(f"el servidor rechazó la petición: {h.get('msg')}")

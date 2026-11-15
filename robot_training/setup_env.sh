@@ -16,8 +16,9 @@ source venv/bin/activate
 
 [[ -d lerobot ]] || git clone https://github.com/huggingface/lerobot.git
 git -C lerobot checkout -q "$LEROBOT_REF"
-# training = accelerate + trackio; dataset = datasets/pyarrow/av/torchcodec; smolvla = transformers
-uv pip install -e "lerobot[training,dataset,smolvla]"
+# training = accelerate + trackio; dataset = datasets/pyarrow/av/torchcodec; smolvla = transformers;
+# diffusion = diffusers (Diffusion Policy, también para inferencia)
+uv pip install -e "lerobot[training,dataset,smolvla,diffusion]"
 
 # norma-core: sparse clone. target/gen_python DEBE estar en el cone: si no, cualquier
 # `git sparse-checkout add` posterior borra los protobufs generados (están en .gitignore).

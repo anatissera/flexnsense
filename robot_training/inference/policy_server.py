@@ -37,7 +37,7 @@ def main() -> None:
 
     runner = load_runner(args.checkpoint, device=args.device, n_action_steps=args.n_action_steps)
     # calentamiento (la primera inferencia en CUDA es lenta)
-    runner.predict_chunk(np.full(8, 0.5, np.float32), {v: np.zeros((224, 224, 3), np.uint8) for v in VIEWS}, "")
+    runner.predict_chunk(np.full(runner.state_dim, 0.5, np.float32), {v: np.zeros((224, 224, 3), np.uint8) for v in VIEWS}, "")
     log.info("policy %s en %s | chunk %d | n_action_steps %d", runner.cfg.type, runner.device,
              runner.chunk_size, runner.n_action_steps)
     busy = asyncio.Lock()
@@ -53,6 +53,7 @@ def main() -> None:
             try:
                 await send_msg(writer, {"type": "hello", "chunk_size": runner.chunk_size,
                                         "n_action_steps": runner.n_action_steps, "views": list(VIEWS),
+                                        "n_obs_steps": runner.n_obs_steps, "state_dim": runner.state_dim,
                                         "policy": runner.cfg.type, "device": runner.device,
                                         "auth_required": bool(args.token)})
                 if args.token:
@@ -66,12 +67,18 @@ def main() -> None:
                         await send_msg(writer, {"type": "error", "msg": f"tipo inesperado {h.get('type')}"})
                         continue
                     views = h["views"]
-                    if sorted(views) != sorted(VIEWS) or len(blobs) != len(views):
+                    has_prev = "prev_state" in h
+                    if sorted(views) != sorted(VIEWS) or len(blobs) != len(views) * (2 if has_prev else 1):
                         await send_msg(writer, {"type": "error", "msg": f"vistas {views} / {len(blobs)} imágenes"})
                         continue
                     state = np.asarray(h["state"], dtype=np.float32)
+                    if state.shape != (runner.state_dim,):
+                        await send_msg(writer, {"type": "error", "msg": f"estado de {state.size} valores; la policy espera {runner.state_dim}"})
+                        continue
+                    n = len(views)
+                    prev = (np.asarray(h["prev_state"], dtype=np.float32), dict(zip(views, blobs[n:]))) if has_prev else None
                     chunk, ms = await asyncio.get_running_loop().run_in_executor(
-                        None, runner.predict_from_jpegs, state, dict(zip(views, blobs)), h.get("task", ""))
+                        None, runner.predict_from_jpegs, state, dict(zip(views, blobs[:n])), h.get("task", ""), prev)
                     await send_msg(writer, {"type": "chunk", "seq": h.get("seq"),
                                             "actions": np.round(chunk, 6).tolist(),
                                             "n_action_steps": runner.n_action_steps, "infer_ms": round(ms, 1)})

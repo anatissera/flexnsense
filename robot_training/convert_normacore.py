@@ -15,6 +15,11 @@ Qué hace (decisiones verificadas con el dataset flexnsense_skill1, 43 episodios
     episodio de referencia (--ref-episode, --ref-views) y cada slot de cada episodio se asigna
     a una vista por similitud de imagen. Si un episodio es ambiguo, el script aborta.
 
+  * --hand: añade a observation.state las yemas del índice y del corazón en la cámara `side`
+    (5 valores, ver hand_features.py). `dataset` usa las columnas hand_* que graba el script de
+    data collection (WiLoR); `mediapipe` las recalcula aquí con MediaPipe. En inferencia hay que
+    usar la misma fuente (--hand-source).
+
 IMPORTANTE: mira a ojo el episodio de referencia y pasa en --ref-views el nombre de la vista
 de images[0], images[1], images[2] de ESE episodio (por defecto: side,gripper,table).
 """
@@ -29,6 +34,8 @@ from pathlib import Path
 import numpy as np
 import pyarrow.parquet as pq
 from PIL import Image
+
+from hand_features import HAND_NAMES, HAND_VIEW, HandFill
 
 N_JOINTS = 8
 DEFAULT_VIEWS = ("side", "gripper", "table")
@@ -79,6 +86,9 @@ def main():
     ap.add_argument("--ref-episode", type=int, default=0, help="índice (0-based) del episodio de referencia de cámaras")
     ap.add_argument("--ref-views", default=",".join(DEFAULT_VIEWS),
                     help="nombre de la vista de images[0],images[1],... en el episodio de referencia")
+    ap.add_argument("--hand", choices=["none", "dataset", "mediapipe"], default="none",
+                    help="añadir las yemas de los dedos a observation.state: columnas hand_* del dataset "
+                         "(WiLoR) o recalculadas con MediaPipe")
     ap.add_argument("--robot-type", default="elrobot")
     ap.add_argument("--overwrite", action="store_true")
     args = ap.parse_args()
@@ -95,8 +105,17 @@ def main():
     with Image.open(io.BytesIO(ref_images[0][0]["jpeg"])) as im:
         w, h = im.size
 
+    use_hand = args.hand != "none"
+    if use_hand and HAND_VIEW not in views:
+        raise SystemExit(f"--hand necesita la vista '{HAND_VIEW}' en --ref-views")
+    state_names = MOTOR_NAMES + (HAND_NAMES if use_hand else [])
+    hand_tips = None
+    if args.hand == "mediapipe":
+        from hand_features import HandTips
+        hand_tips = HandTips()
+    fill, hand_frames, hand_found = HandFill(), 0, 0
     features = {
-        "observation.state": {"dtype": "float32", "shape": (N_JOINTS,), "names": MOTOR_NAMES},
+        "observation.state": {"dtype": "float32", "shape": (len(state_names),), "names": state_names},
         "action": {"dtype": "float32", "shape": (N_JOINTS,), "names": MOTOR_NAMES},
     }
     for v in views:
@@ -125,19 +144,36 @@ def main():
         view_to_slot = {views[v]: s for s, v in enumerate(perm)}
         ts = np.asarray(t["timestamp_ns_since_episode_start"], dtype=np.int64) / 1e9
         gaps = int((np.diff(ts) > 1.5 / args.fps).sum())
+        if args.hand == "dataset":
+            if "hand_fingertips_2d" not in t:
+                raise SystemExit(f"{f} no tiene columnas hand_*: usa --hand mediapipe o vuelve a anotar el dataset")
+            # hand_camera = índice de images[] sobre el que se calcularon: tiene que ser la vista side
+            if set(t["hand_camera"]) != {view_to_slot[HAND_VIEW]}:
+                raise RuntimeError(f"{f}: hand_camera={set(t['hand_camera'])} pero '{HAND_VIEW}' es "
+                                   f"images[{view_to_slot[HAND_VIEW]}]: cámaras mal asignadas o mano de otra cámara")
+        fill.reset()
 
         for i in range(n):
             joints = t["joints"][i]
             if len(joints) != N_JOINTS or len(t["images"][i]) != len(views):
                 raise RuntimeError(f"{f} frame {i}: {len(joints)} joints / {len(t['images'][i])} imágenes")
+            state = np.array([j["position_norm"] for j in joints], dtype=np.float32)
             frame = {
-                "observation.state": np.array([j["position_norm"] for j in joints], dtype=np.float32),
                 "action": np.array([j["goal_norm"] for j in joints], dtype=np.float32),
                 "task": t["task"][i],
             }
             for v, s in view_to_slot.items():
                 frame[f"observation.images.{v}"] = np.asarray(
                     Image.open(io.BytesIO(t["images"][i][s]["jpeg"])).convert("RGB"))
+            if use_hand:
+                if args.hand == "dataset":       # hand_fingertips_2d = pulgar, índice, corazón, anular, meñique (x, y)
+                    tips = np.array(t["hand_fingertips_2d"][i][2:6], np.float32) if t["hand_detected"][i] else None
+                else:
+                    tips = hand_tips(frame[f"observation.images.{HAND_VIEW}"])
+                hand_frames += 1
+                hand_found += tips is not None
+                state = np.concatenate([state, fill.step(tips)])
+            frame["observation.state"] = state
             ds.add_frame(frame)
         ds.save_episode()
         total += n
@@ -148,6 +184,10 @@ def main():
     ds.finalize()
     print(f"\nOK -> {root}\n  {len(files)} episodios, {total} frames, {args.fps} fps, {total_gaps} huecos colapsados")
     print(f"  tasks: {sorted(tasks)}\n  cámaras: {[f'observation.images.{v}' for v in views]}")
+    if use_hand:
+        print(f"  mano ({args.hand}): detectada en {hand_found}/{hand_frames} frames ({100 * hand_found / hand_frames:.1f} %); "
+              f"observation.state = {len(state_names)} valores. En inferencia: --hand-source "
+              f"{'wilor' if args.hand == 'dataset' else 'mediapipe'}")
 
 
 if __name__ == "__main__":
