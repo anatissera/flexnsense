@@ -15,6 +15,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--checkpoint", required=True)
 parser.add_argument("--num_envs", type=int, default=1024)
 parser.add_argument("--video", action="store_true")
+parser.add_argument("--hz10", action="store_true", help="The 10-decisions-a-second variant (Flex-Pull10-v0).")
+parser.add_argument("--bench", action="store_true", help="The full bench (Flex-PullBench-v0): table, hand, scale.")
 parser.add_argument("--grid", type=int, default=0, help="Film this many arms at once from one camera above the field (e.g. 64).")
 parser.add_argument("--pull_back", action="store_true", help="With --grid: start close on a few arms and pull back to show them all.")
 parser.add_argument("--title", default=None, help="Caption for the policy's run in the video.")
@@ -42,7 +44,11 @@ OUT = os.path.expanduser(args_cli.out)
 
 
 def main():
-    env_cfg = PullEnvCfg()
+    from flex_tasks.pull_env_cfg import Pull10EnvCfg
+
+    from flex_tasks.pull_env_cfg import PullBenchEnvCfg
+
+    env_cfg = PullBenchEnvCfg() if args_cli.bench else (Pull10EnvCfg() if args_cli.hz10 else PullEnvCfg())
     env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.seed = 7
     if args_cli.video:
@@ -82,8 +88,8 @@ def main():
             from PIL import Image, ImageDraw, ImageFont
 
             o = env.scene.env_origins
-            eye = o + torch.tensor([0.55, -0.35, 0.35], device=env.device)
-            look = o + torch.tensor([0.0, 0.32, 0.06], device=env.device)
+            eye = o + torch.tensor([0.62, -0.10, 0.42] if args_cli.bench else [0.55, -0.35, 0.35], device=env.device)
+            look = o + torch.tensor([0.0, 0.36, 0.05] if args_cli.bench else [0.0, 0.32, 0.06], device=env.device)
             if args_cli.grid:  # one camera looking across the whole field of arms
                 lo, hi = o.min(dim=0).values, o.max(dim=0).values
                 mid, span = (lo + hi) / 2, float((hi - lo).max())
@@ -117,6 +123,11 @@ def main():
             for i in range(steps):
                 with torch.inference_mode():
                     act = policy(obs) if mode == "policy" else torch.zeros(env.num_envs, 5, device=env.device)
+                    if mode == "policy" and i == 30:  # a sample of what goes in and what comes out, to check the exported file
+                        import numpy as np
+
+                        o_ = obs["policy"] if not torch.is_tensor(obs) else obs
+                        np.savez(f"{OUT}/io_sample.npz", obs=o_[:64].cpu().numpy(), action=act[:64].cpu().numpy())
                     obs, _, _, _ = wrapped.step(act)
                 f = env.force
                 along, side, height, _ = env._rel()
@@ -128,7 +139,7 @@ def main():
                 idle_n += idle
                 rows.append((round(i * env.step_dt, 4), round(float(f[0]), 4), round(float(env._pull()[0]), 4),
                              round(float(along[0]), 4), round(float(side[0]), 4), round(float(height[0]), 4)))
-                if cam is not None and i % 2 == 0:
+                if cam is not None and (i % 2 == 0 or args_cli.bench or args_cli.hz10):
                     if args_cli.grid and args_cli.pull_back:
                         p_ = min(1.0, i / (0.8 * steps))
                         p_ = p_ * p_ * (3 - 2 * p_)

@@ -50,5 +50,7 @@ Videos of these: `videos/01` to `videos/08`.
 
 | Step | File | State |
 |---|---|---|
-| Reference bridge from policy to Station | `policies/run_pull_on_robot.py` | Written, never run on hardware, dry run by default |
+| The pull task on the full bench, at the real loop's pace | `sim/rl/flex_tasks/pull_env_cfg.py` (`PullBenchEnvCfg`), `sim/10_make_hand_usd.py` | Task id `Flex-PullBench-v0`, policy `policies/pull_bench_v1` |
+| Runner for the team's control loop | `policies/sim_pull_runner.py`, `policies/run_pull_local.py` | Written and unit-tested; never run on hardware |
+| Test of the whole chain without a robot | `policies/selftest_pull.py` | Passes (average peak 1.39 N against 3.23 N held still) |
 | Guide | `policies/README.md` | |

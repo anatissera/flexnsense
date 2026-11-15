@@ -10,75 +10,153 @@ what does not is stated plainly below and in [docs/06-limits-and-next.md](docs/0
 ## Status: read this first
 
 - **Nothing here has run on the real arm.** The policies were trained and measured in simulation only.
-- **Test the pull policy.** It is the one worth trying on the robot, carefully, with the dry run first (below).
-- **The move policy is known to be wrong for real use.** In its training task the scale is not a physical object: the
-  gripper never closes around it, the loop follows the gripper by a rule, the whole move takes about 0.4 s, and it
-  starts already hovering over the scale. It is being redone on the physical scene (`sim/08_physical_scale.py`), starting
-  from the arm's resting posture. Do not run it on the robot.
+- **The policy to test is `policies/pull_bench_v1`** (the pull arm, trained on the full bench at the pace of the real
+  control loop). It is in this folder, ready to run with `robot_training/inference`. Go through the steps below in
+  order; the first three need no robot.
+- **The move policy is known to be wrong for real use** and is not prepared for the robot: in its training task the
+  scale is not a physical object, the whole move takes about 0.4 s, and it starts already hovering over the scale.
+  For moving the scale between fingers, the policies in `robot_training/` (trained on real recordings) are the ones
+  to use.
 
-## Get the policies and the recorded episodes
+## Test the pull policy with `robot_training/inference`
+
+The policy plugs into the control loop of branch `feature/robot-training` without changing it: it takes the eight
+`position_norm` values of a Station frame and returns `goal_norm`, 10 times a second, and that loop's Station code
+and tick-level safety (`GoalSafety`) do the rest. Station's camera pictures are not used; the force comes from
+`gauge_reader` reading the scale's own camera inside the same process.
+
+**What you need:** the environment of `robot_training/setup_env.sh`. It already has everything: torch, numpy,
+OpenCV and norma-core's `station_py`. No extra package. Run from a checkout that has both this folder and
+`robot_training/` (merge one branch into the other, or pass `--robot-training <path to robot_training/inference>`).
+On Linux, `python -m gauge_reader cameras` lists the cameras once pull request #45 is merged; until then pass the
+camera's number.
+
+**If you already ran `run_pull_on_robot.py` with `pull_v1`:** that was the first policy (60 decisions a second, one
+exact servo model, no margin). Use `pull_bench_v1` with `run_pull_local.py` instead. The first policy trained the
+same way as `pull_bench_v1` but without the margin went over the force limit in the self-test below.
+
+### 1. Unit tests (no robot)
+
+```bash
+.venv/bin/python -m pytest -q tests/isaac_sim
+```
+
+### 2. Self-test: the whole chain against a stand-in arm and scale (no robot, no camera, no Station)
+
+```bash
+source ~/robot_env/env.sh
+python isaac-sim/policies/selftest_pull.py --policy isaac-sim/policies/pull_bench_v1 -v
+```
+
+It runs 30 pulls twice, with the policy and with the arm held still, through `GoalSafety`, and prints the peak forces
+and `RESULT: OK` or `NOT OK`. Our run of it (Linux, 40 pulls): average peak force 1.39 N with the
+policy against 3.23 N held still, worst pull 1.95 N, none more than 10 % over the 1.96 N limit, no safety aborts.
+With the stand-in motors made faster or slower (`--lag 0.05` to `--lag 0.5`) the average stays between 1.24 and
+1.40 N; the worst single pull rises to 2.77 N with the slowest motors. The stand-in arm is a simple model, not the
+real one: a pass here means the code path is right, not that the real arm will behave the same.
+
+### 3. Which way does each motor turn? (the one thing to check by hand)
+
+The policy thinks in radians from the URDF's zero pose. A Station frame gives each joint as a fraction of its
+calibrated range, and the follower's calibrated ranges match the URDF's joint limits (motor 6: 2,048 ticks is
+3.1416 rad, the URDF's span exactly; the others within 1 %, motor 1 within 5 %). So no tick measurement is needed:
+
+    angle = lower limit + position_norm x (upper limit - lower limit)
+
+What is **not verified** is the direction: whether `position_norm` going up means the URDF angle going up, for each of
+motors 1 to 7. The default assumes yes for all seven. To check, run
+
+```bash
+python isaac-sim/policies/check_directions.py
+```
+
+It prints, for each motor, where the model expects the jaws to go when that motor's `position_norm` rises a little
+from the start posture (so many millimetres forward, left or up). With torque off, nudge each joint so that its
+`position_norm` rises in Station's web page and compare.
+
+If a motor goes the other way, write `isaac-sim/policies/pull_bench_v1/joint_directions.json` with -1 for it, for
+example `[1, -1, 1, 1, 1, 1, 1]`. A quick sanity check that needs no table: put the arm in the start posture below and
+run step 5 (dry run); the line it prints must show "along" near 0 mm and stay near 0 while nobody pulls. A wrong
+direction shows up as "along" jumping as soon as the arm is touched.
+
+The check was done against the calibration of bus `5B8E114979` (`config/calibration/`). `robot_training/inference`
+defaults to bus `5B3D050113`: pass the right `--bus-serial`, and if that arm's ranges differ, the mapping needs
+checking for it too.
+
+### 4. Set up the bench
+
+1. Station running, the follower with torque, the leader without (as in `robot_training/README.md`, section 4.1).
+2. The scale's calibration on this machine: `config/scale_calib.json` (it is per machine and not in git; make it with
+   `python -m gauge_reader calibrate`). The script opens the scale's camera itself (`--force-camera`).
+3. The arm in the start posture used in training, jaws closed on the scale's ring, the scale level and in line with
+   the arm. As `position_norm` for motors 1 to 7 (with all directions +1): 0.50, 0.51, 0.80, 0.52, 0.45, 0.07, 0.54.
+   The policy tolerates about 0.1 rad around it; further away it has not been trained.
+
+### 5. Dry run, then 30 ticks, then free
+
+```bash
+source ~/robot_env/env.sh
+python isaac-sim/policies/run_pull_local.py --policy isaac-sim/policies/pull_bench_v1 \
+    --force-camera <N> --bus-serial <FOLLOWER SERIAL> --camera-order side,gripper,table --dry-run
+python isaac-sim/policies/run_pull_local.py --policy isaac-sim/policies/pull_bench_v1 \
+    --force-camera <N> --bus-serial <FOLLOWER SERIAL> --camera-order side,gripper,table --max-ticks 30
+```
+
+`--force-camera` is the camera that looks at the scale. `--camera-order` only stops the loop from trying to recognise
+Station's cameras, which the policy does not use; the loop still needs Station to publish its three pictures. Before
+anything moves, the script loads the calibration, opens the scale camera and waits for a first reading; if any of that
+fails it stops there and prints the real cause (missing calibration file, camera that will not open, scale not found
+in the picture). In the dry run nothing is sent. Pull on the scale by hand and watch the line
+printed every second: "force" must follow the scale, "along" must be about 0 mm at rest, the action must stay near 0
+while the force is low and go the same way every time the force passes about 1.6 N (160 gf).
+
+What protects the arm: `GoalSafety` from `robot_training` (goal change limited per tick, abort if a goal is far from
+the position), a target that never runs more than 0.6 rad ahead of the arm, and a hard stop, with the reason printed,
+when the scale reading is missing for 0.3 s. On that stop the arm **keeps holding** its last goal, as that loop does; it does not release. The
+limits in `robot_training/README.md` section 4.0 apply here as well: do not use it with a patient's hand.
+
+## Get the earlier policies, the videos and the recorded episodes
 
 They are on Hugging Face, not in git:
 
-- Policies: https://huggingface.co/peresjav/flexnsense-sim-policies (ONNX, TorchScript, checkpoints, videos)
-- Recorded simulation episodes: https://huggingface.co/datasets/peresjav/lerobot-2026 (Parquet, no camera images)
+- https://huggingface.co/peresjav/flexnsense-sim-policies (the first two policies, videos)
+- https://huggingface.co/datasets/peresjav/lerobot-2026 (recorded simulation episodes, Parquet, no camera images)
 
 ```bash
 pip install -U huggingface_hub
-# from the repository root: puts the files where this folder's scripts expect them (isaac-sim/policies/pull_v1/...)
-hf download peresjav/flexnsense-sim-policies --include "policies/*" --local-dir isaac-sim
-# optional: the videos, and the recorded episodes
-hf download peresjav/flexnsense-sim-policies --include "media/*" --local-dir isaac-sim
-hf download peresjav/lerobot-2026 --repo-type dataset --local-dir isaac-sim/dataset
+hf download peresjav/flexnsense-sim-policies --local-dir isaac-sim/hf
+hf download peresjav/lerobot-2026 --repo-type dataset --local-dir isaac-sim/hf/dataset
 ```
 
-Both repos are public, so no login is needed. The videos include two films that go from 1 arm to 1,024.
-
-## Try the pull policy on the real arm
-
-The policy is a small network: 29 numbers in, 5 numbers out, 60 times a second. `policies/run_pull_on_robot.py` is the
-bridge to Station. **It has never been run on hardware.** Go through these steps in order, with one person at the
-keyboard and a hand on the power.
-
-1. **Measure the joint mapping.** The policy thinks in radians from the URDF's zero pose (upright column, level
-   forearm); the servos think in ticks (4,096 per turn). For motors 1 to 7, read the tick value at that pose from
-   Station and note the sign (negative where the motor turns the other way from the URDF axis). Write
-   `isaac-sim/policies/joint_map.json`:
-
-   ```json
-   {"1": {"zero_tick": 2048, "ticks_per_rad": 651.9}, "2": {"zero_tick": 2048, "ticks_per_rad": -651.9}}
-   ```
-
-   651.9 is 4096 / (2 pi). The numbers above are placeholders, not measurements: check every motor by moving it by
-   hand and watching the angle the script prints.
-2. **Start Station** (see `SETUP.md`). Leave its current limits in `station.yaml` as they are.
-3. **Start the scale reading:** `.venv/bin/python -m gauge_reader.server` (WebSocket `/force`, port 8766). This opens
-   the camera.
-4. **Put the arm in the start posture** used in training (motors 1 to 7, radians): 0, 0.04, 1.057, 0.072, 0, -1.169, 0,
-   jaws closed on the scale's ring, the scale level and in line with the arm.
-5. **Dry run. Nothing is sent to the arm:**
-
-   ```bash
-   pip install onnxruntime websockets
-   .venv/bin/python isaac-sim/policies/run_pull_on_robot.py \
-       --policy isaac-sim/policies/pull_v1/policy.onnx \
-       --joint_map isaac-sim/policies/joint_map.json --force_url ws://localhost:8766/force
-   ```
-
-   Pull on the scale by hand. "force" must follow the scale, "along" must be about zero at rest, and the actions must
-   stay small while the force is low and point the same way each time the force passes 1.96 N (200 gf).
-6. **Only then add `--send`.** The script stops if the scale reading is missing for 0.25 s, limits every joint to
-   0.012 rad per step, and stops if a target strays 0.9 rad from the start posture. Station's own current limits stay
-   in force underneath.
-
-What will most likely differ on the real arm: the servos are stiffer and slower than the assumed ones, the camera
-reading arrives at about 30 Hz with a delay, and the real spring constant is not the assumed one. If the dry run looks
-wrong, that is the first place to look: measure those three, put them in `sim/rl/flex_tasks/pull_env_cfg.py`, and
-retrain (8 minutes).
+`pull_bench_v1` is newer than that upload and lives in this folder (130 kB).
 
 ## Results
 
-### Pull arm (`Flex-Pull-v0`)
+### Pull arm on the full bench (`Flex-PullBench-v0`): the one prepared for the robot
+
+The scene is the bench as built in `sim/08_physical_scale.py`: NVIDIA's lab table from the Isaac asset library, the
+arm clamped to it, the hand, the pulling finger and the scale's tube. The policy decides 10 times a second, as the
+real control loop does, reads the force the way the camera gives it (steps of 5 gf, noise, 3 % of frames lost), and
+is trained to stay 20 % under the limit with a different servo for every arm (stiffness 15 to 80 N·m/rad, damping
+1 to 4, and a lag in following its goal). 600 iterations, 19 minutes. Measured on 1,024 benches it had not seen:
+
+| | Trained policy | Arm held still |
+|---|---|---|
+| Peak force, average | 1.59 N (162 gf) | 3.39 N (345 gf) |
+| Peak force, worst pull | 3.47 N (353 gf) | 7.17 N (731 gf) |
+| Pulls more than 10 % over the 1.96 N limit | 2.5 % | 83 % |
+| Time above 110 % of the limit, average | 0.009 s | 2.9 s |
+| How far the arm gives way, average | 45 mm | 7 mm |
+
+The worst pull (3.47 N) comes from the softest, slowest servos in the varied set. A first version without the margin
+and the servo variation held 1.93 N in the simulator but went over the limit in the self-test (2.07 N on average,
+48 % of pulls more than 10 % over), which is why it was retrained and why the self-test is step 2 above.
+
+In this task the hand, the finger and the tube are bodies that are shown and placed each instant, not simulated by
+contact: the scale's pull on the arm is the spring force along the tube, which is what a light tube held at both ends
+transmits. Contact matters for the move task (pinching the tube), not for this one.
+
+### Pull arm, first version (`Flex-Pull-v0`, 60 decisions a second, arm only)
 
 Trained in 7.7 minutes (600 iterations, 59 million simulated steps). Measured on 1,024 pulls it had not seen, the same
 pulls with and without the policy:
@@ -133,8 +211,10 @@ sim/                    scripts that run on the GPU workstation
 tools/                  URDF check, forward kinematics, a chart script
 cloud/nebius/           create / start / stop / copy files to the workstation
 assets/elrobot/         NormaCore's ElRobot model (Apache-2.0, see LICENSE and SOURCE.txt there)
-policies/               the bridge script for the real arm, the measurements and the training settings
-                        (the policy files themselves are downloaded from Hugging Face, see above)
+policies/               pull_bench_v1 (the policy to test), the runner for robot_training's control loop
+                        (sim_pull_runner.py, run_pull_local.py), the no-robot self-test (selftest_pull.py),
+                        check_directions.py, and the measurements and settings of the earlier policies.
+                        run_pull_on_robot.py is the first bridge script, kept for whoever already uses it
 ```
 
 Start with [docs/README.md](docs/README.md).

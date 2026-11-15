@@ -51,7 +51,9 @@ Videos (in `../videos/`): `09_pull_policy_trained_vs_hold.mp4` (policy, then the
 ### What the download puts in this folder
 
 ```
-policies/pull_v1/policy.onnx (+ policy.onnx.data)   the policy, for onnxruntime
+policies/pull_bench_v1/                              the policy prepared for the robot (in git, 130 kB): policy.pt,
+                                                     policy.onnx, flex_sim.json, settings, measurement
+policies/pull_v1/policy.onnx (+ policy.onnx.data)   the first pull policy (60 decisions a second), for onnxruntime
 policies/pull_v1/policy.pt                           the same, TorchScript
 policies/pull_v1/2026-11-15_19-02-34/model_599.pt    the training checkpoint (to continue training)
 policies/pull_v1/2026-11-15_19-02-34/params/         the exact training settings (env.yaml, agent.yaml)
@@ -87,44 +89,12 @@ loaded with the team's own scripts (branch `feature/robot-training`). They are a
 
 ## 3. How to put the pull policy on the robot
 
-The policy is a small network: 29 numbers in, 5 numbers out, 60 times a second. `run_pull_on_robot.py` in this folder
-is the bridge. **It has never been run on hardware**; treat it as a starting point and go through these steps in order.
-
-1. **Measure the joint mapping.** The policy thinks in radians from the URDF's zero pose; the servos think in ticks
-   (4,096 per turn). For motors 1 to 7 you need the tick value at the URDF's zero angle and the sign. Put the arm in
-   the URDF zero pose (upright column, level forearm), read the ticks from Station, and write `joint_map.json`:
-
-   ```json
-   {"1": {"zero_tick": 2048, "ticks_per_rad": 651.9}, "2": {"zero_tick": 2048, "ticks_per_rad": -651.9}}
-   ```
-
-   651.9 is 4096 / (2 pi); the sign is negative where the motor turns the other way from the URDF axis. The numbers
-   above are placeholders, not measurements. Check each motor by moving it by hand and watching the angle.
-2. **Start Station** (see `SETUP.md`) and keep its current limits in `station.yaml` as they are.
-3. **Start the scale reading:** `.venv/bin/python -m gauge_reader.server` (WebSocket `/force`, port 8766 by default).
-   This opens the camera.
-4. **Put the arm in the start posture** used in training (motors 1 to 7, radians): 0, 0.04, 1.057, 0.072, 0, -1.169, 0,
-   jaws closed on the scale's ring, the scale level and in line with the arm.
-5. **Dry run** (nothing is sent to the arm):
-
-   ```bash
-   .venv/bin/python isaac-sim/policies/run_pull_on_robot.py \
-       --policy isaac-sim/policies/pull_v1/policy.onnx \
-       --joint_map isaac-sim/policies/joint_map.json --force_url ws://localhost:8766/force
-   ```
-
-   Pull on the scale by hand. Check that "force" follows the scale, that "along" is about zero at rest, and that the
-   actions stay small while the force is low and point the same way every time the force goes over the limit.
-6. **Only then add `--send`**, with one person at the keyboard and a hand on the power. The script stops if the scale
-   reading is missing for 0.25 s, limits every joint to 0.012 rad per step, and stops if a target strays 0.9 rad from
-   the start posture. Station's own current limits stay in force underneath.
-
-What will most likely need work on the real arm: the real servos are stiffer and slower than the assumed ones, the
-camera reading arrives at about 30 Hz with delay, and the real spring constant differs. The honest next step is to
-measure those three, put the measured values in `pull_env_cfg.py`, and retrain (8 minutes).
-
-The move policy cannot go on the robot yet: it needs the positions of the scale, the loop and the fingers, which
-nothing measures today.
+The steps are in the folder's main [README](../README.md), section "Test the pull policy with
+`robot_training/inference`". In short: the policy to use is `pull_bench_v1` in this folder; `sim_pull_runner.py`
+turns it into a runner for the control loop of branch `feature/robot-training`; `run_pull_local.py` starts that loop
+with it; `selftest_pull.py` tests the whole chain without a robot; `check_directions.py` prints what each motor
+should do, to check the motor directions by hand. `run_pull_on_robot.py` is the first bridge script (for `pull_v1`, straight to
+Station); it is kept for whoever already uses it, and reads the scale from its camera itself (`--camera`, `--calib`).
 
 ## 4. How to upload to Hugging Face (push), from the cloud
 

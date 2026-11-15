@@ -16,6 +16,7 @@ from isaaclab.app import add_launcher_args, launch_simulation
 parser = argparse.ArgumentParser()
 parser.add_argument("--before", required=True, help="checkpoint of the untrained policy (model_0.pt)")
 parser.add_argument("--after", required=True, help="checkpoint of the trained policy")
+parser.add_argument("--bench", action="store_true", help="Film the full bench (Flex-PullBench-v0): table, hand, scale.")
 parser.add_argument("--side", type=int, default=32, help="arms per side of the field (32 -> 1024 arms)")
 parser.add_argument("--out", default="~/flexnsense-sim/runs/rl_pull/movie")
 add_launcher_args(parser)
@@ -54,7 +55,12 @@ if os.environ.get("FILM_TEST"):  # a quick look: a few pictures of a close view 
 
 
 def main():
-    env_cfg = PullEnvCfg()
+    from flex_tasks.pull_env_cfg import PullBenchEnvCfg
+
+    if args_cli.bench:  # this policy trained for 19 minutes, not 8
+        STAGES[:] = [(a, b, c, d.replace("after 8 minutes of training", "after 19 minutes of training")) for a, b, c, d in STAGES]
+
+    env_cfg = PullBenchEnvCfg() if args_cli.bench else PullEnvCfg()
     n = args_cli.side**2
     env_cfg.scene.num_envs = n
     env_cfg.seed = 3
@@ -120,7 +126,7 @@ def main():
             for i in range(steps):
                 with torch.inference_mode():
                     obs, _, _, _ = wrapped.step(policy(obs))
-                if i % 2:
+                if i % 2 and not args_cli.bench:  # 30 pictures a second of simulated time (the bench decides 10 times a second)
                     continue
                 p = min(1.0, i * env.step_dt / MOVE_S)
                 p = p * p * (3 - 2 * p)
