@@ -49,7 +49,7 @@ We are **Flex'N Sense**, a team of six.
 | Guillaume Bonifas | Robotics & MedTech, scale-up leader | [@Guitool77](https://github.com/Guitool77) |
 | Damien Frechou | Mechatronics, automation & control systems | |
 | Ana Tissera | AI Engineering, Universidad de San Andrés | [@anatissera](https://github.com/anatissera) |
-| Laurence Liang | Applied AI at Mistral. Rootly (YC S21) AI Labs, Groq, MDA Space | [@TheFloatingString](https://github.com/TheFloatingString) |
+| Laurence Liang | Applied AI Engineer at Mistral. Rootly (YC S21) AI Labs, Groq, MDA Space | [@TheFloatingString](https://github.com/TheFloatingString) |
 | Javier Peres | AI Engineer | [@peresramirez](https://github.com/peresramirez) |
 | Justo Valverde | Robotics Software Engineering student, URJC | |
 
