@@ -40,7 +40,7 @@ A saved copy downloads as `index.html`. Move it into this folder, over the old o
 
 9. How it works (animated diagram)
 10. Real footage (three clips). A good moment to switch to the live demo.
-11. User interface (dashboard recording, with labels)
+11. User interface (dashboard recording, with labels). Two buttons at the top right open a pop-up: "Replay the demo" plays the recorded voice-assistant demo with sound, "Medical report" shows the report the dashboard exports
 12. Inside the dashboard
 
 **Act 4, the people and what is next**
@@ -49,7 +49,7 @@ A saved copy downloads as `index.html`. Move it into this folder, over the old o
 14. Our goals at Track 4 (Elderly Care & Rehabilitation, Rehab coach): three numbered goals that match the track's expectations. Give a VLA the capacity to sense with a low-tech proprioceptive ruler, use a standard tool from the physiotherapist's lab, prove that a VLA can be used safely with patients (new)
 15. The team
 16. What comes next: built this weekend, then one hand clinic, then orthopedic rehabilitation for other joints (new)
-17. A future approach: the same bench in Isaac Lab, two arms, scripted motion, no trained policy yet (new)
+17. A future approach: the same bench in Isaac Lab, two arms, scripted motion, no trained policy yet. "Play again" restarts the clip, a click on the clip pauses it (new)
 18. Thank you (team photo, then the card)
 
 To check before presenting:
@@ -80,12 +80,17 @@ Colours and fonts are CSS variables at the top of `index.html` (`:root`).
 - **Text**: press E in the browser, or edit `index.html`.
 - **Videos**: `assets/video/*.mp4` (720×1280 portrait, H.264, no audio) with a `.jpg` poster of the same name. To add a new clip from a phone video:
   `ffmpeg -i in.mp4 -an -vf "scale=720:1280,fps=30" -c:v libx264 -crf 21 -pix_fmt yuv420p -movflags +faststart assets/video/name.mp4`
+- **Keep it light**: every clip in `assets/` is H.264 at `-crf 28 -preset veryslow` with no audio, and photos are JPEG, at most 1920 px on the long side. Encode new media the same way before committing, so a pull stays small (the whole folder is about 9 MB):
+  `ffmpeg -i in.mp4 -an -c:v libx264 -preset veryslow -crf 28 -pix_fmt yuv420p -movflags +faststart out.mp4`
 - **Dashboard media**: `assets/dash/`. Captured on 15 Nov 2026 from the app in `dashboard/` (main at `4b5547f`) running locally (`pnpm install`, `pnpm dev`, then http://localhost:3000/?grasp) in a 1600×1000 window:
   - `run.mp4` (1920×1200): the whole dashboard while the view cube turns the 3D hand.
   - `hand.mp4` (720×1280): the same recording, cropped to the 3D hand.
   - `recovery.png`, `loop.png`: the "Recovery index vs week" and "Force-displacement loop" charts (index finger, week 24).
   The webcam was not opened, so the rep machine is shown idle. The data is the dashboard's simulated patient, and slide 12 says so.
-- **Simulation video** (slide 17, shown as a future approach): `assets/video/sim-two-arms.mp4` (1920×658, 24 s, no audio) with its poster `sim-two-arms.jpg`. It comes from the Isaac Lab simulation in the team's internal notes, 15 Nov 2026, copied as it was. The motion in it is scripted: no trained policy runs, and the slide says so.
+- **Pop-ups on slide 11**: Esc, "Close" or a click outside closes one; Space pauses the demo. While one is open the arrow keys do not change slide.
+  - `assets/dash/assistant-demo.mp4` (1600×994, 56 s, with sound): a screen recording of the dashboard's voice assistant made at the bench on 15 Nov 2026, cut from 2 min 18 s to four exchanges: which muscle is most at risk, which dashboard section shows its metrics, a better view of the muscle, and how to export for the physician. The chatter before, two failed camera angles and the Spanish test at the end are cut. The patient data in it is simulated.
+  - `assets/dash/report.html`: the page behind the dashboard's "Export Medical Report" button, saved as it came out on 15 Nov 2026 after one simulated index curl (patient P1, week 24, 4 repetitions). To get there without a camera the simulated run controls were switched on locally (`SHOW_SIM_RUN_CONTROLS` in `dashboard/app/components/SimApp.tsx`); that change was not kept. Every number in it is simulated, and the report says so itself.
+- **Simulation video** (slide 17, shown as a future approach): `assets/video/sim-real-grip.mp4` (1920×658, 26 s, no audio) with its poster `sim-real-grip.jpg`. It is the full-cycle render of the Isaac Lab simulation from the team's internal notes, 15 Nov 2026 (index finger pulls, the move arm carries the loop to the middle finger, the middle finger pulls, the loop goes back), re-encoded smaller. The motion in it is scripted: no trained policy runs, and the slide says so.
 - **Title slide video** (slide 5): `assets/video/tether-clinic.mp4` (720×1112 portrait, 9 s, no audio) with its poster `tether-clinic.jpg`. It is the bench clip `tether.mp4` with its background restyled by a generative video model into a clinic (blue drape, white room), then cut to the 9 seconds where the arm is at the hand and cropped below the hands that hold the upper arm, so only the two arms, the scale and the forearm show. The model also changed details of the people and the arm, so the caption says "restyled": the unaltered footage is on slide 10.
 - **Timeline moments** (slide 13): one `<figure class="ev">` per moment inside `#evs` in `index.html`, in order. The line and the spacing are computed from the list, so add, remove or reorder figures freely.
   - `data-dir="up"` is a win (caption above the circle), `data-dir="down"` is a failure (red ring, caption below).

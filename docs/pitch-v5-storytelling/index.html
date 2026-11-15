@@ -286,6 +286,21 @@ h2{font-size:84px;margin-top:22px}
 .ev.done .m:hover{transform:scale(1.06)}
 .skip{position:absolute;right:120px;top:54px;z-index:30;padding:9px 20px 8px;border:2px solid var(--line);border-radius:999px;background:var(--paper);color:var(--ink-2);font:700 20px var(--f-data);letter-spacing:.16em;text-transform:uppercase;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .4s ease,color .2s,border-color .2s}
 .skip.on{opacity:1;pointer-events:auto}
+
+/* === BUTTONS ON A SLIDE, AND THE POP-UP THEY OPEN ======================== */
+.acts{position:absolute;right:120px;top:54px;z-index:30;display:flex;gap:14px}
+.pill{padding:12px 26px 11px;border:2px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font:700 20px var(--f-data);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+.pill.ghost{background:var(--paper);color:var(--ink)}
+.pill:focus{outline:none}
+.modal{position:absolute;inset:0;z-index:80;display:none;align-items:center;justify-content:center;background:rgba(7,11,18,.88)}
+.modal.on{display:flex}
+.sheet{display:none;flex-direction:column;align-items:center}
+.sheet.on{display:flex}
+.sheet .cap{margin-top:18px;color:rgba(255,255,255,.82);font-size:24px;font-weight:500}
+.sheet.demo video{width:1440px;height:894px;border-radius:18px;background:#0B0E14}
+.sheet.report iframe{width:640px;height:580px;zoom:1.6;border:0;border-radius:9px;background:#fff}
+.modal .close{position:absolute;right:56px;top:40px;background:transparent;border-color:rgba(255,255,255,.6);color:#fff}
+.sim .vid video{cursor:pointer}
 .skip:hover{color:var(--ink);border-color:var(--ink-3)}
 .skip:focus{outline:none}
 
@@ -455,7 +470,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
   </svg>
   <div class="disc" style="left:1200px;top:290px;--d:300ms" data-a="pop"><img src="assets/physio.jpg" alt=""></div>
   <div class="disc" style="left:840px;top:740px;--d:450ms" data-a="pop"><img src="assets/story/little-robot.jpg" alt="Concept: a small, friendly white robot"></div>
-  <div class="disc" style="left:1560px;top:740px;--d:600ms" data-a="pop"><img src="assets/patient.png" alt=""></div>
+  <div class="disc" style="left:1560px;top:740px;--d:600ms" data-a="pop"><img src="assets/patient.jpg" alt=""></div>
   <div class="lbl" style="left:1362px;top:244px;--d:900ms" data-a="fade"><b>Physiotherapist</b><span>supervises, from anywhere</span></div>
   <div class="lbl c" style="left:840px;top:884px;--d:1000ms" data-a="fade"><b>Rehab AI assistant</b><span>the robot guides the exercise</span></div>
   <div class="lbl c" style="left:1560px;top:884px;--d:1100ms" data-a="fade"><b>Patient</b><span>exercises at home</span></div>
@@ -581,6 +596,10 @@ body.editing [contenteditable]:focus{outline-style:solid}
     <div class="kicker" data-a="up">User interface</div>
     <h2 data-a="up" style="--d:100ms">What the physiotherapist sees.</h2>
   </div>
+  <div class="acts" data-a="fade" style="--d:600ms">
+    <button class="pill" type="button" tabindex="-1" data-open="demo">Replay the demo</button>
+    <button class="pill ghost" type="button" tabindex="-1" data-open="report">Medical report</button>
+  </div>
   <div class="shot" data-a="up" style="--d:220ms"><video data-auto muted loop playsinline preload="auto" poster="assets/dash/run.jpg" src="assets/dash/run.mp4"></video></div>
   <svg class="lines" viewBox="0 0 1920 1080" aria-hidden="true">
     <path style="--d:800ms" d="M402 382 H446"/><circle style="--d:800ms" cx="446" cy="382" r="9"/>
@@ -678,12 +697,12 @@ body.editing [contenteditable]:focus{outline-style:solid}
     <div class="flag" style="--d:1290ms;--w:2.75s"><div class="cloth"><img src="assets/flags/sc.svg" alt="Scotland"></div></div>
   </div>
   <div class="people" id="people">
-    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/guillaume.png" alt=""></div></div><b>Guillaume Bonifas</b><span>Robotics &amp; MedTech<br>Scale-up leader</span></div>
-    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/damien.png" alt=""></div></div><b>Damien Frechou</b><span>Mechatronics, automation &amp; control systems</span></div>
-    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/ana.png" alt=""></div></div><b>Ana Tissera</b><span>AI Engineering<br>Universidad de San Andrés</span></div>
-    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/laurence.png" alt=""></div></div><b>Laurence Liang</b><span>Applied AI Engineer<br>Mistral</span></div>
-    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/javier.png" alt=""></div></div><b>Javier Peres</b><span>AI Engineer</span></div>
-    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/justo.png" alt=""></div></div><b>Justo Valverde</b><span>Robotics Software Engineering student, URJC</span></div>
+    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/guillaume.jpg" alt=""></div></div><b>Guillaume Bonifas</b><span>Robotics &amp; MedTech<br>Scale-up leader</span></div>
+    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/damien.jpg" alt=""></div></div><b>Damien Frechou</b><span>Mechatronics, automation &amp; control systems</span></div>
+    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/ana.jpg" alt=""></div></div><b>Ana Tissera</b><span>AI Engineering<br>Universidad de San Andrés</span></div>
+    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/laurence.jpg" alt=""></div></div><b>Laurence Liang</b><span>Applied AI Engineer<br>Mistral</span></div>
+    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/javier.jpg" alt=""></div></div><b>Javier Peres</b><span>AI Engineer</span></div>
+    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/justo.jpg" alt=""></div></div><b>Justo Valverde</b><span>Robotics Software Engineering student, URJC</span></div>
   </div>
 </section>
 
@@ -705,7 +724,10 @@ body.editing [contenteditable]:focus{outline-style:solid}
     <div class="kicker" data-a="up">A future approach</div>
     <h2 data-a="up" style="--d:100ms">Next, train it in simulation.</h2>
   </div>
-  <figure class="vid photo" data-a="up" style="--d:220ms"><video data-auto muted loop playsinline preload="auto" poster="assets/video/sim-two-arms.jpg" src="assets/video/sim-two-arms.mp4"></video></figure>
+  <div class="acts" data-a="fade" style="--d:600ms">
+    <button class="pill" type="button" tabindex="-1" data-replay>Play again</button>
+  </div>
+  <figure class="vid photo" data-a="up" style="--d:220ms"><video data-auto muted loop playsinline preload="auto" poster="assets/video/sim-real-grip.jpg" src="assets/video/sim-real-grip.mp4"></video></figure>
   <p class="lead" data-a="up" style="--d:380ms">Our two arms in Isaac Lab, on NormaCore's model of the ElRobot. One holds the scale and gives way at the limit, the other moves the scale from finger to finger. The motion is scripted: no trained policy runs here yet.</p>
 </section>
 
@@ -724,6 +746,19 @@ body.editing [contenteditable]:focus{outline-style:solid}
   </div>
   <i class="ring"></i>
 </section>
+
+<!-- Pop-ups opened by the buttons on slide 11. Esc, Close or a click outside closes them. -->
+<div class="modal" id="modal">
+  <div class="sheet demo" data-sheet="demo">
+    <video controls playsinline preload="none" poster="assets/dash/assistant-demo.jpg" src="assets/dash/assistant-demo.mp4"></video>
+    <p class="cap">The dashboard's voice assistant, recorded on 15 Nov 2026. Cut to four questions. The patient data is simulated.</p>
+  </div>
+  <div class="sheet report" data-sheet="report">
+    <iframe data-src="assets/dash/report.html" title="Medical report exported from the dashboard"></iframe>
+    <p class="cap">The report the dashboard exports after a session. All data in it are simulated.</p>
+  </div>
+  <button class="pill close" type="button" tabindex="-1" id="modalClose">Close</button>
+</div>
 
 <footer id="foot">
   <span class="lock"><svg class="mk" viewBox="0 0 64 64"><use href="#mark"/></svg><span class="wm">Flex<i class="ap"></i>N Sense</span></span>
@@ -1049,6 +1084,9 @@ body.editing [contenteditable]:focus{outline-style:solid}
     doc.querySelectorAll('.ev .lab').forEach(l => l.remove());
     doc.querySelector('#veil').className = 'veil';
     doc.querySelector('#skip').className = 'skip';
+    doc.querySelector('#modal').className = 'modal';
+    doc.querySelectorAll('#modal .sheet').forEach(sh => sh.classList.remove('on'));
+    doc.querySelectorAll('#modal iframe').forEach(f => f.removeAttribute('src'));
     doc.querySelector('#zigline').removeAttribute('style'); doc.querySelector('#zigline').setAttribute('points', '');
     doc.querySelector('#stage').className = 'stage nofoot';
     doc.querySelector('#stage').removeAttribute('style');
@@ -1062,9 +1100,37 @@ body.editing [contenteditable]:focus{outline-style:solid}
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
 
+  /* --- pop-ups (the demo replay and the medical report) and replay buttons --- */
+  const modal = document.getElementById('modal');
+  let modalOpen = null;
+  function openModal(name) {
+    modal.querySelectorAll('.sheet').forEach(sh => sh.classList.toggle('on', sh.dataset.sheet === name));
+    modal.classList.add('on'); modalOpen = name;
+    const on = modal.querySelector('.sheet.on'), v = on.querySelector('video'), f = on.querySelector('iframe');
+    if (v) { try { v.currentTime = 0; } catch (e) {} v.play().catch(() => {}); }
+    if (f && !f.getAttribute('src')) f.src = f.dataset.src;
+  }
+  function closeModal() {
+    modal.classList.remove('on'); modalOpen = null;
+    modal.querySelectorAll('video').forEach(v => v.pause());
+  }
+  document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); if (!editing) openModal(b.dataset.open); }));
+  modal.addEventListener('click', e => { e.stopPropagation(); if (e.target === modal || e.target.closest('#modalClose')) closeModal(); });
+  document.querySelectorAll('[data-replay]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const v = b.closest('.slide').querySelector('video'); try { v.currentTime = 0; } catch (err) {} v.play().catch(() => {});
+  }));
+  document.querySelectorAll('.sim .vid video').forEach(v => v.addEventListener('click', e => { e.stopPropagation(); v.paused ? v.play().catch(() => {}) : v.pause(); }));
+
   /* --- navigation --- */
   addEventListener('keydown', e => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveCopy(); return; }
+    if (modalOpen) {
+      const v = modal.querySelector('.sheet.on video');
+      if (e.key === 'Escape') closeModal();
+      else if (e.key === ' ' && v) { e.preventDefault(); v.paused ? v.play().catch(() => {}) : v.pause(); }
+      return;
+    }
     if (editing) { if (e.key === 'Escape') setEditing(false); return; }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key;
@@ -1082,7 +1148,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
   addEventListener('click', e => { if (editing) return; e.clientX < innerWidth * 0.25 ? go(cur - 1) : next(); });
   let tx = null;
   addEventListener('touchstart', e => tx = e.touches[0].clientX, { passive: true });
-  addEventListener('touchend', e => { if (tx == null || editing) return; const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 50) go(cur + (d < 0 ? 1 : -1)); tx = null; });
+  addEventListener('touchend', e => { if (tx == null || editing || modalOpen) return; const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 50) go(cur + (d < 0 ? 1 : -1)); tx = null; });
 
   const start = parseInt(location.hash.slice(1), 10);
   go(Number.isFinite(start) ? start - 1 : 0);
