@@ -37,6 +37,31 @@ type Controls = {
 };
 
 export type MuscleDrive = Record<string, number>;
+/**
+ * What the view cube can ask of the main camera. The camera orbits a fixed point, so every call
+ * here is a rotation about it: nothing zooms or pans.
+ */
+export type ViewApi = {
+  /** The camera's world orientation, which the cube mirrors (inverted) to show the world axes. */
+  quaternion: () => THREE.Quaternion;
+  /** Fly to look at the hand from along `dir` (a world axis, the camera sits on that side) with `up` up. */
+  snapTo: (dir: readonly [number, number, number], up: readonly [number, number, number]) => void;
+  /** Turn 90 degrees (or any angle) about a camera axis: yaw about up, pitch about right, roll about the view axis. */
+  turn: (axis: "yaw" | "pitch" | "roll", radians: number) => void;
+  /** Rotate freely while dragging: `dx` about the camera's up axis, `dy` about its right axis (radians). */
+  drag: (dx: number, dy: number) => void;
+  /** End of a drag: hand the camera back to the orbit controls. */
+  commit: () => void;
+  /** Back to the starting side profile. */
+  home: () => void;
+  /**
+   * Swing the camera round to the side of the arm that `muscle` is on, so it faces the tendon. The
+   * orbit centre is fixed, so this is a rotation only. The muscle's position is read on the next
+   * rendered frame; an unknown name does nothing. `ms` is the duration of the move.
+   */
+  focusMuscle: (muscle: string, ms?: number) => void;
+};
+
 export type ViewerHooks = {
   /** When non-null, overrides all actuator controls by muscle name (others = 0). */
   drive?: RefObject<MuscleDrive | null>;
@@ -64,6 +89,13 @@ export type ViewerHooks = {
   handPose?: RefObject<Record<string, number> | null>;
   /** Explore mode: while true, wheel zoom is disabled so the wheel can step through tendons. */
   explore?: RefObject<boolean>;
+  /** The Explore toggle shown in the top-left card. Omit `onExploreToggle` to hide it. */
+  exploreOn?: boolean;
+  /** Which tendon explore mode is on, for example "3/20 Deep flexor (FDP)". */
+  exploreLabel?: string | null;
+  onExploreToggle?: () => void;
+  /** Called with the camera API for the view cube once the viewer is ready, and with null when it goes away. */
+  onViewApi?: (api: ViewApi | null) => void;
 };
 // Force arrow: length grows linearly with force, from the index fingertip, pointing out along the finger in the xy-plane.
 const FORCE_ARROW_MIN = 0.008; // m
@@ -71,7 +103,7 @@ const FORCE_ARROW_PER_N = 0.0022; // m per newton (28 N peak is about 7 cm)
 const FORCE_HEAD_WIDTH = 0.007; // m
 export type MuscleAnchor = { x: number; y: number; visible: boolean; act: number };
 
-export default function MyoViewer({ drive, curl, health, highlight, anchors, force: forceRef, handPose, explore }: ViewerHooks = {}) {
+export default function MyoViewer({ drive, curl, health, highlight, anchors, force: forceRef, handPose, explore, exploreOn, exploreLabel, onExploreToggle, onViewApi }: ViewerHooks = {}) {
   const mountRef = useRef<HTMLDivElement>(null);
   const ctl = useRef<Controls>({
     flexor: 0,
@@ -316,10 +348,138 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
       const target = new THREE.Vector3();
       const tb =model.body("capitate_r").id;
       target.set(data.xpos[3 * tb], data.xpos[3 * tb + 1], data.xpos[3 * tb + 2]);
-      camera.position.copy(target).add(new THREE.Vector3(0.0, -0.3, 0.38)); // from above: palm faces up
-      const orbit = new OrbitControls(camera, renderer.domElement);
-      orbit.target.copy(target);
+      // Side profile: the forearm runs along Y and the fingers curl in the Y-Z plane (palm faces +Z),
+      // so looking along X, level with the hand, shows the flexion in profile. Z is the camera's up
+      // axis, so the fingers point to the right of the screen. The orbit controls still let you turn it.
+      // Raised 0.15 so the camera looks down on the hand at about 15 degrees. Both the camera and
+      // the point it looks at are moved 0.04 along +Y (screen right), which slides the arm left
+      // of the screen centre without turning the view away from side-on.
+      const SHIFT_RIGHT = 0.04;
+      const lookAt = target.clone().add(new THREE.Vector3(0.0, SHIFT_RIGHT, 0.0));
+      const finalOffset = new THREE.Vector3(0.56, 0.0, 0.15);
+      camera.position.copy(lookAt).add(finalOffset);
+      // Replaceable: OrbitControls fixes its notion of "up" when it is built, so rolling the view (see
+      // the view cube below) means building a fresh one that picks up the camera's new up axis.
+      let orbit = new OrbitControls(camera, renderer.domElement);
+      orbit.target.copy(lookAt);
       orbit.update();
+
+      // Intro: for the first 10 s the camera drifts round the hand and slows into the pose above.
+      // It starts where the old view was (behind and above the hand, looking along the forearm,
+      // centred on the hand) and sweeps 90 degrees round to the side profile while the centre
+      // slides to the left-offset point, decelerating so it settles rather than stops. Touching
+      // the controls ends it at once so it never fights the user, and a reduced-motion preference
+      // skips it.
+      const INTRO_MS = 10000;
+      const finalR = finalOffset.length();
+      const finalAz = Math.atan2(finalOffset.y, finalOffset.x);
+      const finalEl = Math.asin(finalOffset.z / finalR);
+      const introFrom = { az: finalAz - Math.PI / 2, el: 0.9, r: 0.5 };
+      const centre = new THREE.Vector3();
+      const placeCamera = (e: number) => {
+        const az = introFrom.az + (finalAz - introFrom.az) * e;
+        const el = introFrom.el + (finalEl - introFrom.el) * e;
+        const r = introFrom.r + (finalR - introFrom.r) * e;
+        centre.lerpVectors(target, lookAt, e);
+        orbit.target.copy(centre);
+        camera.position.set(
+          centre.x + r * Math.cos(el) * Math.cos(az),
+          centre.y + r * Math.cos(el) * Math.sin(az),
+          centre.z + r * Math.sin(el),
+        );
+      };
+      let introActive = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      let introStart: number | null = null;
+      if (introActive) placeCamera(0); // so the first frame is the start of the sweep, not a jump
+      const stopIntro = () => { introActive = false; };
+      orbit.addEventListener("start", stopIntro);
+
+      // --- View cube support. While `viewBusy` the cube is moving the camera by hand and the orbit
+      // controls are left alone, so the two never fight. Orientation is set directly as a
+      // quaternion (the camera looks along its own -Z), so there is no gimbal lock and no limit
+      // at the poles, which is what lets the cube rotate the view about every axis.
+      let viewBusy = false;
+      let viewAnim: { qs: THREE.Quaternion; qe: THREE.Quaternion; r: number; t0: number; ms: number } | null = null;
+      const zero = new THREE.Vector3();
+      const syncOrbit = () => {
+        const t = orbit.target.clone();
+        orbit.dispose();
+        orbit = new OrbitControls(camera, renderer.domElement);
+        orbit.target.copy(t);
+        orbit.addEventListener("start", stopIntro);
+        orbit.update();
+      };
+      const orient = (dir: THREE.Vector3, up: THREE.Vector3) =>
+        new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(dir, zero, up));
+      const applyOrientation = (q: THREE.Quaternion, r: number) => {
+        camera.quaternion.copy(q);
+        camera.up.set(0, 1, 0).applyQuaternion(q);
+        camera.position.copy(orbit.target).add(new THREE.Vector3(0, 0, r).applyQuaternion(q));
+      };
+      const animateTo = (qe: THREE.Quaternion, r?: number, ms = 450) => {
+        stopIntro();
+        viewBusy = true;
+        viewAnim = {
+          qs: camera.quaternion.clone(), qe, t0: performance.now(), ms,
+          r: r ?? camera.position.distanceTo(orbit.target),
+        };
+      };
+      const axes = { yaw: new THREE.Vector3(0, 1, 0), pitch: new THREE.Vector3(1, 0, 0), roll: new THREE.Vector3(0, 0, 1) };
+      // A pending "face this muscle" request from the chat agent, resolved in the render loop once the
+      // muscle's path midpoint is known (see where the anchors are computed).
+      let focusReq: { name: string; ms: number } | null = null;
+      const reducedMotion = !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      const focusOnPoint = (p: THREE.Vector3, ms: number) => {
+        // The forearm runs along Y, so a point's offset along Y says where it is on the arm and says
+        // nothing about which side of it to view from. Look from the point's side of the arm (the
+        // part of the offset across Y), leaning a little along the arm so the tendon is not edge-on.
+        const off = p.clone().sub(orbit.target);
+        const side = new THREE.Vector3(off.x, 0, off.z);
+        if (side.lengthSq() < 1e-8) side.copy(camera.position).sub(orbit.target).setY(0);
+        if (side.lengthSq() < 1e-8) side.set(1, 0, 0);
+        side.normalize().multiplyScalar(0.9).add(new THREE.Vector3(0, Math.sign(off.y || 1) * 0.25, 0.15)).normalize();
+        // Z is up, except looking straight along it (the palm or back of the hand), where X is.
+        const up = Math.abs(side.z) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+        animateTo(orient(side, up), undefined, reducedMotion ? 1 : ms);
+      };
+      const stepViewAnimation = (now: number) => {
+        if (!viewAnim) return;
+        const u = Math.min((now - viewAnim.t0) / viewAnim.ms, 1);
+        const e = u * u * (3 - 2 * u);
+        applyOrientation(viewAnim.qs.clone().slerp(viewAnim.qe, e), viewAnim.r);
+        if (u >= 1) {
+          viewAnim = null;
+          viewBusy = false;
+          syncOrbit();
+        }
+      };
+      {
+        onViewApi?.({
+          quaternion: () => camera.quaternion,
+          snapTo: (dir, up) => animateTo(orient(new THREE.Vector3(...dir), new THREE.Vector3(...up))),
+          turn: (axis, radians) => {
+            // Build on where a running animation is heading, so quick repeated presses add up.
+            const from = viewAnim ? viewAnim.qe : camera.quaternion;
+            animateTo(from.clone().multiply(new THREE.Quaternion().setFromAxisAngle(axes[axis], radians)));
+          },
+          drag: (dx, dy) => {
+            stopIntro();
+            viewAnim = null;
+            viewBusy = true;
+            const q = camera.quaternion.clone()
+              .multiply(new THREE.Quaternion().setFromAxisAngle(axes.yaw, -dx))
+              .multiply(new THREE.Quaternion().setFromAxisAngle(axes.pitch, -dy));
+            applyOrientation(q, camera.position.distanceTo(orbit.target));
+          },
+          commit: () => {
+            if (!viewBusy || viewAnim) return;
+            viewBusy = false;
+            syncOrbit();
+          },
+          home: () => animateTo(orient(finalOffset, new THREE.Vector3(0, 0, 1)), finalR),
+          focusMuscle: (muscle, ms = 900) => { focusReq = { name: muscle, ms }; },
+        });
+      }
 
       const onResize = () => {
         camera.aspect = mount.clientWidth / mount.clientHeight;
@@ -444,7 +604,9 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
           for (let k = 1; k < m; k++) if (!brk[k]) total += pts[k].distanceTo(pts[k - 1]);
           if (total < 1e-6) continue;
           const an = anchors?.current;
-          if (an && an.wanted.has(names[act])) {
+          const wantAnchor = !!an && an.wanted.has(names[act]);
+          const wantFocus = focusReq?.name === names[act];
+          if (wantAnchor || wantFocus) {
             // Point at half the connected path length.
             let walked = 0;
             let found = false;
@@ -457,7 +619,11 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
               }
               walked += len;
             }
-            if (found) {
+            if (found && wantFocus && focusReq) {
+              focusOnPoint(anchorV, focusReq.ms);
+              focusReq = null;
+            }
+            if (found && wantAnchor && an) {
               anchorV.project(camera);
               an.pos[names[act]] = {
                 x: ((anchorV.x + 1) / 2) * mount.clientWidth,
@@ -525,8 +691,17 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
           forceArrow.setLength(len, Math.min(0.012, len * 0.4), FORCE_HEAD_WIDTH);
           forceArrow.visible = true;
         } else forceArrow.visible = false;
-        orbit.enableZoom = !explore?.current;
-        orbit.update();
+        if (introActive) {
+          introStart ??= now;
+          const u = Math.min((now - introStart) / INTRO_MS, 1);
+          placeCamera(1 - (1 - u) * (1 - u)); // ease out: fastest at the start, settling at the end
+          if (u >= 1) introActive = false;
+        }
+        stepViewAnimation(now);
+        if (!viewBusy) {
+          orbit.enableZoom = !explore?.current;
+          orbit.update();
+        }
         renderer.render(scene, camera);
       };
       raf = requestAnimationFrame(frame);
@@ -534,6 +709,7 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
       cleanup = () => {
         cancelAnimationFrame(raf);
         ro.disconnect();
+        onViewApi?.(null);
         orbit.dispose();
         geometries.forEach((g) => g.dispose());
         for (const L of layers) {
@@ -562,7 +738,7 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
       cancelled = true;
       cleanup();
     };
-  }, [startGrasp, drive, curl, health, highlight, anchors, forceRef, handPose, explore]);
+  }, [startGrasp, drive, curl, health, highlight, anchors, forceRef, handPose, explore, onViewApi]);
 
   const set = (patch: Partial<Controls>) => Object.assign(ctl.current, patch);
 
@@ -570,6 +746,8 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
   const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const [compact, setCompact] = useState(false);
+  // The flexor/extensor drive sliders are hidden until asked for; the tracked hand and the sim run without them.
+  const [showSliders, setShowSliders] = useState(false);
   useEffect(() => {
     const check = () => {
       const panel = panelRef.current;
@@ -594,8 +772,8 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
           {status}
         </div>
       )}
-      <div ref={panelRef} className="panel absolute left-4 top-4 w-64 space-y-3">
-        <div className="t-title">MyoHand</div>
+      <div ref={panelRef} className="panel absolute left-4 top-4 w-[340px] max-w-[calc(100%-2rem)] space-y-3">
+        <div className="t-title">Flex &apos;N Sense</div>
         <ul className="space-y-1.5">
           {[
             ...HIGHLIGHT.map((g) => ({ label: g.label, color: g.rest })),
@@ -620,22 +798,26 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
           aria-hidden={compact}
           inert={compact}
         >
-        <label className="t-body block">
-          Flexors: {flexor.toFixed(2)}
-          <input
-            type="range" min={0} max={1} step={0.01} value={flexor}
-            className="w-full"
-            onChange={(e) => { const v = +e.target.value; setFlexor(v); set({ flexor: v }); }}
-          />
-        </label>
-        <label className="t-body block">
-          Extensors: {extensor.toFixed(2)}
-          <input
-            type="range" min={0} max={1} step={0.01} value={extensor}
-            className="w-full"
-            onChange={(e) => { const v = +e.target.value; setExtensor(v); set({ extensor: v }); }}
-          />
-        </label>
+        {showSliders && (
+          <>
+            <label className="t-body block">
+              Flexors: {flexor.toFixed(2)}
+              <input
+                type="range" min={0} max={1} step={0.01} value={flexor}
+                className="w-full"
+                onChange={(e) => { const v = +e.target.value; setFlexor(v); set({ flexor: v }); }}
+              />
+            </label>
+            <label className="t-body block">
+              Extensors: {extensor.toFixed(2)}
+              <input
+                type="range" min={0} max={1} step={0.01} value={extensor}
+                className="w-full"
+                onChange={(e) => { const v = +e.target.value; setExtensor(v); set({ extensor: v }); }}
+              />
+            </label>
+          </>
+        )}
         <label className="t-body flex items-center gap-2">
           <input
             type="checkbox" checked={showForce}
@@ -644,7 +826,7 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
           Show force vector
         </label>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             className="btn"
             hidden={compact}
@@ -661,6 +843,24 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
           >
             Reset simulation
           </button>
+          {onExploreToggle && (
+            <button
+              className={exploreOn ? "btn btn-primary" : "btn"}
+              aria-pressed={!!exploreOn}
+              title="Scroll the mouse wheel over the 3D view to step through every tendon (Esc to exit)"
+              onClick={onExploreToggle}
+            >
+              Explore: {exploreOn ? "on" : "off"}
+            </button>
+          )}
+          <button
+            className="btn"
+            hidden={compact}
+            aria-pressed={showSliders}
+            onClick={() => setShowSliders(!showSliders)}
+          >
+            Sliders: {showSliders ? "on" : "off"}
+          </button>
           <button
             className="btn"
             hidden={compact}
@@ -672,6 +872,26 @@ export default function MyoViewer({ drive, curl, health, highlight, anchors, for
             Grasp
           </button>
         </div>
+        {exploreOn && (
+          <p className="t-small muted">
+            {/* The mouse wobbles for the first second of every 10 s cycle and rests for the other nine.
+                The keyframes are inline so they travel with the component. */}
+            <style>{`
+              @keyframes explore-mouse-wobble {
+                0% { transform: rotate(0deg); }
+                2.5% { transform: rotate(-16deg); }
+                5% { transform: rotate(14deg); }
+                7.5% { transform: rotate(-9deg); }
+                10%, 100% { transform: rotate(0deg); }
+              }
+              .explore-mouse { display: inline-block; transform-origin: 50% 80%; animation: explore-mouse-wobble 10s ease-in-out infinite; }
+              @media (prefers-reduced-motion: reduce) { .explore-mouse { animation: none; } }
+            `}</style>
+            <span className="explore-mouse" aria-hidden="true">🖱️</span> Scroll to explore components
+          </p>
+        )}
+        {exploreOn && exploreLabel && <p className="t-small muted">{exploreLabel}</p>}
+        <p className="t-small faint">MyoHand Simulator</p>
       </div>
     </div>
   );
