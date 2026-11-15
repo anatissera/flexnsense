@@ -38,3 +38,15 @@ class MovePPORunnerCfg(PullPPORunnerCfg):
         num_learning_epochs=5, num_mini_batches=4, learning_rate=1.0e-3, schedule="adaptive",
         gamma=0.99, lam=0.95, desired_kl=0.01, max_grad_norm=1.0,
     )
+
+
+@configclass
+class Pull10PPORunnerCfg(PullPPORunnerCfg):
+    max_iterations = 600
+    experiment_name = "flex_pull10"
+
+
+@configclass
+class PullBenchPPORunnerCfg(PullPPORunnerCfg):
+    max_iterations = 600
+    experiment_name = "flex_pull_bench"
