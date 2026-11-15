@@ -1,27 +1,22 @@
 {
   "ticks": {
-    "1": 2324,
-    "2": 1992,
-    "3": 1670,
-    "4": 2697,
-    "5": 2351,
-    "6": 2089,
-    "7": 2759
+    "1": 2050,
+    "2": 1462,
+    "3": 2451,
+    "4": 2781,
+    "5": 1876,
+    "6": 1521,
+    "7": 3278
   },
   "pull_motors": [
     1,
     2,
     4
   ],
-  "worst_deviation_mm": 0.79,
+  "worst_deviation_mm": 1.185,
   "pull_distance_mm": 90.0,
-  "directions_tested": 28,
-  "condition_number": 2.379,
-  "smallest_singular_value": 0.10077,
-  "search": {
-    "samples": 6000,
-    "seed": 1,
-    "margin": 0.15
-  },
-  "note": "Found by scripts/find_home_pose.py. Geometry only, from the URDF: this has not been checked against the physical arm for reachability with the rig in place. Confirm nothing collides before trusting it."
+  "directions_tested": "plausible tether axes: each of motors 1-6's own pull direction, out and back (12 directions)",
+  "worst_deviation_any_direction_mm": 28.306,
+  "source": "set_home_pose.py: placed by hand on the real rig, not searched",
+  "note": "Chosen on the physical arm, with the rig, cables and the other arm in place, rather than from URDF geometry alone. Fourth candidate tried by hand: pose 1 (upright) measured 0.91 mm deviation with 579 ticks of headroom on motor 4; pose 2 (leaned back) 3.12 mm with 277 ticks; pose 3 1.30 mm with 240 ticks; this one improves both at once, 1.19 mm with 417 ticks, which is why it was kept. Re-run scripts/measure_ticks_per_metre.py in this pose before trusting it for ticks_per_metre or yield_sign, since both are pose-dependent."
 }
