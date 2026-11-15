@@ -148,6 +148,7 @@ git clone https://github.com/anatissera/leukerbad-hackathon.git && cd leukerbad-
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python -m pytest -q                   # all tests, no camera, robot or Station needed
 .venv/bin/python -m gauge_reader.launcher      # gauge reader control panel: camera, calibrate, run
+.venv/bin/python -m gauge_reader.server        # live force for the dashboard (ws://127.0.0.1:8766/force)
 .venv/bin/python -m hand_tracking run           # finger flexion angles, live window (downloads the model once)
 .venv/bin/python -m hand_tracking run --jsonl frames.jsonl   # + the full per-frame HandFrame
 ```
