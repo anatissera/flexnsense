@@ -42,15 +42,16 @@ By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
 
 ## Team
 
-We are **Flex'N Sense**, a team of five.
+We are **Flex'N Sense**, a team of six.
 
-| Name | Role | GitHub |
+| Name | Background | GitHub |
 |---|---|---|
-| _to be added_ | | |
-| _to be added_ | | |
-| _to be added_ | | |
-| _to be added_ | | |
-| _to be added_ | | |
+| Guillaume Bonifas | Robotics & MedTech, scale-up leader | [@Guitool77](https://github.com/Guitool77) |
+| Damien Frechou | Mechatronics, automation & control systems | |
+| Ana Tissera | AI Engineering, Universidad de San Andrés | [@anatissera](https://github.com/anatissera) |
+| Laurence Liang | Applied AI Engineer at Mistral. Rootly (YC S21) AI Labs, Groq, MDA Space | [@TheFloatingString](https://github.com/TheFloatingString) |
+| Javier Peres | AI Engineer | [@peresramirez](https://github.com/peresramirez) |
+| Justo Valverde | Robotics Software Engineering student, URJC | |
 
 ## The problem
 
@@ -203,7 +204,7 @@ ok, frame, ts, idx = src.read()
 | [docs/hardware-setup.md](./docs/hardware-setup.md) | Which physical arm is which: Follower 1/2, Leader 1/2, bus serials, who runs what |
 | [docs/session-orchestration.md](./docs/session-orchestration.md) | The two exercise modes, the rep and session state machines, the two-arm interlock, why arm 1 needs no VLA |
 | [docs/pull-mode-design.md](./docs/pull-mode-design.md) | Passive (device-driven) mode: the inverted monotonicity guard, the three stop conditions, end-feel. Designed, not implemented |
-| [docs/pitch-v2/](./docs/pitch-v2/) | Pitch deck, version 2: an HTML deck with real footage (open `index.html` locally). Version 1 is [docs/Pitch.pptx](./docs/Pitch.pptx) |
+| [docs/pitch-v4-storytelling/](./docs/pitch-v4-storytelling/) | Pitch deck (HTML): the pitch told as one patient's story in four acts, with real footage (open `index.html` locally). The original PowerPoint is [docs/Pitch.pptx](./docs/Pitch.pptx) |
 | [AGENTS.md](./AGENTS.md) | Git workflow, branch naming, rules for contributors and coding agents |
 
 `main` is protected: work on the roadmap branch and open a PR. Commits and PRs do not credit AI tools (see [AGENTS.md](./AGENTS.md)).
