@@ -1,12 +1,17 @@
 # Robot training - policies para el ElRobot (NormaCore) con LeRobot
 
 Todo lo necesario para pasar de **un dataset grabado con el ElRobot en NormaCore Station** a
-**una policy ACT entrenada, subida a Hugging Face y ejecutándose en el brazo**.
+**una policy entrenada, subida a Hugging Face y ejecutándose en el brazo**. Hay tres policies
+(ACT, Diffusion Policy y SmolVLA) y, opcionalmente, las yemas de los dedos del paciente como entrada.
 
 ```
-dataset NormaCore (Parquet)  ──►  LeRobotDataset  ──►  entrenar ACT  ──►  subir a HF  ──►  inferencia en el brazo
-   inspect_normacore.py        convert_normacore.py     train_act.sh     upload_model.py     inference/
+                              ┌─► convert_normacore.py ─► LeRobotDataset ─► train_act.sh / train_diffusion.sh ─┐
+dataset NormaCore (Parquet) ──┤        [--hand dataset: + yemas de los dedos en el estado]                     ├─► inference/
+   inspect_normacore.py       └─► normalize_cameras.py ─► un Parquet ─────► train_smolvla.sh ──────────────────┘   (local o remoto)
 ```
+
+**Si eres un agente o llegas nuevo: lee primero la sección [A. Estado actual](#a-estado-actual-léelo-primero).**
+Resume qué datos y modelos existen, qué está probado y qué falta.
 
 **Por qué hace falta esto:** el ElRobot tiene 7 joints + gripper (8 servos Feetech ST3215, IDs 1..8).
 LeRobot solo trae robots tipo SO-101 (6 motores) y Station graba en su propio esquema Parquet,
@@ -31,12 +36,110 @@ Station directamente.
 
 ---
 
+## A. Estado actual (léelo primero)
+
+Actualizado el 15 de noviembre de 2026. La tarea es una sola: **"move device from right index to
+right middle finger"** (el brazo lleva una anilla del dedo índice al corazón de una mano derecha).
+
+### A.1 Datos
+
+| Qué | Dónde | Notas |
+|---|---|---|
+| Dataset grabado | HF dataset `JustoDario/flexnsense_skill1` | 83 episodios, 15 766 frames, 10 Hz, 3 cámaras 224x224, 8 joints |
+| Columnas de la mano | en ese mismo dataset (`hand_*`) | en los 83 episodios; mano detectada en el 99.5 % de los frames |
+| LeRobotDataset, 43 ep | local: `JustoDario/flexnsense_skill1_lerobot` | estado de 8; el del primer ACT |
+| LeRobotDataset, 63 ep | local: `JustoDario/flexnsense_skill1_63ep_lerobot` | estado de 8 |
+| LeRobotDataset, 83 ep + yemas | local: `JustoDario/flexnsense_skill1_83ep_hand_lerobot` | estado de 13 (`--hand dataset`) |
+| Parquet canónico, 43 ep | local: `flexnsense_skill1_canon.parquet` | entrada de SmolVLA |
+
+Los LeRobotDataset no están en el Hub: se regeneran con `convert_normacore.py` en ~3 min (sección 1.3).
+
+Cosas del dataset que rompen el entrenamiento si se ignoran:
+
+- **El orden de `images[]` cambia entre sesiones** (Station no etiqueta las cámaras):
+  episodios 1-20 `(side, gripper, table)`, 21-63 `(table, side, gripper)`, 64-83 `(table, gripper, side)`.
+  Nunca uses `images[i]` por índice: `convert_normacore.py`, `normalize_cameras.py` e `inference/`
+  reconocen las vistas por contenido. `hand_camera` es el índice de la vista `side`.
+- **10 Hz con huecos de grabación** (61 en total): se colapsan, los frames quedan consecutivos.
+- **Tres sesiones con la mano en sitios distintos** (misma calibración de servos): episodios 1-43,
+  44-63 y 64-83. La cámara `table` cambió de encuadre a partir del 44. Un modelo entrenado solo con
+  la primera sesión falla en las otras (ACT de 63 episodios sobre el episodio 70, que no vio:
+  error mediano de 100 a 330 ticks en bucle abierto).
+- **Los motores 5 y 7 casi no se mueven** (std 0.012 y 0.003 en `position_norm`).
+- **El gripper se cierra porque el goal va por delante de la posición** (goal 0.025 frente a 0.037
+  cerrado): una policy que promedia aprieta menos que las demos.
+- Las columnas `hand_*` parecen calculadas con **WiLoR** (muñeca fija en `hand_keypoints_3d`,
+  99.5 % de detección); MediaPipe sobre los mismos JPEG da ~0.01 de diferencia y detecta el 92.6 %.
+  **El código que las genera no está en ninguna rama del remoto** (la rama `data_collection` solo
+  tiene el `record_dataset.py` original): no se ha podido verificar su configuración.
+
+### A.2 Modelos entrenados
+
+| Modelo | Datos | Pasos | Dónde está | Probado en el brazo |
+|---|---|---|---|---|
+| ACT, chunk 30 | 43 ep, estado 8 | 30 000 | HF `JustoDario/flexnsense_act_skill1_rightindex2middle` | **Sí: regular.** No cerraba bien el gripper y el brazo temblaba |
+| SmolVLA (NormaCore), chunk 50 | 43 ep, estado 8 | 12 000 | HF `JustoDario/flexnsense_smolvla` (público) | No |
+| Diffusion Policy, horizon 16 | 43 ep, estado 8 | 20 000 de 30 000 (pausado) | solo local | No |
+| ACT, chunk 30 | 63 ep, estado 8 | 30 000 | HF `JustoDario/flexnsense_act_skill1_rightindex2middle_63ep` (privado) | No |
+| ACT, chunk 30, **con yemas** | 83 ep, estado 13 | 30 000 | solo local (lanzado el 15-nov; ver el log) | No |
+
+En la máquina de entrenamiento (RTX PRO 4000 Blackwell, 24 GB) todo cuelga de `/opt/data/justo`:
+`env.sh` (entorno de LeRobot), `checkpoints/<RUN>/`, `logs/<RUN>.log`, `datasets/flexnsense_skill1_raw`
+(el dataset descargado) y `src/norma-core` (con el venv de SmolVLA en `software/ai/smolvla_py/.venv`).
+Un entrenamiento ha terminado bien si su log acaba en `train exit 0`.
+
+Tiempos medidos ahí (dependen de los pasos, no del número de episodios):
+
+| Policy | Velocidad | Entrenamiento | VRAM | Inferencia por chunk (GPU) |
+|---|---|---|---|---|
+| ACT | 8.2 pasos/s, batch 32 | 30 000 pasos ≈ 1 h | 3 GB | ~20 ms |
+| Diffusion | 2.7 pasos/s, batch 64 | 30 000 pasos ≈ 3 h | 11 GB | ~240 ms |
+| SmolVLA | 0.54 pasos/s, batch 64 | 12 000 pasos ≈ 6 h | 13.5 GB | ~105 ms (1.2 GB) |
+
+### A.3 Qué checkpoint y con qué opciones
+
+Los scripts de `inference/` reconocen solos el tipo de checkpoint; solo cambia lo que hay que tener instalado.
+
+| Checkpoint | `--checkpoint` | Hace falta además | Re-planifica cada |
+|---|---|---|---|
+| ACT, estado 8 | carpeta `pretrained_model` (o la descargada de HF) | nada | 15 ticks (1.5 s) |
+| ACT, estado 13 (yemas) | carpeta `pretrained_model` | WiLoR en la máquina del robot: `WILOR_ROOT`, `--hand-source wilor` (sección 3d) | 15 ticks |
+| Diffusion | carpeta `pretrained_model` | `diffusers` (`uv pip install -e "lerobot[diffusion]"`) | 8 ticks (0.8 s) |
+| SmolVLA | carpeta con `elrobot.json` | `smolvla_py` en el path (lo pone `setup_env.sh`) | 15 ticks; `--n-action-steps` hasta 50 |
+
+Orden recomendado siempre: `selftest.py` → `--dry-run` → `--max-ticks 30` → sin límite (sección 4).
+
+### A.4 Qué falta
+
+1. **Probar en el brazo** SmolVLA, ACT de 63 episodios y ACT con yemas, y compararlos: 10 intentos
+   por policy desde las mismas posiciones, contando éxitos. La loss y `selftest.py` no predicen
+   el comportamiento real (son bucle abierto sobre episodios, la mayoría vistos al entrenar).
+2. **Verificar WiLoR en inferencia**: `inference/check_hand.py` en el portátil, sobre un episodio
+   antiguo (p.ej. el 10) y uno nuevo (el 70). `hand_source.py` no se ha ejecutado nunca con WiLoR.
+3. **Subir a la rama `data_collection` el código que escribe las columnas `hand_*`**, para igualar
+   su configuración de WiLoR con la de `hand_source.py` si `check_hand.py` no da OK.
+4. **Regenerar `inference/camera_refs.npz` con los 83 episodios** (`make_camera_refs.py`): el banco
+   antiguo solo conoce el encuadre de las primeras sesiones.
+5. Ideas no implementadas: temporal ensembling para ACT (pedir chunk en cada tick y promediar,
+   contra el temblor), yemas de los dedos en SmolVLA, y más demos con recuperaciones desde posiciones malas.
+6. Descartado, con motivo: preentrenar un modelo base con `venayc/elrobot-pickplace` (solo 12
+   episodios y 5099 frames, 2 cámaras en otra posición; "pick up the pen" son 2 episodios) y
+   generar episodios en simulación (en norma-core solo hay el URDF, sin escena ni cámaras).
+
+### A.5 Reglas del repo que afectan a esta carpeta
+
+Ver [`AGENTS.md`](../AGENTS.md) en la raíz: una rama por tarea y PR a `main` (esta carpeta vive en
+`feature/robot-training`), **sin atribución a herramientas de IA** en commits, PRs ni documentos,
+y **sin rayas largas** (U+2014) en ningún fichero ni mensaje: lo comprueba el CI.
+
+---
+
 ## 0. Entorno (una vez por máquina)
 
 Requisitos: Linux, GPU NVIDIA para entrenar, `git`, `ffmpeg` y [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
-bash setup_env.sh ~/robot_env      # venv + LeRobot 0.7.1 + norma-core + protobufs
+bash setup_env.sh ~/robot_env      # venv + LeRobot 0.7.1 (ACT, Diffusion, SmolVLA) + norma-core + protobufs
 source ~/robot_env/env.sh          # en CADA terminal nueva
 hf auth login                      # una vez; token con permiso de escritura si vas a subir modelos
 ```
@@ -44,6 +147,14 @@ hf auth login                      # una vez; token con permiso de escritura si 
 `env.sh` activa el venv y define `NORMA_CORE`, `HF_HOME` y `TORCH_HOME`. Los LeRobotDataset
 convertidos se guardan en `$HF_HOME/lerobot/<repo_id>`. Si tu home tiene cuota, instala el
 entorno en un disco con espacio (el venv ocupa ~3 GB y las cachés crecen).
+
+Hay dos entornos más, opcionales y separados de este:
+
+- **SmolVLA, solo para entrenar:** `smolvla_py` trae su propio venv (`uv sync` en
+  `$NORMA_CORE/software/ai/smolvla_py`, lo hace `train_smolvla.sh`) porque fija `transformers==5.3.0`.
+  La inferencia de SmolVLA sí corre en el entorno de LeRobot.
+- **WiLoR, solo para policies con yemas de los dedos:** tiene que estar instalado en el mismo
+  Python que ejecuta `run_local.py` o `robot_client.py` (sección 3d).
 
 > GPUs muy nuevas (p.ej. RTX PRO 4000 Blackwell, `sm_120`) necesitan un PyTorch compilado con
 > CUDA ≥ 12.8. Comprueba `python -c "import torch; print(torch.cuda.is_available())"`.
@@ -351,6 +462,9 @@ El robot y Station están en el portátil. Dos formas de ejecutar la policy:
 | **Local** - `run_local.py` | el portátil (CPU o GPU) | torch + LeRobot 0.7.1 + norma-core |
 | **Remoto** - `policy_server.py` + `robot_client.py` | un servidor GPU / nube | numpy, pillow + norma-core |
 
+En los dos modos, una policy con yemas de los dedos (estado de 13) necesita además WiLoR en el
+portátil: las yemas se calculan junto al robot y viajan dentro del estado (sección 3d).
+
 ```
                 Station (portátil, TCP :8888)
    cámaras ─┐   ┌────────────────────────────┐
@@ -553,24 +667,29 @@ Antes de confirmar `[s/N]` abre `camera_preview.jpg` y comprueba que es `side | 
 
 ## 5. Estado: qué está probado y qué no
 
-**Probado**
-- Conversión de `flexnsense_skill1` (43 episodios, 8465 frames): valores idénticos al Parquet y
-  cámaras coherentes en todos los episodios.
-- Entrenamiento ACT con LeRobot 0.7.1 y carga del checkpoint para inferencia (GPU ~20 ms, CPU 30-45 ms).
-- Reconocimiento de cámaras: 43/43 episodios dejando fuera el episodio evaluado.
-- Inferencia local y remota de punta a punta contra un Station **simulado** (`selftest.py`).
+El resumen de datos y modelos está en la sección [A](#a-estado-actual-léelo-primero). Aquí, el detalle de las pruebas.
+
+**Probado en la máquina de entrenamiento**
+- Conversión de `flexnsense_skill1` (83 episodios, 15 766 frames), con y sin `--hand dataset`:
+  cámaras coherentes en todos los episodios y `hand_camera` igual a la vista `side` asignada.
+- Entrenamiento de ACT, Diffusion Policy y SmolVLA, y carga de sus checkpoints para inferencia.
+- Inferencia de punta a punta contra un Station **simulado** (`selftest.py`), en local y en remoto,
+  con ACT, ACT con yemas (columnas grabadas), Diffusion (con el frame anterior) y SmolVLA.
+- `check_hand.py` con MediaPipe (da AVISO contra las columnas del dataset, como se espera).
+
+**Probado en el brazo real**
+- El ACT de 43 episodios, en el portátil del robot: se mueve, pero no cierra bien el gripper y tiembla.
 
 **No implementado**
 - La capa de seguridad del proyecto (ver 4.0). No usar con un paciente.
 
 **No probado**
-- **Ningún script de `inference/` se ha ejecutado contra el robot real**: el arranque de torque y
-  el envío real de comandos están escritos según el código de norma-core, pero sin verificar en hardware.
+- En el brazo: SmolVLA, Diffusion, ACT de 63 episodios y ACT con yemas.
+- La fuente WiLoR de inferencia (`hand_source.py`, sección 3d): escrita contra
+  `hand_tracking/wilor_source.py` pero sin ejecutar; en la máquina de entrenamiento no hay WiLoR.
+- `--hand mediapipe` de punta a punta dentro del entorno de LeRobot (MediaPipe se probó en un venv aparte).
 - El reconocimiento de cámaras con otra iluminación o con las cámaras movidas.
-- La fuente WiLoR de inferencia (`hand_source.py`, sección 3d): escrita contra `hand_tracking/wilor_source.py`
-  pero sin ejecutar. Con las yemas grabadas (`selftest.py --hand dataset`) y con MediaPipe sí está probado.
-- SmolVLA (sección 3b) en el brazo: el entrenamiento y la inferencia contra un Station simulado
-  están probados; el comportamiento en el robot real, no.
+- La sección 4.5 en un portátil con RTX 3050: los comandos son los probados aquí, las latencias no.
 
 ## 6. Problemas conocidos
 
