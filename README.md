@@ -66,6 +66,14 @@ A **force-limited tether** built from two ElRobot arms, with a clinician supervi
 4. When the force reaches the patient's prescribed cap (e.g. **200 g, 1.96 N**), arm B **yields**: it moves slowly with the finger so the spring stretches no further.
 5. The **clinician** sets the cap and watches the session remotely, and can stop it.
 
+### The bench as it actually is
+
+![The bench from above: Leader 2 top left, Follower 2 to the left of the hand, Follower 1 bottom centre with the PESOLA running from its gripper up to a fingertip, Leader 1 bottom right. The hand rests palm-up on the cardboard work surface, and the dark boom over the wrist carries the camera.](docs/images/setup.jpg)
+
+Two leader/follower pairs. **Follower 1** carries the tether and runs the admittance controller; **Follower 2** moves the hook from one finger to the next and is being trained separately. The leaders are for teleoperation and for recording demonstrations, not for a running session. Bus serials and roles: [docs/hardware-setup.md](./docs/hardware-setup.md).
+
+Worth noting against step 1 above: in the rig as built **no arm holds the hand**, it rests on the work surface. That matters because every pose-dependent number is measured against whatever pose the hand is in, so it is worth settling before those measurements are taken. The detail is in [docs/hardware-setup.md](./docs/hardware-setup.md).
+
 ![Force over time: it rises while the finger moves, stays at the 200 g cap while arm B yields, and drops when the finger relaxes](docs/images/force-cap.svg)
 
 ## How it works
