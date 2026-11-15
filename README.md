@@ -204,7 +204,7 @@ ok, frame, ts, idx = src.read()
 | [docs/hardware-setup.md](./docs/hardware-setup.md) | Which physical arm is which: Follower 1/2, Leader 1/2, bus serials, who runs what |
 | [docs/session-orchestration.md](./docs/session-orchestration.md) | The two exercise modes, the rep and session state machines, the two-arm interlock, why arm 1 needs no VLA |
 | [docs/pull-mode-design.md](./docs/pull-mode-design.md) | Passive (device-driven) mode: the inverted monotonicity guard, the three stop conditions, end-feel. Designed, not implemented |
-| [docs/pitch-v6-storytelling/](./docs/pitch-v6-storytelling/) | Pitch deck (HTML), current version: version 5 with a 25-second intro film in front, which starts on one key press and moves to the first slide when it ends (open `index.html` locally). The words to say over the film are in `INTRO-SCRIPT.md`. |
+| [docs/pitch-v6-storytelling/](./docs/pitch-v6-storytelling/) | Pitch deck (HTML), current version: version 5 with a 25-second intro film in front, which starts on one key press and moves to the first slide when it ends (online at **https://flexnsense.vercel.app**, or open `index.html` locally). The words to say over the film are in `INTRO-SCRIPT.md`. |
 | [docs/pitch-v5-storytelling/](./docs/pitch-v5-storytelling/) | Pitch deck (HTML): the pitch told as one patient's story in four acts, with real footage (open `index.html` locally). The original PowerPoint is [docs/Pitch.pptx](./docs/Pitch.pptx) |
 | [AGENTS.md](./AGENTS.md) | Git workflow, branch naming, rules for contributors and coding agents |
 

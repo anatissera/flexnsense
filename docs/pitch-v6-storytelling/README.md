@@ -4,7 +4,9 @@ Version 6 is version 5 (`../pitch-v5-storytelling/`, kept as it was) with an int
 
 ## Present it
 
-Pull the repo and open `docs/pitch-v6-storytelling/index.html` in Chrome (double-click, no server or internet needed). Press **F** for full screen. GitHub does not preview HTML files, so it has to be opened from a local copy.
+Online: **https://flexnsense.vercel.app** (this folder, deployed to Vercel as the project `flexnsense`; run `vercel deploy --prod` from this folder to update it).
+
+Offline: pull the repo and open `docs/pitch-v6-storytelling/index.html` in Chrome (double-click, no server or internet needed). Press **F** for full screen. GitHub does not preview HTML files, so it has to be opened from a local copy.
 
 | Key | Does |
 |---|---|
@@ -53,7 +55,7 @@ A saved copy downloads as `index.html`. Move it into this folder, over the old o
 15. Our goals at Track 4 (Elderly Care & Rehabilitation, Rehab coach): three numbered goals that match the track's expectations. Give a VLA the capacity to sense with a low-tech proprioceptive ruler, use a standard tool from the physiotherapist's lab, prove that a VLA can be used safely with patients (new)
 16. The team
 17. What comes next: built this weekend, then one hand clinic, then orthopedic rehabilitation for other joints (new)
-18. A future approach: the same bench in Isaac Lab, two arms, scripted motion, no trained policy yet. "Play again" restarts the clip, a click on the clip pauses it (new)
+18. A future approach: two looping tiles, Isaac Sim (the bench rebuilt) and Isaac Lab (the pull policy in training). A click on a tile opens the whole clip in a pop-up at 80 % of the screen; Esc or Close shuts it (new)
 19. Thank you (team photo, then the card)
 
 To check before presenting:
@@ -95,7 +97,10 @@ Colours and fonts are CSS variables at the top of `index.html` (`:root`).
   - `assets/dash/assistant-demo.mp4` (1600×994, 56 s, with sound): a screen recording of the dashboard's voice assistant made at the bench on 15 Nov 2026, cut from 2 min 18 s to four exchanges: which muscle is most at risk, which dashboard section shows its metrics, a better view of the muscle, and how to export for the physician. The chatter before, two failed camera angles and the Spanish test at the end are cut. The patient data in it is simulated.
   - `assets/dash/report.html`: the page behind the dashboard's "Export Medical Report" button, saved as it came out on 15 Nov 2026 after one simulated index curl (patient P1, week 24, 4 repetitions). To get there without a camera the simulated run controls were switched on locally (`SHOW_SIM_RUN_CONTROLS` in `dashboard/app/components/SimApp.tsx`); that change was not kept. Every number in it is simulated, and the report says so itself.
 - **Intro film** (slide 1): `assets/video/intro.mp4` (1920×1080, 25 s, with sound, 10 MB). It opens on a pile of pictures and clips from the hackathon thrown onto the screen over deep drums, with one larger clip in the middle (people dancing in VR headsets, then the mixed-reality view they saw), switches off to black, then shows the valley, a village, the team and two generated scenes under soft music, with no voice: the presenter speaks over it. Two of its shots are generated clips (a robot walking with villagers, an old man and a robot in a village clinic) and carry no label, so say aloud that they are imagined scenes if asked. The drums and the music were generated with ElevenLabs. To change the film, replace the file: the deck moves on when whatever is there ends.
-- **Simulation video** (slide 18, shown as a future approach): `assets/video/sim-real-grip.mp4` (1920×658, 26 s, no audio) with its poster `sim-real-grip.jpg`. It is the full-cycle render of the Isaac Lab simulation from the team's internal notes, 15 Nov 2026 (index finger pulls, the move arm carries the loop to the middle finger, the middle finger pulls, the loop goes back), re-encoded smaller. The motion in it is scripted: no trained policy runs, and the slide says so.
+- **Simulation videos** (slide 18, shown as a future approach), both from the team's internal simulation notes of 15 Nov 2026, re-encoded smaller, no audio:
+  - `assets/video/sim-isaac-sim.mp4` (1920×658, 12.5 s): three views of the simulated bench with the physical grip. The motion is scripted. The tile shows only the bench view.
+  - `assets/video/sim-isaac-lab.mp4` (1280×830, 30 s): the pull policy in training, from 1 arm to 1,024 (the training used 4,096 arms and took 7.7 minutes). The tile shows the picture without its header.
+  - Nothing here has run on the real arm, and the slide says so. `sim-real-grip.mp4` is the earlier clip and is no longer used.
 - **Title slide video** (slide 6): `assets/video/tether-clinic.mp4` (720×1112 portrait, 9 s, no audio) with its poster `tether-clinic.jpg`. It is the bench clip `tether.mp4` with its background restyled by a generative video model into a clinic (blue drape, white room), then cut to the 9 seconds where the arm is at the hand and cropped below the hands that hold the upper arm, so only the two arms, the scale and the forearm show. The model also changed details of the people and the arm, so the caption says "restyled": the unaltered footage is on slide 11.
 - **Timeline moments** (slide 14): one `<figure class="ev">` per moment inside `#evs` in `index.html`, in order. The line and the spacing are computed from the list, so add, remove or reorder figures freely.
   - `data-dir="up"` is a win (caption above the circle), `data-dir="down"` is a failure (red ring, caption below).

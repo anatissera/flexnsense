@@ -199,11 +199,20 @@ body.film{background:#000}                 /* no light border around the film if
 .clip .state{position:absolute;left:24px;top:24px;padding:8px 16px;border-radius:999px;background:rgba(7,11,18,.7);color:#fff;font:700 20px var(--f-data);letter-spacing:.14em;text-transform:uppercase;opacity:0;transition:opacity .3s}
 .clip.on.paused .state{opacity:1}
 
-/* === IN SIMULATION (one wide clip, kept in its own 1920:658 shape) ========= */
+/* === IN SIMULATION (two tiles, each a cropped view of its clip; a click opens the whole clip) === */
 .sim .head{width:1680px}
-.sim .vid{position:absolute;left:120px;top:300px;width:1680px;aspect-ratio:1920/658;background:#0E141F}
-.sim .vid video{width:100%;height:100%}
-.sim .lead{position:absolute;left:120px;top:904px;width:1680px;font-size:27px;line-height:1.34}
+.sim .simt{position:absolute;top:290px;width:820px;margin:0;cursor:pointer}
+.sim .simt.t1{left:120px}
+.sim .simt.t2{left:980px}
+.sim .simt .win{position:relative;width:820px;height:560px;overflow:hidden;border-radius:18px;background:#0E141F}
+.sim .simt video{position:absolute;max-width:none}
+.sim .simt.t1 video{width:2460px;height:843px;left:0;top:-218px}
+.sim .simt.t2 video{width:996px;height:646px;left:-88px;top:-86px}
+.sim .simt .open{position:absolute;right:18px;bottom:18px;padding:9px 18px 8px;border-radius:999px;background:rgba(7,11,18,.78);color:#fff;font:700 17px var(--f-data);letter-spacing:.14em;text-transform:uppercase}
+.sim .simt figcaption{margin-top:20px;display:flex;align-items:baseline;gap:22px}
+.sim .simt figcaption b{flex:none;font:700 22px var(--f-data);letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
+.sim .simt figcaption span{font-size:27px;line-height:1.3;color:var(--ink-2)}
+.sim .lead{position:absolute;left:120px;top:954px;width:1680px;font-size:22px;color:var(--ink-3)}
 
 /* === 8 · USER INTERFACE =================================================== */
 .s8 .head{width:1680px}
@@ -304,9 +313,9 @@ body.film{background:#000}                 /* no light border around the film if
 .sheet.on{display:flex}
 .sheet .cap{margin-top:18px;color:rgba(255,255,255,.82);font-size:24px;font-weight:500}
 .sheet.demo video{width:1440px;height:894px;border-radius:18px;background:#0B0E14}
+.sheet.wide video{width:1536px;height:864px;object-fit:contain;border-radius:18px;background:#0B0E14}
 .sheet.report iframe{width:640px;height:580px;zoom:1.6;border:0;border-radius:9px;background:#fff}
 .modal .close{position:absolute;right:56px;top:40px;background:transparent;border-color:rgba(255,255,255,.6);color:#fff}
-.sim .vid video{cursor:pointer}
 .skip:hover{color:var(--ink);border-color:var(--ink-3)}
 .skip:focus{outline:none}
 
@@ -737,11 +746,16 @@ body.editing [contenteditable]:focus{outline-style:solid}
     <div class="kicker" data-a="up">A future approach</div>
     <h2 data-a="up" style="--d:100ms">Next, train it in simulation.</h2>
   </div>
-  <div class="acts" data-a="fade" style="--d:600ms">
-    <button class="pill" type="button" tabindex="-1" data-replay>Play again</button>
-  </div>
-  <figure class="vid photo" data-a="up" style="--d:220ms"><video data-auto muted loop playsinline preload="auto" poster="assets/video/sim-real-grip.jpg" src="assets/video/sim-real-grip.mp4"></video></figure>
-  <p class="lead" data-a="up" style="--d:380ms">Our two arms in Isaac Lab, on NormaCore's model of the ElRobot. One holds the scale and gives way at the limit, the other moves the scale from finger to finger. The motion is scripted: no trained policy runs here yet.</p>
+  <!-- Each tile shows one part of its clip. A click opens the whole clip in the pop-up. -->
+  <figure class="simt t1" data-a="up" style="--d:220ms" data-open="sim">
+    <div class="win"><video data-auto muted loop playsinline preload="auto" poster="assets/video/sim-isaac-sim.jpg" src="assets/video/sim-isaac-sim.mp4"></video><i class="open">Click to open</i></div>
+    <figcaption><b>Isaac Sim</b><span>Both arms, the scale, real contact.</span></figcaption>
+  </figure>
+  <figure class="simt t2" data-a="up" style="--d:340ms" data-open="lab">
+    <div class="win"><video data-auto muted loop playsinline preload="auto" poster="assets/video/sim-isaac-lab.jpg" src="assets/video/sim-isaac-lab.mp4"></video><i class="open">Click to open</i></div>
+    <figcaption><b>Isaac Lab</b><span>4,096 arms learn to give way, in 8 minutes.</span></figcaption>
+  </figure>
+  <p class="lead" data-a="up" style="--d:460ms">Simulation only: no trained policy has moved the real arm yet.</p>
 </section>
 
 <section class="slide s11" data-name="Thank you" data-foot="none" data-enter="finale">
@@ -760,7 +774,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
   <i class="ring"></i>
 </section>
 
-<!-- Pop-ups opened by the buttons on slide 11. Esc, Close or a click outside closes them. -->
+<!-- Pop-ups opened by the buttons on the dashboard slide and the tiles on the simulation slide. Esc, Close or a click outside closes them. -->
 <div class="modal" id="modal">
   <div class="sheet demo" data-sheet="demo">
     <video controls playsinline preload="none" poster="assets/dash/assistant-demo.jpg" src="assets/dash/assistant-demo.mp4"></video>
@@ -769,6 +783,14 @@ body.editing [contenteditable]:focus{outline-style:solid}
   <div class="sheet report" data-sheet="report">
     <iframe data-src="assets/dash/report.html" title="Medical report exported from the dashboard"></iframe>
     <p class="cap">The report the dashboard exports after a session. All data in it are simulated.</p>
+  </div>
+  <div class="sheet wide" data-sheet="sim">
+    <video controls loop muted playsinline preload="none" poster="assets/video/sim-isaac-sim.jpg" src="assets/video/sim-isaac-sim.mp4"></video>
+    <p class="cap">Isaac Sim: three views of the simulated bench. The motion is scripted.</p>
+  </div>
+  <div class="sheet wide" data-sheet="lab">
+    <video controls loop muted playsinline preload="none" poster="assets/video/sim-isaac-lab.jpg" src="assets/video/sim-isaac-lab.mp4"></video>
+    <p class="cap">Isaac Lab: the pull policy in training, from 1 arm to 1,024. Green is under the force limit, red is over it.</p>
   </div>
   <button class="pill close" type="button" tabindex="-1" id="modalClose">Close</button>
 </div>
@@ -1093,7 +1115,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
   function next() { if (!(stepper && stepper.advance())) go(cur + 1); }
 
   /* === EDIT MODE: press E, click any text, type. Cmd/Ctrl+S saves a copy. == */
-  const EDITABLE = '.slide h1,.slide h2,.slide h3,.slide h5,.slide p,.slide li,.slide .kicker,.slide .lbl b,.slide .lbl span,.slide .edge,.slide .call,.slide figcaption b,.slide figcaption span,.person b,.person span,.tile b,.tile span,.simnote,.meta span,.stop .day small,.stop .day b,.big small,.sig span,.cap span,.note,.row h3,.row p,.pic figcaption,.ev figcaption small,.ev figcaption b';
+  const EDITABLE = '.slide h1,.slide h2,.slide h3,.slide h5,.slide p,.slide li,.slide .kicker,.slide .lbl b,.slide .lbl span,.slide .edge,.slide .call,.slide figcaption b,.slide figcaption span,.person b,.person span,.tile b,.tile span,.simt figcaption b,.simt figcaption span,.simnote,.meta span,.stop .day small,.stop .day b,.big small,.sig span,.cap span,.note,.row h3,.row p,.pic figcaption,.ev figcaption small,.ev figcaption b';
   const hint = document.getElementById('hint');
   function setEditing(on) {
     editing = on;
@@ -1152,7 +1174,6 @@ body.editing [contenteditable]:focus{outline-style:solid}
     e.stopPropagation();
     const v = b.closest('.slide').querySelector('video'); try { v.currentTime = 0; } catch (err) {} v.play().catch(() => {});
   }));
-  document.querySelectorAll('.sim .vid video').forEach(v => v.addEventListener('click', e => { e.stopPropagation(); v.paused ? v.play().catch(() => {}) : v.pause(); }));
 
   /* --- navigation --- */
   addEventListener('keydown', e => {
