@@ -1,6 +1,12 @@
-"""Carga una policy LeRobot (ACT u otra) desde un checkpoint y predice chunks de acciones.
+"""Carga una policy desde un checkpoint y predice chunks de acciones. Dos backends:
 
-Misma carga que lerobot/rollout/context.py (LeRobot 0.7.1):
+  * PolicyRunner    - checkpoint LeRobot (ACT u otra): carpeta `pretrained_model`.
+  * SmolVLARunner   - checkpoint del fine-tune de NormaCore (train_smolvla.py): carpeta con
+                      config.json, model.safetensors, stats.safetensors y elrobot.json.
+
+`load_runner(checkpoint)` elige el backend mirando si existe `elrobot.json`.
+
+PolicyRunner usa la misma carga que lerobot/rollout/context.py (LeRobot 0.7.1):
   PreTrainedConfig.from_pretrained -> get_policy_class(...).from_pretrained
   make_pre_post_processors(pretrained_path=..., device_processor override)
 La normalización (mean/std del dataset) va dentro de los processors guardados en el checkpoint.
@@ -14,21 +20,39 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from lerobot.configs.policies import PreTrainedConfig
-from lerobot.policies.factory import get_policy_class, make_pre_post_processors
+import json
+import os
+from types import SimpleNamespace
 
 from station_io import VIEWS, decode_rgb
 
 
-class PolicyRunner:
+def _pick_device(device: str | None) -> str:
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    if device == "cpu":
+        # Sin esto torch usa todos los cores y, con otra carga, la latencia se dispara
+        # (medido aquí: 3.3 s con hilos por defecto vs 30-45 ms con 4-8 hilos).
+        torch.set_num_threads(int(os.environ.get("POLICY_THREADS", min(8, os.cpu_count() or 4))))
+    return device
+
+
+class _JpegMixin:
+    def predict_from_jpegs(self, state: np.ndarray, jpeg_by_view: dict[str, bytes], task: str = "") -> tuple[np.ndarray, float]:
+        t0 = time.perf_counter()
+        chunk = self.predict_chunk(state, {v: decode_rgb(j) for v, j in jpeg_by_view.items()}, task)
+        if self.device == "cuda":
+            torch.cuda.synchronize()
+        return chunk, (time.perf_counter() - t0) * 1000
+
+
+class PolicyRunner(_JpegMixin):
     def __init__(self, checkpoint: str | Path, device: str | None = None, n_action_steps: int | None = None):
+        # import perezoso: el backend SmolVLA no necesita LeRobot instalado
+        from lerobot.configs.policies import PreTrainedConfig
+        from lerobot.policies.factory import get_policy_class, make_pre_post_processors
+
         path = str(checkpoint)
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        if self.device == "cpu":
-            # Sin esto torch usa todos los cores y, con otra carga, la latencia se dispara
-            # (medido aquí: 3.3 s con hilos por defecto vs 30-45 ms con 4-8 hilos).
-            import os
-            torch.set_num_threads(int(os.environ.get("POLICY_THREADS", min(8, os.cpu_count() or 4))))
+        self.device = _pick_device(device)
         cfg = PreTrainedConfig.from_pretrained(path)
         cfg.pretrained_path = path
         cfg.device = self.device
@@ -60,9 +84,59 @@ class PolicyRunner:
         actions = self.post(actions)                                # desnormalizado -> goal_norm
         return actions.squeeze(0).float().cpu().numpy()
 
-    def predict_from_jpegs(self, state: np.ndarray, jpeg_by_view: dict[str, bytes], task: str = "") -> tuple[np.ndarray, float]:
-        t0 = time.perf_counter()
-        chunk = self.predict_chunk(state, {v: decode_rgb(j) for v, j in jpeg_by_view.items()}, task)
-        if self.device == "cuda":
-            torch.cuda.synchronize()
-        return chunk, (time.perf_counter() - t0) * 1000
+
+class SmolVLARunner(_JpegMixin):
+    """SmolVLA de NormaCore (paquete `smolvla` de norma-core/software/ai/smolvla_py).
+
+    Hace lo mismo que su scripts/run_policy.py (normaliza el estado con stats.safetensors,
+    tokeniza la tarea, predict_action_chunk, desnormaliza), pero devuelve el chunk entero y
+    coloca cada cámara por NOMBRE de vista según elrobot.json, no por índice de images[].
+    """
+
+    DEFAULT_N_ACTION_STEPS = 15   # 1.5 s a 10 Hz de un chunk de 50
+
+    def __init__(self, checkpoint: str | Path, device: str | None = None, n_action_steps: int | None = None):
+        from smolvla import SmolVLAPolicy
+        from smolvla.normalize import normalize_state, unnormalize_action
+        from smolvla.stats import load_stats
+
+        path = Path(checkpoint)
+        meta = json.loads((path / "elrobot.json").read_text())
+        if sorted(meta["views"]) != sorted(VIEWS):
+            raise RuntimeError(f"la policy espera cámaras {meta['views']}, este código da {list(VIEWS)}")
+        self.key_of_view = dict(zip(meta["views"], meta["image_keys"]))
+        self.default_task = meta.get("task", "")
+        self.device = _pick_device(device)
+        self.stats = {k: v.to(self.device) for k, v in load_stats(path / "stats.safetensors").items()}
+        self.policy = SmolVLAPolicy.from_pretrained(
+            path, config_overrides={"load_vlm_weights": False}, strict=False).to(self.device).eval()
+        self._normalize_state, self._unnormalize_action = normalize_state, unnormalize_action
+        self.cfg = SimpleNamespace(type="smolvla")
+        self.chunk_size = int(self.policy.config.chunk_size)
+        self.n_action_steps = min(int(n_action_steps or self.DEFAULT_N_ACTION_STEPS), self.chunk_size)
+        self._tokens: dict[str, tuple] = {}
+
+    @torch.no_grad()
+    def predict_chunk(self, state: np.ndarray, rgb_by_view: dict[str, np.ndarray], task: str = "") -> np.ndarray:
+        """state (8,) position_norm; rgb_by_view: {vista: HxWx3 uint8}. Devuelve (chunk_size, 8) goal_norm."""
+        st = torch.from_numpy(np.asarray(state, dtype=np.float32)).unsqueeze(0).to(self.device)
+        batch = {"observation.state": self._normalize_state(st, self.stats)}
+        for v, img in rgb_by_view.items():
+            batch[self.key_of_view[v]] = (torch.from_numpy(np.array(img, dtype=np.uint8, copy=True))
+                                          .permute(2, 0, 1).float().unsqueeze(0).to(self.device) / 255.0)
+        task = task or self.default_task     # sin --task: la frase con la que se entrenó
+        if not task:
+            raise RuntimeError("SmolVLA necesita la instrucción: pasa --task \"<frase del dataset>\"")
+        if task not in self._tokens:
+            self._tokens[task] = self.policy.tokenize_task(task, device=self.device)
+        batch["observation.language.tokens"], batch["observation.language.attention_mask"] = self._tokens[task]
+        # autocast bf16 como en el entrenamiento: el VLM se carga en bf16 y sin autocast la
+        # atención falla por mezclar bf16 con float32 (le pasa al run_policy.py original).
+        with torch.autocast(device_type=self.device.split(":")[0], dtype=torch.bfloat16):
+            pred = self.policy.predict_action_chunk(batch)[0]             # (chunk, 8) normalizado
+        return self._unnormalize_action(pred.float(), self.stats).cpu().numpy()
+
+
+def load_runner(checkpoint: str | Path, device: str | None = None, n_action_steps: int | None = None):
+    cls = SmolVLARunner if (Path(checkpoint) / "elrobot.json").exists() else PolicyRunner
+    return cls(checkpoint, device=device, n_action_steps=n_action_steps)

@@ -13,12 +13,12 @@ import asyncio
 import logging
 
 from control import add_robot_args, run_control
-from policy_runner import PolicyRunner
+from policy_runner import load_runner
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--checkpoint", required=True, help="carpeta pretrained_model del checkpoint LeRobot")
+    p.add_argument("--checkpoint", required=True, help="carpeta pretrained_model (LeRobot) o checkpoint de train_smolvla.py")
     p.add_argument("--device", default=None, help="cuda / cpu / mps (por defecto: cuda si hay)")
     p.add_argument("--n-action-steps", type=int, default=None,
                    help="acciones del chunk que se ejecutan antes de re-planificar (por defecto: el del checkpoint)")
@@ -26,7 +26,7 @@ def main() -> None:
     args = p.parse_args()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 
-    runner = PolicyRunner(args.checkpoint, device=args.device, n_action_steps=args.n_action_steps)
+    runner = load_runner(args.checkpoint, device=args.device, n_action_steps=args.n_action_steps)
     print(f"policy {runner.cfg.type} en {runner.device} | chunk {runner.chunk_size} | ejecuta {runner.n_action_steps}")
 
     async def get_chunk(state, jpeg_by_view, task):
