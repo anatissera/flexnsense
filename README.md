@@ -12,7 +12,7 @@ By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
 [![NormaCore ElRobot](https://img.shields.io/badge/arm-NormaCore_ElRobot_7%2B1_DOF-0b7285)](./docs/elrobot.md)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](./SETUP.md)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)](./gauge_reader)
-[![Tests: 376 passing](https://img.shields.io/badge/tests-376_passing-success)](./tests)
+[![Tests: 585 passing](https://img.shields.io/badge/tests-585_passing-success)](./tests)
 [![Status: prototype](https://img.shields.io/badge/status-prototype-orange)](#status)
 
 ![Arm A holds the hand, the finger pulls on a PESOLA spring scale held by arm B, a camera reads grams, the clinician sets the cap remotely](docs/images/concept.svg)
@@ -124,6 +124,7 @@ Force limits on the patient are enforced **independently of the main control loo
 - **Hand keypoint tracking** to measure the finger's range of motion: MediaPipe live, WiLoR for precision capture (it adds MANO joint rotations). Both emit the same `HandFrame`, see [docs/hand-tracking.md](./docs/hand-tracking.md).
 - **Per-patient cap adaptation** from the patient's response within a session: a lightweight online estimator, not deep RL.
 - The **force–displacement curve** across the session, which yields joint stiffness, a published biomarker of post-surgical tendon adhesion. The device measures recovery, not only exercises it; this is what the clinician watches evolve between sessions.
+- **Re-hooking the dynamometer between fingers**, on the second arm pair, is a separate manipulation task trained with imitation learning (teleoperated demonstrations, behaviour cloning), not the admittance controller. See [docs/hardware-setup.md](./docs/hardware-setup.md) for which physical arm is which.
 
 ## Status
 
@@ -162,7 +163,8 @@ lib/              shared helpers for any script: camera, .env settings, Kalman f
 gauge_reader/     subtask 2: read the PESOLA scale through a camera (python -m gauge_reader)
 hand_tracking/    subtask 5: finger flexion angles through a camera (python -m hand_tracking)
 control/          subtask 3: the admittance controller, its safety gate and a simulation
-scripts/          robot and calibration scripts, against Station (force calibration)
+session/          subtask 5b: exercise modes, the prescription, the session and rep machines, the two-arm interlock
+scripts/          robot and calibration scripts, against Station (force calibration, bench measurements)
 scripts/lerobot/  NOT our hardware: the original SO-101-via-LeRobot scripts, parked in case we ever port
 tests/            tests per package: tests/lib/, tests/gauge_reader/, tests/hand_tracking/
 docs/             guides and diagrams
@@ -189,6 +191,8 @@ ok, frame, ts, idx = src.read()
 | [docs/force-calibration.md](./docs/force-calibration.md) | The servo-current calibration experiment |
 | [docs/scale-reader.md](./docs/scale-reader.md) | The gauge reader: setup, calibration, precision, troubleshooting |
 | [docs/hand-tracking.md](./docs/hand-tracking.md) | Hand landmarks: model, the flexion angle, running it |
+| [docs/hardware-setup.md](./docs/hardware-setup.md) | Which physical arm is which: Follower 1/2, Leader 1/2, bus serials, who runs what |
+| [docs/session-orchestration.md](./docs/session-orchestration.md) | The two exercise modes, the rep and session state machines, the two-arm interlock, why arm 1 needs no VLA |
 | [docs/pitch-v2/](./docs/pitch-v2/) | Pitch deck, version 2: an HTML deck with real footage (open `index.html` locally). Version 1 is [docs/Pitch.pptx](./docs/Pitch.pptx) |
 | [AGENTS.md](./AGENTS.md) | Git workflow, branch naming, rules for contributors and coding agents |
 
