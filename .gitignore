@@ -64,3 +64,14 @@ recordings/
 
 # Hand tracking: downloaded model, not committed
 models/*.task
+
+# ElRobot data collection: third-party clone, Station binaries and local data
+/norma-core/
+/norma-station/
+data_collection/station
+data_collection/dataset-generator
+data_collection/dataset-mp4
+data_collection/*.tar.gz
+data_collection/station_data/
+data_collection/pending_uploads/
+data_collection/cam_preview/
