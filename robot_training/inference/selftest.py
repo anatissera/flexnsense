@@ -20,14 +20,14 @@ import pyarrow.parquet as pq
 
 import control
 import station_io
-from station_io import Obs, goal_norm_to_ticks
+from station_io import FrameShapeError, Obs, goal_norm_to_ticks
 from target.gen_python.protobuf.drivers.st3215 import st3215
 
 
 class FakeStation:
-    def __init__(self, parquet: str):
+    def __init__(self, parquet: str, drop_camera: int | None = None):
         t = pq.read_table(parquet).to_pydict()
-        self.t, self.n, self.i, self.sent = t, len(t["task"]), 0, []
+        self.t, self.n, self.i, self.sent, self.drop = t, len(t["task"]), 0, [], drop_camera
 
     def obs(self, i: int) -> Obs:
         J = self.t["joints"][i]
@@ -43,6 +43,9 @@ class FakeStation:
             raise KeyboardInterrupt
         o = self.obs(self.i)
         self.i += 1
+        if self.drop is not None:      # como Station con una cámara sin abrir
+            jpegs = [j for k, j in enumerate(o.jpegs) if k != self.drop]
+            raise FrameShapeError(len(o.state), n_joints, jpegs, n_images)
         return o
 
     async def send_commands(self, client, cmds):
@@ -58,12 +61,14 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--parquet", required=True)
     p.add_argument("--ticks", type=int, default=80)
+    p.add_argument("--drop-camera", type=int, default=None,
+                   help="simula que Station no tiene abierta la cámara images[N] (prueba del diagnóstico)")
     sub = p.add_subparsers(dest="mode", required=True)
     pl = sub.add_parser("local"); pl.add_argument("--checkpoint", required=True); pl.add_argument("--device", default=None)
     pr = sub.add_parser("remote"); pr.add_argument("--server", default="localhost:9000"); pr.add_argument("--token", default=None)
     a = p.parse_args()
 
-    fake = FakeStation(a.parquet)
+    fake = FakeStation(a.parquet, a.drop_camera)
 
     async def _noop(*args, **kw):
         return None

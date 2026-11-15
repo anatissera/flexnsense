@@ -320,6 +320,10 @@ Otras opciones: `--station host[:8888]`, `--motor-ids 1,...,8`, `--n-action-step
 
 ## 6. Problemas conocidos
 
+- **`frame con 8 joints / 2 imágenes; se esperaban 8/3`:** Station tiene una cámara sin abrir (pone
+  una imagen por cámara activa). El script dice cuál falta y guarda lo recibido en
+  `camera_received.jpg`. Comprueba las 3 cámaras en la web de Station (:8889), el cable/puerto USB,
+  y reinicia Station tras reconectar. La policy necesita las 3 vistas: no puede correr con 2.
 - **`inference/normvla` no da frames:** el follower no tiene torque, o el leader también lo tiene.
 - **Station llena el disco:** graba siempre en `station_data/` (~2 GB/hora con 3 cámaras).
 - **`station.yaml`:** `formats: []` funciona; una lista de strings da error de parseo.

@@ -122,6 +122,18 @@ async def safe_enable_torque(client, bus_serial: str, motor_ids: list[int]) -> N
 
 # ─────────────────────────────── frames normvla ────────────────────────────────
 
+class FrameShapeError(RuntimeError):
+    """Station entrega un nº de joints o de imágenes distinto del esperado.
+
+    Station pone una imagen por cada cámara que tiene activa (y descarta el frame entero si
+    alguna va con retraso), así que menos imágenes = una cámara que Station no tiene abierta.
+    """
+
+    def __init__(self, n_joints: int, exp_joints: int, jpegs: list[bytes], exp_images: int):
+        self.jpegs, self.exp_images = jpegs, exp_images
+        super().__init__(f"frame con {n_joints} joints / {len(jpegs)} imágenes; se esperaban {exp_joints}/{exp_images}")
+
+
 @dataclass
 class Obs:
     frame_id: bytes
@@ -158,7 +170,7 @@ async def fetch_fresh_obs(client, last_id: bytes, timeout: float, n_joints: int 
         joints = fr.get_joints() or []
         images = fr.get_images() or []
         if len(joints) != n_joints or len(images) != n_images:
-            raise RuntimeError(f"frame con {len(joints)} joints / {len(images)} imágenes; se esperaban {n_joints}/{n_images}")
+            raise FrameShapeError(len(joints), n_joints, [bytes(im.get_jpeg()) for im in images], n_images)
         return Obs(
             frame_id=fid,
             state=np.array([j.get_position_norm() for j in joints], dtype=np.float32),
@@ -236,6 +248,17 @@ class CameraMapper:
         self.slot_of_view = {VIEWS[v]: s for s, v in enumerate(perm)}
         self.margin = margin
         return True
+
+    def identify(self, jpegs: list[bytes]) -> list[tuple[str, float]]:
+        """Para un nº cualquiera de imágenes: (vista más parecida, puntuación) de cada una. Solo diagnóstico."""
+        if not self.bank:
+            return [("?", 0.0)] * len(jpegs)
+        out = []
+        for j in jpegs:
+            f = _feat(j)
+            sc = [float(np.sort(b @ f / f.size)[-self.k:].mean()) for b in self.bank]
+            out.append((VIEWS[int(np.argmax(sc))], max(sc)))
+        return out
 
     def by_view(self, jpegs: list[bytes]) -> dict[str, bytes]:
         assert self.slot_of_view is not None

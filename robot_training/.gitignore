@@ -3,6 +3,7 @@ __pycache__/
 outputs/
 robot_env/
 camera_preview.jpg
+camera_received.jpg
 camera_sheet.jpg
 # derivado de las imágenes del dataset (privado): se genera con inference/make_camera_refs.py
 inference/camera_refs.npz
