@@ -4,6 +4,39 @@ Four ElRobot units on the bench, two leader/follower pairs. This records which b
 is which arm and what each one is for, so a bus serial in a config file or a log line maps
 back to a physical arm without asking.
 
+![The bench from above: Leader 2 top left, Follower 2 left of the hand, Follower 1 bottom
+centre with the PESOLA running from its gripper up to a fingertip, Leader 1 bottom right. The
+hand rests palm-up on the cardboard work surface and the dark boom over the wrist carries the
+camera.](images/setup.jpg)
+
+What the photo shows, beyond the four labels:
+
+- **The tether axis is roughly in the plane of the table**, running from the fingertip down to
+  Follower 1's gripper. That is the direction `excursion_m` has to be projected onto, and the
+  direction the `ticks_per_metre` measurement has to move the arm along.
+- **The hand rests on the cardboard; no arm is holding it.** See the note below.
+- The two leaders sit idle at the table edge. They are for teleoperation during setup and for
+  recording demonstrations, not part of a running session.
+- The dark boom over the wrist carries the camera, which is the only force sensor in the system
+  (see [docs/force-calibration-result.md](./force-calibration-result.md) for why).
+
+## There is no "Arm A" yet
+
+The README's description of the solution opens with "**Arm A** holds the patient's hand still
+in a fixed pose". The rig in the photo does not do that: the hand lies on the work surface, and
+the two followers are the tether (Follower 1) and the hook mover (Follower 2). Neither is
+holding the hand, and there is no fifth arm.
+
+This matters for two things rather than being a nitpick. The pose the hand happens to rest in
+is what every pose-dependent number is measured against, so "the session pose" currently means
+"however the hand was placed that day" unless something fixes it. And the excursion numbers in
+`config/calibration/bench.md` were taken from a hand that was free to shift while flexing,
+which is part of why they are recorded as an upper bound.
+
+Either the README should describe the rig as built, or a hand rest of some kind should fix the
+pose. Worth deciding before the pose-dependent measurements are taken, since they are only
+valid for the pose they were measured in.
+
 ## Pair 1: the admittance controller (this repo's `control/`)
 
 - **Follower 1** - bus serial `5B8E114979`. This is "arm B" in the README's diagram: the
