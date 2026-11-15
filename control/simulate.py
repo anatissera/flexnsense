@@ -10,9 +10,9 @@ oscillate, where does the force peak), not about the arm's dynamics.
 
 What it already established (see docs/admittance-design.md):
   - overshoot above the cap settles at B x pull_speed, so B is bounded by the
-    F_threshold-to-F_max gap and belongs near 10-20 for this spring, not 100;
-  - a 50 mm/s yank reaches the ceiling at any B, because 33 ms of travel against a 54 N/m
-    spring is already ~0.09 N. That case is handled by releasing, not by tracking.
+    F_threshold-to-F_max gap and belongs near 10-20 for this tether, not 100;
+  - a 50 mm/s yank reaches the ceiling at any B, because 33 ms of travel against a 56.2 N/m
+    tether is already ~0.10 N. That case is handled by releasing, not by tracking.
 """
 from __future__ import annotations
 
@@ -22,8 +22,10 @@ from dataclasses import dataclass
 from control.admittance import AdmittanceParams, step_from_velocity, yield_velocity
 from control.safety import Action, SafetyGate, SafetyLimits
 
-# PESOLA 600 g, ~110 mm of travel: 5.5 gf/mm -> N/m. Measure the real one before trusting it.
-SPRING_N_PER_M = 53.9
+# Bench-measured tether stiffness (spring + cord + attachments), scripts/measure_tether_stiffness.py
+# against data/tether_stiffness.csv: 56.2 N/m. Stiffer than the PESOLA-alone datasheet shortcut
+# (600 gf / ~110 mm = 53.5 N/m) because the cord adds its own give in series with the spring.
+SPRING_N_PER_M = 56.2
 
 
 @dataclass

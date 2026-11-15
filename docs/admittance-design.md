@@ -97,8 +97,16 @@ The honest version, for the writeup and for anyone reading this later:
 
 ## Picking B: it is not a free parameter
 
-Simulating the closed loop (spring at the PESOLA's measured ~54 N/m, 30 Hz, patient pulling at
-a constant speed) gives a relationship worth knowing before touching the bench:
+Simulating the closed loop (tether at 56.2 N/m, 30 Hz, patient pulling at a constant speed)
+gives a relationship worth knowing before touching the bench. 56.2 N/m is the bench-measured
+stiffness of the whole tether, spring plus cord plus attachments, not the spring alone: hand-pull
+the PESOLA through 50-500 gf and back, measuring the distance between a fixed and a moving
+reference mark at each level (`scripts/measure_tether_stiffness.py`, fit by `lib.stiffness`). It
+replaces the datasheet shortcut this doc used before measuring (600 gf over ~110 mm of printed
+scale = 53.5 N/m), which was always going to be a little too stiff, since the real tether adds a
+cord in series with the spring. The raw sweep is `data/tether_stiffness.csv`; the worst up/down
+gap in it, 6 mm at 400 gf, is the floor on any displacement later inferred from a force reading
+(the `ticks_per_metre` measurement, next).
 
 > **steady-state overshoot above the cap = B x pull speed**
 
@@ -116,14 +124,14 @@ With a 1.96 N cap and a 3.0 N ceiling there is only **1.04 N** of room. B=100, t
 "start over-damped" choice, needs 2 N of overshoot just to keep up with a brisk pull: the arm
 never catches up, force climbs, and the gate fires. Simulated, that is exactly what happens.
 
-**B in the 10-20 range is the right starting point for this spring**, not 100. Confirm on the
+**B in the 10-20 range is the right starting point for this tether**, not 100. Confirm on the
 bench, but start there rather than discovering it on a finger.
 
 ## The 30 Hz loop cannot absorb a flinch, and no B fixes that
 
 Also from the simulation: at a 50 mm/s yank, the ceiling is reached in ~1.5 s **at every value
 of B tried (2 to 20)**. The reason is arithmetic, not tuning. One frame at 30 Hz is 33 ms; at
-50 mm/s the finger travels 1.7 mm in that time, which against a 54 N/m spring is ~0.09 N
+50 mm/s the finger travels 1.7 mm in that time, which against a 56.2 N/m tether is ~0.10 N
 arriving before the controller can see it at all. Sustain that and the gate fires, correctly.
 
 So: **the fast-yank case is handled by the gate releasing, not by the controller tracking it.**

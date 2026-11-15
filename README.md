@@ -12,7 +12,7 @@ By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
 [![NormaCore ElRobot](https://img.shields.io/badge/arm-NormaCore_ElRobot_7%2B1_DOF-0b7285)](./docs/elrobot.md)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](./SETUP.md)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)](./gauge_reader)
-[![Tests: 326 passing](https://img.shields.io/badge/tests-326_passing-success)](./tests)
+[![Tests: 376 passing](https://img.shields.io/badge/tests-376_passing-success)](./tests)
 [![Status: prototype](https://img.shields.io/badge/status-prototype-orange)](#status)
 
 ![Arm A holds the hand, the finger pulls on a PESOLA spring scale held by arm B, a camera reads grams, the clinician sets the cap remotely](docs/images/concept.svg)
@@ -185,6 +185,7 @@ ok, frame, ts, idx = src.read()
 | [ROADMAP.md](./ROADMAP.md) | The subtasks, their order and branches |
 | [SETUP.md](./SETUP.md) | Python, Station, motors and `.env` |
 | [docs/elrobot.md](./docs/elrobot.md) | The ElRobot and NormaCore Station: why not LeRobot, the real client, what's unverified |
+| [docs/bench-measurements.md](./docs/bench-measurements.md) | **How to take the bench measurements**: tether stiffness, fingertip excursion, ticks per metre |
 | [docs/force-calibration.md](./docs/force-calibration.md) | The servo-current calibration experiment |
 | [docs/scale-reader.md](./docs/scale-reader.md) | The gauge reader: setup, calibration, precision, troubleshooting |
 | [docs/hand-tracking.md](./docs/hand-tracking.md) | Hand landmarks: model, the flexion angle, running it |
