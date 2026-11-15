@@ -1,0 +1,107 @@
+Vas a probar en el brazo real (ElRobot de NormaCore, conectado a este portátil) una policy ACT
+ya entrenada que usa las yemas de los dedos del paciente como entrada. No hay que entrenar.
+Lo delicado de esta prueba es que la policy necesita WiLoR funcionando en este portátil.
+
+CONTEXTO
+- Repo: leukerbad-hackathon, rama feature/robot-training, carpeta robot_training/.
+- Lee primero robot_training/README.md, en este orden:
+  1. Sección "A. Estado actual (léelo primero)".
+  2. Sección 3d "Yemas de los dedos como entrada de la policy", entera.
+  3. Sección 4 entera (4.0 a 4.4) y sección 6 "Problemas conocidos".
+  Lee también AGENTS.md en la raíz del repo (reglas de commits).
+- Modelo: ACT entrenado con 83 episodios y estado de 13 valores (8 motores + posición de la yema
+  del índice y del corazón en la cámara side + indicador de mano detectada). Hugging Face, privado:
+  JustoDario/flexnsense_act_skill1_rightindex2middle_83ep_hand
+- Las yemas del dataset se calcularon con WiLoR. En inferencia hay que calcularlas con WiLoR
+  configurado igual, o la policy recibe números distintos de los del entrenamiento.
+- inference/hand_source.py (clase WilorTips) usa hand_tracking/wilor_source.py de este repo.
+  NUNCA se ha ejecutado con WiLoR: se escribió en una máquina sin WiLoR. Cuenta con tener que depurarlo.
+
+MONTAJE: DOS PROCESOS EN ESTE PORTÁTIL
+WiLoR y LeRobot viven en entornos Python distintos, así que no se juntan. Se usa el modo remoto
+con las dos partes en este mismo portátil:
+- Terminal A, entorno de LeRobot (~/robot_env): policy_server.py con la policy. No necesita WiLoR.
+- Terminal B, entorno de WiLoR: robot_client.py. Habla con Station, calcula las yemas con WiLoR y
+  se las manda al servidor dentro del estado. No necesita torch de LeRobot ni LeRobot: solo numpy,
+  pillow, pyarrow y la variable NORMA_CORE apuntando al checkout de norma-core con los protobufs
+  de Python generados (station_py solo usa la librería estándar).
+
+PASOS
+1. Actualiza el código:
+   cd <repo> && git fetch origin && git checkout feature/robot-training && git pull
+2. Localiza en este portátil: (a) el checkout de WiLoR con sus pesos y su entorno Python, y
+   (b) el script de data collection que escribe las columnas hand_* (no está en el remoto; busca
+   en la rama data_collection local y en cambios sin commitear). Si no encuentras alguno, pregúntame.
+   Lee cómo construye WiLoR ese script: modo fast o no, conf del detector, rescale_factor, sobre
+   qué imagen lo ejecuta (el JPEG 224x224 de Station o el frame de la cámara) y qué mano elige si
+   hay varias. Compáralo con WilorTips en inference/hand_source.py y dime las diferencias.
+3. Terminal A (LeRobot):
+   source ~/robot_env/env.sh
+   hf download JustoDario/flexnsense_act_skill1_rightindex2middle_83ep_hand --local-dir ~/act83_hand_ckpt
+   (necesita `hf auth login` con la cuenta JustoDario). Comprueba que config.json dice
+   input_features -> observation.state -> shape [13].
+4. Dataset y banco de cámaras (Terminal A). Si el dataset ya está descargado, usa esa ruta:
+   hf download JustoDario/flexnsense_skill1 --repo-type dataset --local-dir ~/data/flexnsense_skill1_raw
+   cd robot_training/inference
+   python make_camera_refs.py --src ~/data/flexnsense_skill1_raw --ref-views side,gripper,table
+5. Terminal B (entorno de WiLoR). Prepara:
+   export WILOR_ROOT=<checkout de WiLoR>
+   export NORMA_CORE=<checkout de norma-core>     (el mismo que usa ~/robot_env/env.sh)
+   cd <repo>/robot_training/inference
+   python -c "import numpy, PIL, pyarrow; import station_io; print('ok')"
+   Si falta algún paquete pequeño (pyarrow, pillow), instálalo en ese entorno. No instales LeRobot ahí.
+6. COMPROBACIÓN CLAVE (Terminal B). Sobre un episodio antiguo y uno nuevo:
+   python check_hand.py --hand-source wilor --parquet ~/data/flexnsense_skill1_raw/data/move_device_from_right_index_to_right_middle_finger/episode_0010.parquet
+   python check_hand.py --hand-source wilor --parquet ~/data/flexnsense_skill1_raw/data/move_device_from_right_index_to_right_middle_finger/episode_0070.parquet
+   Cada uno debe acabar en "OK: es la misma fuente que el dataset" (diferencia mediana < 0.005).
+   - Si falla con un error de Python, arréglalo en hand_source.py (es código sin estrenar).
+   - Si da "AVISO", la configuración de WiLoR no es la del script de data collection: ajústala en
+     hand_source.py según lo que viste en el paso 2 y repite. Enséñame la salida.
+   - Si uno da OK y el otro AVISO, los episodios antiguos y los nuevos se anotaron distinto: dímelo y para.
+   No sigas al paso 7 hasta tener OK, o hasta que yo te diga que sigas con la diferencia que haya.
+7. Prueba sin robot, las dos terminales:
+   A:  python policy_server.py --checkpoint ~/act83_hand_ckpt
+       (espera a "escuchando en 127.0.0.1:9000")
+   B:  python selftest.py --ticks 60 --hand live --hand-source wilor \
+         --parquet ~/data/flexnsense_skill1_raw/data/move_device_from_right_index_to_right_middle_finger/episode_0070.parquet \
+         remote --server localhost:9000
+   Tiene que acabar con "SELFTEST remote: 60 sync writes". Mira las líneas con
+   "[mano N ms: índice (x, y) corazón (x, y)]": anota los ms y que no diga "SIN MANO".
+   Vigila la memoria de la GPU (nvidia-smi): WiLoR usa unos 1.7 GB.
+8. Station: corriendo con el follower y las 3 cámaras, y el LEADER SIN TORQUE. Serial del bus del
+   follower: 5B3D050113 (confírmalo en la web de Station, puerto 8889).
+9. En seco, sin mover nada (el servidor de A sigue corriendo), en B:
+   python robot_client.py --server localhost:9000 --bus-serial 5B3D050113 --hand-source wilor --dry-run --max-ticks 50
+   Abre camera_preview.jpg: de izquierda a derecha debe ser side | gripper | table. Comprueba que
+   las coordenadas de la mano que imprime tienen sentido con dónde está la mano en la imagen side.
+10. ANTES DE MOVER EL BRAZO, PÁRATE Y PREGÚNTAME. No ejecutes los pasos 11 y 12 sin mi confirmación
+   explícita en ese momento. Lee la sección 4.0 del README: estos scripts no tienen la capa de
+   seguridad del proyecto. La mano tiene que estar en la imagen side para que la policy la vea.
+11. Prueba corta (3 segundos), en B:
+   python robot_client.py --server localhost:9000 --bus-serial 5B3D050113 --hand-source wilor --max-ticks 30
+12. Prueba completa (Ctrl-C para parar; el brazo se queda con torque sujetando la pose):
+   python robot_client.py --server localhost:9000 --bus-serial 5B3D050113 --hand-source wilor
+13. Al terminar:
+   - Si has cambiado inference/hand_source.py para que funcione o coincida con el dataset, haz un
+     commit solo con ese fichero, con un mensaje que explique qué cambiaste y por qué.
+   - Elimina este fichero: git rm robot_training/prompt2.txt, commit
+     "robot_training: remove the one-off fingertip test prompt".
+   - git push origin feature/robot-training
+   Sin líneas de atribución a herramientas de IA y sin rayas largas (AGENTS.md). No hagas más commits.
+   Elimina el fichero también si la prueba se queda a medias, cuando yo te diga que hemos terminado.
+
+QUÉ ME TIENES QUE CONTAR AL FINAL
+- Diferencias entre el WiLoR del script de data collection y hand_source.py (paso 2).
+- Salida de check_hand.py en los dos episodios (paso 6) y qué cambiaste, si cambiaste algo.
+- Latencias: "inferencia N ms" de la policy y "mano N ms" de WiLoR; memoria de GPU usada.
+- Cuántas veces salió "SIN MANO" con el brazo en marcha.
+- Qué hizo el brazo en los pasos 11 y 12 según lo que yo te diga que veo: si llega a la anilla,
+  si cierra el gripper, si tiembla, si completa la tarea, y si es mejor o peor que el ACT sin yemas.
+- Líneas "ABORT tick" o "limitados por velocidad" y con qué frecuencia.
+- Que has eliminado prompt2.txt de la rama.
+
+NO HAGAS
+- No uses --hand-source mediapipe con este modelo: se entrenó con WiLoR.
+- No modifiques los límites de seguridad (--max-step-ticks, --max-delta-ticks) sin preguntarme.
+- No uses --torque-off-on-exit (el brazo cae).
+- No toques otro código que inference/hand_source.py sin preguntarme.
