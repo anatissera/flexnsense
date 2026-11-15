@@ -44,19 +44,22 @@ class RepLimits:
     measured number, and the distances in metres all want checking against a real rig.
     """
 
-    #: Where `ARMED` leaves the tether between repetitions, in newtons.
+    #: Where `ARMED` leaves the tether between repetitions, as a fraction of the block's cap.
     #:
-    #: An absolute force, deliberately not derived from the cap. Two things have to be true at
-    #: once and they pull in opposite directions: it has to be high enough that the slack is
-    #: out, so the patient's range goes into the exercise rather than into stretching a loose
-    #: tether, and low enough that a healing finger is not left holding a therapeutic force
-    #: while being told to relax and get ready. 0.5 N is about 51 gf, which is under the
-    #: 50-to-450 gf band dynamic finger splints work in.
+    #: A fraction rather than an absolute force, because the early post-surgical caps are the
+    #: clinically interesting ones and an absolute default breaks them. Two things have to be
+    #: true at once and they pull in opposite directions: the resting tension has to be high
+    #: enough that the slack is out, so the patient's range goes into the exercise rather than
+    #: into stretching a loose tether, and low enough that a healing finger is not left holding
+    #: a therapeutic force while being told to relax and get ready. A quarter of the cap
+    #: satisfies both at every cap in the 0-to-450 gf band dynamic finger splints work in,
+    #: which a fixed 0.5 N did not: it rejected a 60 gf prescription outright.
     #:
-    #: It must also stay below `start_delta_n` beneath the cap, or `RAMP` has no duration:
-    #: starting and reaching the cap become the same event. `RepMachine` checks that against
-    #: the block's cap rather than leaving it to be discovered on a finger.
-    pretension_n: float = 0.5
+    #: Whatever it resolves to has to stay more than `start_delta_n` below the cap, or `RAMP`
+    #: has no duration: starting and reaching the cap become the same event. `RepMachine`
+    #: checks that against the block's actual cap rather than leaving it to be discovered on a
+    #: finger.
+    pretension_fraction: float = 0.25
     #: How much the force has to rise above the rep's baseline before the patient counts as
     #: having started. A few times the gauge reader's noise, so a jittery reading does not
     #: start a repetition on its own.
@@ -86,10 +89,16 @@ class RepLimits:
     phase_timeout_s: float = 60.0
 
     def __post_init__(self) -> None:
-        for name in ("pretension_n", "start_delta_n", "cue_dwell_s", "cue_timeout_s",
+        for name in ("pretension_fraction", "start_delta_n", "cue_dwell_s", "cue_timeout_s",
                      "still_m", "settle_s", "home_m", "blind_grace_s", "phase_timeout_s"):
             if getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be positive, got {getattr(self, name)}")
+        if self.pretension_fraction >= 1.0:
+            raise ValueError(
+                f"pretension_fraction must be below 1.0, got {self.pretension_fraction}: "
+                "resting at or above the cap would hold the finger at the therapeutic force "
+                "between repetitions"
+            )
 
 
 @dataclass(frozen=True)
@@ -168,15 +177,18 @@ class RepMachine:
     def __init__(self, block: Block, limits: RepLimits | None = None):
         self.block = block
         self.limits = limits if limits is not None else RepLimits()
-        headroom = block.cap_n - self.limits.pretension_n
+        self.pretension_n = block.cap_n * self.limits.pretension_fraction
+        headroom = block.cap_n - self.pretension_n
         if headroom <= self.limits.start_delta_n:
             raise ValueError(
-                f"pre-tension {self.limits.pretension_n:.2f} N leaves only {headroom:.2f} N "
-                f"below the {block.cap_n:.2f} N cap, which is not more than the "
+                f"a {block.cap_gf:.0f} gf cap rests at {self.pretension_n:.2f} N and leaves "
+                f"only {headroom:.2f} N below the cap, which is not more than the "
                 f"{self.limits.start_delta_n:.2f} N rise that counts as the patient starting: "
                 "the repetition would reach the cap at the same instant it began, so RAMP "
                 "would have no duration and the patient would be at the therapeutic force "
-                "before being cued. Lower pretension_n or raise the cap."
+                "before being cued. The cap is too close to the gauge reader's noise floor "
+                "for this exercise to be measurable; raise the cap or lower start_delta_n "
+                "only if the reader is actually quieter than it assumes."
             )
         self.phase = Phase.IDLE
         self.reps_completed = 0
@@ -288,11 +300,9 @@ class RepMachine:
             # here means the plan said otherwise, and holding is still the safe reading.
             return self._emit("waiting for a force reading before taking up slack", law=Law.STILL)
         assert inp.force_n is not None
-        if inp.force_n >= self.limits.pretension_n:
+        if inp.force_n >= self.pretension_n:
             return self._enter(Phase.CUEING, inp, "pre-tensioned, cueing the patient")
-        return self._emit(
-            f"taking up slack, {inp.force_n:.2f} of {self.limits.pretension_n:.2f} N"
-        )
+        return self._emit(f"taking up slack, {inp.force_n:.2f} of {self.pretension_n:.2f} N")
 
     def _cueing(self, inp: RepInput) -> RepStep:
         """Show the instruction and wait for the phase's driver to act.

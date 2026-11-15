@@ -18,7 +18,9 @@ What is missing and why it matters:
 ``ticks_per_metre`` and ``yield_sign``
     How a displacement along the tether maps onto the servo's position register, and which way
     the register has to move to *reduce* tension. `control.loop.AxisCalibration` consumes both.
-    Pose-dependent, so they are only valid for the pose the session runs in.
+    Pose-dependent, so they are only valid for the pose the session runs in. Measured with a
+    ruler against the arm, **not** inferred from the force: see the note in `HOW_TO_MEASURE`,
+    which the measured 6 mm tether hysteresis settles.
 
 ``excursion_m``
     How far the attachment point on each fingertip travels along the tether axis through the
@@ -55,12 +57,19 @@ HOW_TO_MEASURE: dict[str, str] = {
         "PESOLA is the force reference."
     ),
     "ticks_per_metre": (
-        "Needs tether_n_per_m first. Lock the arm in the session pose (scripts/lock_arm.py), "
-        "anchor the PESOLA between the gripper and a fixed point with some pre-tension, and no "
-        "finger anywhere near it. Command a known tick delta on the motor that moves along the "
-        "tether axis, say 50 ticks, and read the force change off the camera. The displacement "
-        "is dF / k, so ticks_per_metre = d_ticks / (dF / k) and no ruler touches the arm. "
-        "Valid only for the pose it was measured in."
+        "Measure the displacement with a RULER ON THE ARM, not by inferring it from the force. "
+        "Lock the arm in the session pose (scripts/lock_arm.py), with no finger anywhere near "
+        "it. Mark the gripper's position against a fixed reference, command a known tick delta "
+        "on the motor that moves along the tether axis, and measure how far the mark moved: "
+        "ticks_per_metre = d_ticks / d_metres. Move as far as the pose safely allows, since the "
+        "~1 mm ruler reading is a fixed error that a longer move divides down (3 % over 30 mm). "
+        "Valid only for the pose it was measured in.\n\n"
+        "    Do NOT use dx = dF / k for this, which an earlier version of these instructions "
+        "recommended. The measured tether hysteresis is 6 mm (data/tether_stiffness.csv), and "
+        "any displacement inferred from a force reading inherits that as a floor: 40 % error "
+        "over a 15 mm move, and 10 % even over 60 mm, which is most of the tether's ~110 mm of "
+        "usable travel. A ruler at 30 mm beats the force method at 100 mm by an order of "
+        "magnitude."
     ),
     "yield_sign": (
         "Falls out of the ticks_per_metre measurement: it is the sign of the tick delta that "

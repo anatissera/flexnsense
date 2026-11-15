@@ -12,9 +12,9 @@ from session.protocol import Block
 from session.reps import RepInput, RepLimits, RepMachine
 
 CAP_N = grams_force_to_newtons(200)
-#: What ARMED drives towards: the resting tension between repetitions, well under the cap so
+#: What ARMED drives towards: the resting tension between repetitions, a fraction of the cap so
 #: RAMP is a real phase and the finger is not held at a therapeutic force while being cued.
-PRETENSIONED = RepLimits().pretension_n
+PRETENSIONED = CAP_N * RepLimits().pretension_fraction
 #: Started moving, but still below the cap. This is the RAMP band.
 RAMPING = PRETENSIONED + RepLimits().start_delta_n + 0.01
 
@@ -353,16 +353,35 @@ def _run_active_rep(c: Clock):
 
 
 def test_a_pretension_that_erases_the_ramp_is_rejected_up_front():
-    """The bug a test found rather than a finger: pre-tensioning to within start_delta_n of the
-    cap makes starting and reaching the cap the same event, so RAMP has no duration and the
-    patient is at the therapeutic force before being cued."""
+    """The bug a test found rather than a finger: resting within start_delta_n of the cap makes
+    starting and reaching the cap the same event, so RAMP has no duration and the patient is at
+    the therapeutic force before being cued."""
     with pytest.raises(ValueError, match="no duration"):
-        RepMachine(active(), RepLimits(pretension_n=CAP_N - 0.05, start_delta_n=0.15))
+        RepMachine(active(), RepLimits(pretension_fraction=0.97, start_delta_n=0.15))
 
 
-def test_a_low_cap_with_the_default_pretension_is_rejected_rather_than_silently_odd():
-    """A clinician setting a 60 gf cap would otherwise get a block whose ramp cannot exist."""
-    low = Block(finger="index", mode="active", reps=2,
-                cap_n=grams_force_to_newtons(60), hold_s=0.5)
-    with pytest.raises(ValueError, match="Lower pretension_n"):
-        RepMachine(low)
+def test_resting_at_or_above_the_cap_is_rejected():
+    with pytest.raises(ValueError, match="below 1.0"):
+        RepLimits(pretension_fraction=1.0)
+
+
+@pytest.mark.parametrize("cap_gf", [40, 50, 60, 100, 200, 300, 450])
+def test_the_whole_clinical_cap_range_works(cap_gf):
+    """The reason pre-tension is a fraction of the cap and not an absolute force: the early
+    post-surgical caps are the clinically interesting ones, and a fixed 0.5 N rejected a 60 gf
+    prescription outright. Dynamic finger splints work in the 0-to-450 gf band."""
+    m = RepMachine(Block(finger="index", mode="active", reps=2,
+                         cap_n=grams_force_to_newtons(cap_gf), hold_s=0.5))
+    assert 0 < m.pretension_n < grams_force_to_newtons(cap_gf)
+    # And the ramp is a real phase at every one of them.
+    assert grams_force_to_newtons(cap_gf) - m.pretension_n > RepLimits().start_delta_n
+
+
+def test_the_resting_tension_scales_with_the_cap():
+    """A gentler prescription rests gentler, rather than resting at a fixed force that could be
+    most of a low cap."""
+    gentle = RepMachine(Block(finger="index", mode="active", reps=2,
+                              cap_n=grams_force_to_newtons(50), hold_s=0.5))
+    firm = RepMachine(Block(finger="index", mode="active", reps=2,
+                            cap_n=grams_force_to_newtons(400), hold_s=0.5))
+    assert gentle.pretension_n < firm.pretension_n

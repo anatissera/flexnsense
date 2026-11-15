@@ -1,6 +1,7 @@
 import pytest
 
 from session.calibration import (
+    HOW_TO_MEASURE,
     UNMEASURED_TETHER_ESTIMATE_N_PER_M,
     BenchCalibration,
     NotMeasured,
@@ -144,3 +145,43 @@ def test_a_partially_measured_calibration_round_trips(tmp_path):
 def test_a_typo_in_a_key_is_not_silently_ignored():
     with pytest.raises(ValueError, match="unknown calibration keys"):
         BenchCalibration.from_dict({"tether_N_per_m": 54.0})
+
+
+# ---------------------------------------------------------------- the real rig's file
+def test_the_committed_bench_calibration_loads_and_reports_what_is_missing():
+    """config/calibration/bench.json is the real rig, partially measured. The point of the
+    `None` fields is that this is a normal, loadable state rather than an error."""
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / "config/calibration/bench.json"
+    c = BenchCalibration.load(path)
+    assert c.tether_n_per_m == pytest.approx(56.2)
+    assert not c.complete
+    assert c.missing == ["ticks_per_metre", "yield_sign", "excursion_m"]
+    # The measured half is usable now; the unmeasured half still refuses.
+    assert c.stretch_to_reach_m(1.96) == pytest.approx(0.0349, abs=0.001)
+    with pytest.raises(NotMeasured):
+        c.require_axis()
+
+
+def test_the_measured_tether_is_stiffer_than_the_datasheet_shortcut():
+    """The direction of the correction matters: every force-per-millimetre figure derived from
+    the old 53.9 N/m estimate understated the force, so the error was on the unsafe side."""
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / "config/calibration/bench.json"
+    measured = BenchCalibration.load(path).require_tether_n_per_m()
+    assert measured > UNMEASURED_TETHER_ESTIMATE_N_PER_M
+
+
+def test_the_measured_hysteresis_rules_out_inferring_displacement_from_force():
+    """Why HOW_TO_MEASURE tells you to use a ruler on the arm. 6 mm over any move the tether's
+    ~110 mm of travel allows is a worse error than a 1 mm ruler reading."""
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / "config/calibration/bench.json"
+    c = BenchCalibration.load(path)
+    assert c.uncertainty_fraction_at(0.015) > 0.3      # 15 mm move: over 30 % error
+    assert c.uncertainty_fraction_at(0.060) > 0.09     # even 60 mm: still ~10 %
+    assert "ruler" in HOW_TO_MEASURE["ticks_per_metre"].lower()
+    assert "Do NOT use dx = dF / k" in HOW_TO_MEASURE["ticks_per_metre"]

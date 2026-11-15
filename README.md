@@ -12,7 +12,7 @@ By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
 [![NormaCore ElRobot](https://img.shields.io/badge/arm-NormaCore_ElRobot_7%2B1_DOF-0b7285)](./docs/elrobot.md)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](./SETUP.md)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)](./gauge_reader)
-[![Tests: 376 passing](https://img.shields.io/badge/tests-376_passing-success)](./tests)
+[![Tests: 585 passing](https://img.shields.io/badge/tests-585_passing-success)](./tests)
 [![Status: prototype](https://img.shields.io/badge/status-prototype-orange)](#status)
 
 ![Arm A holds the hand, the finger pulls on a PESOLA spring scale held by arm B, a camera reads grams, the clinician sets the cap remotely](docs/images/concept.svg)
