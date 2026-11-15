@@ -188,3 +188,15 @@ The `lib/` package knows nothing about the scale, so robot and calibration scrip
 ## Privacy
 
 Frames are processed in memory and never saved. The CSV holds only times and grams. The optional `--record` mode saves only a narrow strip around the scale, never the full picture (the camera may also see the person using it).
+
+## Showing the force in the dashboard
+
+The dashboard can use the scale as its force input, in place of the constant 20 N it otherwise assumes.
+
+1. Calibrate as usual (`python -m gauge_reader calibrate`), so `config/scale_calib.json` exists.
+2. Start the server: `python -m gauge_reader.server` (listens on `ws://127.0.0.1:8766/force`; needs `fastapi` and `uvicorn`).
+3. In the dashboard, under the camera controls, pick the camera that sees the scale in **Force camera** and press **Start force**. The browser owns the camera, so a machine with several can dedicate one to the scale and another to the hand. **Zero (unloaded)** tares the reading.
+
+Each JPEG frame the browser sends is measured by the same pipeline as `run` and discarded (nothing is written to disk). The reply is `{found, newtons, grams, stable, confidence, reason, inferenceMs}`. `newtons` and `grams` are `null` when there is no recent measurement. The dashboard treats a null or a reading older than 0.5 s as no force: the fingertip arrow disappears and the analysis records 0 N for that sample. It never holds the last value.
+
+The hand camera must also be on, since the live analysis is driven by the tracked finger. Starting the force camera while the hand camera is already on works; stopping it returns the analysis to the 20 N assumption.
