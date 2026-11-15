@@ -73,3 +73,7 @@ data/*.jsonl
 # NOT ignored, on purpose: config/calibration/*.json. The arm's joint-range calibration lives
 # in the servo firmware and the bench constants describe the physical rig, so neither is per
 # machine and the team shares both. See config/calibration/bench.md.
+
+# ManiSkill lives in its own environment (sim/setup_env.sh): torch, SAPIEN and a Vulkan
+# runtime, several gigabytes, kept out of the repo's .venv so the tests still run with no GPU.
+sim/venv/
