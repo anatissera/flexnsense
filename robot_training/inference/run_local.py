@@ -29,9 +29,11 @@ def main() -> None:
     runner = load_runner(args.checkpoint, device=args.device, n_action_steps=args.n_action_steps)
     print(f"policy {runner.cfg.type} en {runner.device} | chunk {runner.chunk_size} | ejecuta {runner.n_action_steps}")
 
-    async def get_chunk(state, jpeg_by_view, task):
+    args.hand_dim = runner.state_dim - 8      # 5 si la policy se entrenó con las yemas de los dedos
+
+    async def get_chunk(state, jpeg_by_view, task, prev=None):
         chunk, ms = await asyncio.get_running_loop().run_in_executor(
-            None, runner.predict_from_jpegs, state, jpeg_by_view, task)
+            None, runner.predict_from_jpegs, state, jpeg_by_view, task, prev)
         return chunk, runner.n_action_steps, f"(inferencia {ms:.0f} ms)"
 
     asyncio.run(run_control(args, get_chunk, logging.getLogger("run_local")))

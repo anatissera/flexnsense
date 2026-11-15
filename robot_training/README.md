@@ -19,6 +19,9 @@ Station directamente.
 | `inspect_normacore.py` | Revisa un dataset antes de convertirlo (fps, huecos, cámaras) |
 | `convert_normacore.py` | Parquet NormaCore → LeRobotDataset |
 | `train_act.sh` | Entrena ACT (y sube el resultado si se le da un repo) |
+| `train_diffusion.sh` | Entrena Diffusion Policy (sección 3c) |
+| `hand_features.py` + `inference/hand_source.py` | Yemas de los dedos como entrada de la policy (sección 3d) |
+| `inference/check_hand.py` | Comprueba que la fuente de yemas de inferencia coincide con el dataset |
 | `normalize_cameras.py` + `train_smolvla.sh` | Fine-tune de SmolVLA con la receta de NormaCore (sección 3b) |
 | `upload_model.py` | Sube un checkpoint a Hugging Face con su model card |
 | `inference/run_local.py` | Inferencia con la policy en la misma máquina que el robot |
@@ -234,6 +237,108 @@ GPU al 100 %. 12 000 pasos ≈ 6 h (91 épocas de 8465 frames); 30 000 pasos ≈
 - Usa la frase del dataset guardada en `elrobot.json`; `--task "..."` para otra.
 - El `scripts/run_policy.py` de NormaCore no sirve aquí: lee las cámaras por índice, asume 6
   motores y falla al predecir por mezclar bf16 con float32 (aquí se usa autocast).
+
+---
+
+## 3c. Diffusion Policy
+
+Misma entrada que ACT (el LeRobotDataset del paso 1.3) y mismo uso que `train_act.sh`. Sin
+lenguaje ni modelo preentrenado grande: ResNet18 por cámara + U-Net, 293 M de parámetros.
+
+```bash
+tmux new -s diffusion
+DATASET=JustoDario/flexnsense_skill1_lerobot RUN=diffusion_flexnsense_skill1_h16 bash train_diffusion.sh
+```
+
+| Variable | Por defecto | Qué es |
+|---|---|---|
+| `STEPS` / `BATCH` / `SAVE_FREQ` | 40000 / 64 / 10000 | pasos, batch y cada cuánto guarda |
+| `HORIZON` | 16 | acciones que predice: 1.6 s a 10 Hz (múltiplo de 8) |
+| `N_ACTION_STEPS` | 8 | cuántas ejecuta antes de re-planificar: 0.8 s |
+| `N_OBS_STEPS` | 2 | observaciones que ve: el frame actual y el anterior |
+| `CROP` | 200 | recorte aleatorio de las imágenes 224x224 al entrenar |
+| `INFER_STEPS` | 10 | pasos de denoising (DDIM) en inferencia |
+| `HF_REPO`, `TASK`, `RESUME`, `OUT_ROOT`, `LOG_DIR` | | igual que en `train_act.sh` |
+
+- Los valores por defecto de LeRobot (horizon 64, n_action_steps 32) son para 30 Hz; a 10 Hz serían
+  6.4 s y 3.2 s. Los de aquí son los del Diffusion Policy original.
+- Checkpoints, progreso, reanudar y subida (`upload_model.py`): igual que ACT (secciones 1.4 y 3).
+- Necesita `diffusers`: `setup_env.sh` ya lo instala; en un entorno anterior,
+  `uv pip install -e "lerobot[diffusion]"` (también en la máquina que haga la inferencia).
+- **Inferencia:** los scripts de la sección 4 con la carpeta `pretrained_model`. Como la policy
+  necesita dos frames consecutivos, `control.py` le pasa también el del tick anterior (en modo
+  remoto el cliente lo envía en la misma petición). Re-planifica cada 8 ticks.
+
+Referencia medida (RTX PRO 4000 Blackwell): 2.7 pasos/s con batch 64, 11 GB de VRAM;
+30 000 pasos ≈ 3 h (227 épocas de 8465 frames).
+
+---
+
+## 3d. Yemas de los dedos como entrada de la policy
+
+El script de data collection guarda en cada frame la mano detectada en la cámara `side`
+(columnas `hand_camera`, `hand_detected`, `hand_is_right`, `hand_keypoints_2d`,
+`hand_fingertips_2d`, `hand_keypoints_3d`). Como la tarea es llevar la anilla del índice al
+corazón, a la policy se le dan las dos yemas ya calculadas: 5 valores más en `observation.state`.
+
+| `observation.state` | Qué es |
+|---|---|
+| 0-7 | `motor_1.pos` ... `motor_8.pos` (`position_norm`) |
+| 8, 9 | `hand.index_x`, `hand.index_y`: yema del índice en la imagen `side`, fracción de ancho y alto (0..1) |
+| 10, 11 | `hand.middle_x`, `hand.middle_y`: yema del corazón |
+| 12 | `hand.detected`: 1 si hay mano en ese frame |
+
+En los frames sin mano se repite la última detección del episodio con `hand.detected = 0`
+(`hand_features.py`, la misma regla al convertir y en inferencia). La acción sigue siendo de 8.
+
+**Convertir y entrenar** (ACT o Diffusion; el resto, igual que en las secciones 1.4 y 3c):
+
+```bash
+python convert_normacore.py --src ~/data/flexnsense_skill1_raw \
+    --repo-id JustoDario/flexnsense_skill1_83ep_hand_lerobot --ref-views side,gripper,table --hand dataset
+
+DATASET=JustoDario/flexnsense_skill1_83ep_hand_lerobot RUN=act_flexnsense_skill1_83ep_hand_c30 bash train_act.sh
+```
+
+| `--hand` | De dónde salen las yemas | En inferencia |
+|---|---|---|
+| `none` (por defecto) | no se usan: estado de 8 | nada que hacer |
+| `dataset` | columnas `hand_*` del Parquet (WiLoR) | `--hand-source wilor` (por defecto) |
+| `mediapipe` | se recalculan al convertir con MediaPipe (CPU; `uv pip install mediapipe`) | `--hand-source mediapipe` |
+
+- Con `--hand dataset` el conversor comprueba que `hand_camera` es el `images[]` que él asigna a
+  `side`; si no coincide, aborta (cámaras mal asignadas).
+- En `flexnsense_skill1` (83 episodios, 15 766 frames) las columnas del dataset tienen mano en el
+  99.5 % de los frames. MediaPipe sobre los mismos JPEG, el 92.6 %, y en algunos episodios menos
+  de la mitad; además difiere de las columnas en ~0.01 (mediana; 2 px de 224) y hasta 0.04 (p95).
+  Por eso la fuente recomendada es `dataset` + WiLoR.
+- **La fuente de inferencia tiene que ser la del entrenamiento.** Una policy entrenada con las
+  columnas de WiLoR y ejecutada con MediaPipe recibe coordenadas desplazadas y pierde la mano a menudo.
+- SmolVLA (sección 3b) no usa estas columnas todavía.
+
+**Inferencia.** Los scripts de la sección 4 detectan solos que el checkpoint espera 13 valores.
+Las yemas se calculan en la máquina del robot (`control.py`), sobre el JPEG de `side`, cada vez
+que se pide un chunk; en modo remoto viajan dentro del estado, así que el servidor no necesita WiLoR.
+
+```bash
+export WILOR_ROOT=/ruta/a/WiLoR          # checkout de WiLoR con sus pesos (o --wilor-root)
+cd inference
+# 1) ¿da WiLoR lo mismo que hay grabado? Debe acabar en "OK: es la misma fuente que el dataset"
+python check_hand.py --parquet ~/data/flexnsense_skill1_raw/data/<task>/episode_0070.parquet --hand-source wilor
+# 2) sin robot, con las yemas grabadas (--hand dataset, por defecto) o calculadas en vivo (--hand live)
+python selftest.py --parquet <episode.parquet> local --checkpoint <pretrained_model>
+python selftest.py --parquet <episode.parquet> --hand live --hand-source wilor local --checkpoint <pretrained_model>
+# 3) en el brazo
+python run_local.py --checkpoint <pretrained_model> --bus-serial <SERIAL_FOLLOWER> --dry-run
+```
+
+- `hand_source.py` usa `hand_tracking/wilor_source.py` de este repo (`WilorTracker`, modo rápido
+  fp16): necesita el entorno de WiLoR (torch, ultralytics) **en el mismo Python** que la policy.
+  En una RTX 3050: ~90 ms por imagen y ~1.7 GB de VRAM, además de la policy.
+- En cada petición de chunk se imprime `[mano N ms: índice (x, y) corazón (x, y)]` o `SIN MANO`.
+- El paso 1 es obligatorio la primera vez: `check_hand.py` no se ha podido ejecutar con WiLoR en
+  la máquina de entrenamiento (no tiene WiLoR), solo con MediaPipe. Si no da OK, la configuración
+  de WiLoR de `hand_source.py` no es la del script de data collection y hay que igualarla.
 
 ---
 
@@ -462,6 +567,8 @@ Antes de confirmar `[s/N]` abre `camera_preview.jpg` y comprueba que es `side | 
 - **Ningún script de `inference/` se ha ejecutado contra el robot real**: el arranque de torque y
   el envío real de comandos están escritos según el código de norma-core, pero sin verificar en hardware.
 - El reconocimiento de cámaras con otra iluminación o con las cámaras movidas.
+- La fuente WiLoR de inferencia (`hand_source.py`, sección 3d): escrita contra `hand_tracking/wilor_source.py`
+  pero sin ejecutar. Con las yemas grabadas (`selftest.py --hand dataset`) y con MediaPipe sí está probado.
 - SmolVLA (sección 3b) en el brazo: el entrenamiento y la inferencia contra un Station simulado
   están probados; el comportamiento en el robot real, no.
 

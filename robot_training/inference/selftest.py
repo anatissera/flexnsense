@@ -61,6 +61,11 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--parquet", required=True)
     p.add_argument("--ticks", type=int, default=80)
+    p.add_argument("--hand", choices=["dataset", "live"], default="dataset",
+                   help="policies con yemas de los dedos: 'dataset' usa las columnas hand_* del Parquet (lo que "
+                        "vio el entrenamiento con --hand dataset); 'live' las calcula con --hand-source")
+    p.add_argument("--hand-source", default=None, help="con --hand live: wilor | mediapipe")
+    p.add_argument("--wilor-root", default=None)
     p.add_argument("--drop-camera", type=int, default=None,
                    help="simula que Station no tiene abierta la cámara images[N] (prueba del diagnóstico)")
     sub = p.add_subparsers(dest="mode", required=True)
@@ -81,8 +86,17 @@ def main():
     control.send_commands = fake.send_commands
     control.safe_enable_torque = _noop
     control.set_torque = _noop
+    if a.hand == "dataset" and "hand_fingertips_2d" in fake.t:
+        # fuente falsa: devuelve lo grabado para ese frame (se busca por el contenido de la imagen)
+        recorded = {}
+        for i in range(fake.n):
+            rgb = station_io.decode_rgb(fake.t["images"][i][fake.t["hand_camera"][i]]["jpeg"])
+            recorded[rgb.tobytes()] = (np.array(fake.t["hand_fingertips_2d"][i][2:6], np.float32)
+                                       if fake.t["hand_detected"][i] else None)
+        control.HAND_SOURCE_OVERRIDE = lambda rgb: recorded[rgb.tobytes()]
 
     sys.argv = [sys.argv[0], "--yes", "--max-ticks", str(a.ticks)]
+    sys.argv += (["--hand-source", a.hand_source] if a.hand_source else []) + (["--wilor-root", a.wilor_root] if a.wilor_root else [])
     if a.mode == "local":
         import run_local
         sys.argv += ["--checkpoint", a.checkpoint] + (["--device", a.device] if a.device else [])
