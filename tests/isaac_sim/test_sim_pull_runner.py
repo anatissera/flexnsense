@@ -108,3 +108,24 @@ def test_no_force_reading_stops_instead_of_guessing(tmp_path):
     state, _ = start_state()
     with pytest.raises(ForceLost):
         runner.predict_from_jpegs(state, {}, "")
+
+
+def test_the_stop_message_says_why_the_force_is_missing(tmp_path):
+    class Lost:
+        def __call__(self):
+            return None
+
+        def why(self):
+            return "error: no calibration at config/scale_calib.json"
+
+    runner, _ = make(tmp_path, [0, 0, 0, 0, 0], Lost())
+    state, _ = start_state()
+    with pytest.raises(ForceLost, match="no calibration at config/scale_calib.json"):
+        runner.predict_from_jpegs(state, {}, "")
+
+
+def test_camera_force_reports_a_missing_calibration_at_once(tmp_path):
+    from sim_pull_runner import CameraForce
+
+    with pytest.raises(RuntimeError, match="no calibration"):  # in the caller's thread, with the real message
+        CameraForce(0, calib=str(tmp_path / "missing.json"))

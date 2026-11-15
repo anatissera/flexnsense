@@ -22,13 +22,18 @@ what does not is stated plainly below and in [docs/06-limits-and-next.md](docs/0
 
 The policy plugs into the control loop of branch `feature/robot-training` without changing it: it takes the eight
 `position_norm` values of a Station frame and returns `goal_norm`, 10 times a second, and that loop's Station code
-and tick-level safety (`GoalSafety`) do the rest. The camera pictures are not used; the force comes from
-`gauge_reader.server`.
+and tick-level safety (`GoalSafety`) do the rest. Station's camera pictures are not used; the force comes from
+`gauge_reader` reading the scale's own camera inside the same process.
 
-**What you need:** the environment of `robot_training/setup_env.sh` (it already has torch, numpy and norma-core's
-`station_py`), plus `websockets` for the force reading (`uv pip install websockets`), and this repository's own
-environment for `gauge_reader`. Both branches checked out together (merge one into the other, or pass
-`--robot-training <path to robot_training/inference>`).
+**What you need:** the environment of `robot_training/setup_env.sh`. It already has everything: torch, numpy,
+OpenCV and norma-core's `station_py`. No extra package. Run from a checkout that has both this folder and
+`robot_training/` (merge one branch into the other, or pass `--robot-training <path to robot_training/inference>`).
+On Linux, `python -m gauge_reader cameras` lists the cameras once pull request #45 is merged; until then pass the
+camera's number.
+
+**If you already ran `run_pull_on_robot.py` with `pull_v1`:** that was the first policy (60 decisions a second, one
+exact servo model, no margin). Use `pull_bench_v1` with `run_pull_local.py` instead. The first policy trained the
+same way as `pull_bench_v1` but without the margin went over the force limit in the self-test below.
 
 ### 1. Unit tests (no robot)
 
@@ -81,7 +86,8 @@ checking for it too.
 ### 4. Set up the bench
 
 1. Station running, the follower with torque, the leader without (as in `robot_training/README.md`, section 4.1).
-2. The scale reading: `.venv/bin/python -m gauge_reader.server` (WebSocket `/force`, port 8766). This opens the camera.
+2. The scale's calibration on this machine: `config/scale_calib.json` (it is per machine and not in git; make it with
+   `python -m gauge_reader calibrate`). The script opens the scale's camera itself (`--force-camera`).
 3. The arm in the start posture used in training, jaws closed on the scale's ring, the scale level and in line with
    the arm. As `position_norm` for motors 1 to 7 (with all directions +1): 0.50, 0.51, 0.80, 0.52, 0.45, 0.07, 0.54.
    The policy tolerates about 0.1 rad around it; further away it has not been trained.
@@ -91,19 +97,22 @@ checking for it too.
 ```bash
 source ~/robot_env/env.sh
 python isaac-sim/policies/run_pull_local.py --policy isaac-sim/policies/pull_bench_v1 \
-    --bus-serial <FOLLOWER SERIAL> --camera-order side,gripper,table --dry-run
+    --force-camera <N> --bus-serial <FOLLOWER SERIAL> --camera-order side,gripper,table --dry-run
 python isaac-sim/policies/run_pull_local.py --policy isaac-sim/policies/pull_bench_v1 \
-    --bus-serial <FOLLOWER SERIAL> --camera-order side,gripper,table --max-ticks 30
+    --force-camera <N> --bus-serial <FOLLOWER SERIAL> --camera-order side,gripper,table --max-ticks 30
 ```
 
-`--camera-order` only stops the loop from trying to recognise cameras the policy does not use; the loop still needs
-Station to publish its three pictures. In the dry run nothing is sent. Pull on the scale by hand and watch the line
+`--force-camera` is the camera that looks at the scale. `--camera-order` only stops the loop from trying to recognise
+Station's cameras, which the policy does not use; the loop still needs Station to publish its three pictures. Before
+anything moves, the script loads the calibration, opens the scale camera and waits for a first reading; if any of that
+fails it stops there and prints the real cause (missing calibration file, camera that will not open, scale not found
+in the picture). In the dry run nothing is sent. Pull on the scale by hand and watch the line
 printed every second: "force" must follow the scale, "along" must be about 0 mm at rest, the action must stay near 0
 while the force is low and go the same way every time the force passes about 1.6 N (160 gf).
 
 What protects the arm: `GoalSafety` from `robot_training` (goal change limited per tick, abort if a goal is far from
-the position), a target that never runs more than 0.6 rad ahead of the arm, and a hard stop when the scale reading is
-missing for 0.3 s. On that stop the arm **keeps holding** its last goal, as that loop does; it does not release. The
+the position), a target that never runs more than 0.6 rad ahead of the arm, and a hard stop, with the reason printed,
+when the scale reading is missing for 0.3 s. On that stop the arm **keeps holding** its last goal, as that loop does; it does not release. The
 limits in `robot_training/README.md` section 4.0 apply here as well: do not use it with a patient's hand.
 
 ## Get the earlier policies, the videos and the recorded episodes
@@ -204,7 +213,8 @@ cloud/nebius/           create / start / stop / copy files to the workstation
 assets/elrobot/         NormaCore's ElRobot model (Apache-2.0, see LICENSE and SOURCE.txt there)
 policies/               pull_bench_v1 (the policy to test), the runner for robot_training's control loop
                         (sim_pull_runner.py, run_pull_local.py), the no-robot self-test (selftest_pull.py),
-                        and the measurements and settings of the earlier policies
+                        check_directions.py, and the measurements and settings of the earlier policies.
+                        run_pull_on_robot.py is the first bridge script, kept for whoever already uses it
 ```
 
 Start with [docs/README.md](docs/README.md).

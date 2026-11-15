@@ -3,7 +3,7 @@
 It has the same surface as the runners in robot_training/inference/policy_runner.py: `predict_from_jpegs(state,
 jpeg_by_view, task, prev)` takes the eight `position_norm` values of a Station frame and returns goals as
 `goal_norm`, so the existing control loop, its Station code and its tick-level safety layer are used unchanged.
-The camera pictures are ignored; the force comes from the scale reader (gauge_reader.server).
+Station's camera pictures are ignored; the force comes from gauge_reader reading the scale's own camera (CameraForce).
 
 Units. The policy was trained in radians from the URDF's zero pose. A Station frame gives each joint as a fraction of
 its calibrated range. The follower's calibrated ranges match the URDF joint limits (motor 6: 2048 ticks = 3.1416 rad,
@@ -99,31 +99,54 @@ def rad_to_norm(rad: np.ndarray, lower: np.ndarray, upper: np.ndarray, direction
 
 # ─────────────────────────────── the force, from the scale reader ──────────────────────────────────────
 
-class GaugeForce:
-    """Keeps the latest reading of gauge_reader.server (WebSocket /force) in a background thread."""
+class CameraForce:
+    """Reads the scale with gauge_reader, in this process, from its camera.
 
-    def __init__(self, url: str = "ws://localhost:8766/force", stale_s: float = 0.3):
-        self.url, self.stale_s = url, stale_s
+    The calibration is loaded and the camera opened in the caller's thread, so a missing calibration file or a camera
+    that will not open stops the program at once with the real message. (gauge_reader reports those with SystemExit,
+    which vanishes without a trace when raised inside a thread.) Reading then continues in a background thread; an
+    error there is kept and shown by `why()`.
+    """
+
+    def __init__(self, camera: int | str, calib: str = "config/scale_calib.json", stale_s: float = 0.3):
+        try:
+            from gauge_reader.cli import _load_calibration, make_pipeline
+            from lib.camera import open_camera
+
+            self.pipe = make_pipeline(_load_calibration(calib))
+            self.source = open_camera(int(camera) if str(camera).lstrip("-").isdigit() else camera)
+        except SystemExit as e:
+            raise RuntimeError(f"scale reading: {e}") from None
+        self.stale_s, self.error, self.reason = stale_s, None, None
         self._value: float | None = None
         self._t = 0.0
         threading.Thread(target=self._run, daemon=True).start()
 
     def _run(self) -> None:
-        from websockets.sync.client import connect
-
-        while True:
-            try:
-                with connect(self.url) as ws:
-                    for msg in ws:
-                        d = json.loads(msg)
-                        ok = d.get("found") and d.get("newtons") is not None
-                        self._value, self._t = (float(d["newtons"]) if ok else None), time.monotonic()
-            except Exception:
-                self._value = None
-                time.sleep(0.5)
+        try:
+            while True:
+                ok, frame, ts, _ = self.source.read()
+                if not ok:
+                    self.error = "the scale camera stopped giving pictures"
+                    break
+                result = self.pipe.process(frame, ts)
+                found = bool(result.found) and result.newtons is not None
+                self._value, self.reason = (float(result.newtons) if found else None), getattr(result, "reason", None)
+                self._t = time.monotonic()
+        except BaseException as e:  # including SystemExit: keep the cause instead of losing it with the thread
+            self.error = f"{type(e).__name__}: {e}"
+        self._value = None
 
     def __call__(self) -> float | None:
-        return self._value if time.monotonic() - self._t < self.stale_s else None
+        return self._value if self.error is None and time.monotonic() - self._t < self.stale_s else None
+
+    def why(self) -> str:
+        """Why there is no reading right now, in words."""
+        if self.error:
+            return self.error
+        if time.monotonic() - self._t >= self.stale_s:
+            return f"no picture from the scale camera in the last {self.stale_s} s"
+        return f"the scale was not found in the picture ({self.reason or 'no reason given'})"
 
 
 def _load_policy(path: Path):
@@ -190,7 +213,8 @@ class SimPullRunner:
         q = norm_to_rad(state[:7], self.arm.lower, self.arm.upper, self.directions)
         force = self.force()
         if force is None:
-            raise ForceLost("no fresh reading of the scale: stopping (the arm keeps its last goal)")
+            why = self.force.why() if hasattr(self.force, "why") else "no fresh reading"
+            raise ForceLost(f"no reading of the scale ({why}): stopping. The arm keeps its last goal")
         if self._first:
             self.hold = state.copy()  # motors 5, 7 and the gripper stay where they are now
             self.target, self.q_prev, self.force_prev = q.copy(), q.copy(), float(force)

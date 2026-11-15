@@ -93,7 +93,8 @@ The steps are in the folder's main [README](../README.md), section "Test the pul
 `robot_training/inference`". In short: the policy to use is `pull_bench_v1` in this folder; `sim_pull_runner.py`
 turns it into a runner for the control loop of branch `feature/robot-training`; `run_pull_local.py` starts that loop
 with it; `selftest_pull.py` tests the whole chain without a robot; `check_directions.py` prints what each motor
-should do, to check the motor directions by hand.
+should do, to check the motor directions by hand. `run_pull_on_robot.py` is the first bridge script (for `pull_v1`, straight to
+Station); it is kept as it was for whoever already uses it.
 
 ## 4. How to upload to Hugging Face (push), from the cloud
 

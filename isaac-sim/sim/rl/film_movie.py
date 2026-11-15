@@ -57,6 +57,9 @@ if os.environ.get("FILM_TEST"):  # a quick look: a few pictures of a close view 
 def main():
     from flex_tasks.pull_env_cfg import PullBenchEnvCfg
 
+    if args_cli.bench:  # this policy trained for 19 minutes, not 8
+        STAGES[:] = [(a, b, c, d.replace("after 8 minutes of training", "after 19 minutes of training")) for a, b, c, d in STAGES]
+
     env_cfg = PullBenchEnvCfg() if args_cli.bench else PullEnvCfg()
     n = args_cli.side**2
     env_cfg.scene.num_envs = n

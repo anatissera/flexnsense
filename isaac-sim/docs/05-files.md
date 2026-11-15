@@ -7,7 +7,11 @@ isaac-sim/
 ├── process/                        this folder
 ├── policies/
 │   ├── README.md                   get the policies, upload them, put the pull policy on the robot
-│   ├── run_pull_on_robot.py        reference bridge policy -> Station (never run on hardware; dry run by default)
+│   ├── pull_bench_v1/              the pull policy prepared for the robot (full bench, 10 decisions a second)
+│   ├── sim_pull_runner.py          makes it a runner for robot_training/inference/control.py
+│   ├── run_pull_local.py           starts that control loop with it (dry run first)
+│   ├── selftest_pull.py            the whole chain against a stand-in arm and scale, no robot
+│   ├── check_directions.py         what each motor should do, to check directions by hand
 │   ├── pull_v1/                    policy.onnx, policy.pt, checkpoint, settings, summary.json, trace.csv
 │   └── move_v1/                    the move arm's latest state and NOTES.md
 ├── videos/                         every video shown, numbered 01 to 10+
@@ -28,6 +32,7 @@ isaac-sim/
     ├── 04_show_loop.py, 05_bench_scene.py, 06_move_scale.py, 07_two_arms.py     earlier scenes
     ├── 08_physical_scale.py        two arms, physical scale, real pinch and carry (scripted)
     ├── 09_fix_gripper_usd.py       writes the corrected arm model
+    ├── 10_make_hand_usd.py         writes the hand used on the training bench
     ├── dbg_gripper.py              the wrist-turn experiment
     ├── run_grip_tests.sh, record.sh    run tests / record a video of 08
     └── rl/
@@ -37,7 +42,7 @@ isaac-sim/
         ├── film_training.sh        the policy at several moments of its training, as one video
         ├── push_hf.py              upload to a private Hugging Face repo
         └── flex_tasks/
-            ├── __init__.py         the task ids: Flex-Pull-v0, Flex-Move-v0
+            ├── __init__.py         the task ids: Flex-Pull-v0, Flex-Pull10-v0, Flex-PullBench-v0, Flex-Move-v0
             ├── pull_env.py, pull_env_cfg.py    the pull task and its settings
             ├── move_env.py, move_env_cfg.py    the move task and its settings
             └── agents.py           PPO settings
