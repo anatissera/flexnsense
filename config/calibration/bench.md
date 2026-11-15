@@ -44,17 +44,62 @@ the arm has a fixed ~1 mm reading error, so 3 % over 30 mm. The ruler wins by an
 magnitude, and `session.calibration.HOW_TO_MEASURE` now says so explicitly, including that an
 earlier version of those instructions recommended the force method, so nobody reconstructs it.
 
+### Fingertip excursion: 98 to 114 mm
+
+Measured 2026-11-15 from hand-tracking recordings, one per finger
+(`scripts/measure_tip_excursion.py`).
+
+| Finger | Excursion |
+|---|---|
+| index | 114.1 mm |
+| middle | 111.1 mm |
+| ring | 99.9 mm |
+| pinky | 98.3 mm |
+
+Thumb not measured.
+
+**Caveat on what this number is.** It was taken with no tether rigged, so it is the travel along
+the dominant axis of the finger's own motion, not the projection onto a particular pull
+direction. Any real tether axis will be at some angle to that, so these are an **upper bound**
+on the projected excursion. Re-measure once the tether geometry is fixed if the margin matters.
+
+### What those two numbers together mean for the travel limit
+
+This is the consequence worth reading before anyone runs a session. With the measured tether and
+a 200 gf cap resting at a quarter of it:
+
+- reaching the cap from slack takes **34.9 mm** of stretch;
+- at rest the tether is already stretched 8.7 mm, so the `RAMP` phase costs **26.2 mm** of the
+  patient's range before any of it is the exercise;
+- the rest is exercise, and at constant force the arm displaces one for one with the finger.
+
+| Finger | Excursion | Ramp | Exercise, so arm travel | Against the 50 mm default |
+|---|---|---|---|---|
+| index | 114.1 mm | 26.2 mm | 88.0 mm | **1.8x over** |
+| middle | 111.1 mm | 26.2 mm | 84.9 mm | **1.7x over** |
+| ring | 99.9 mm | 26.2 mm | 73.8 mm | **1.5x over** |
+| pinky | 98.3 mm | 26.2 mm | 72.2 mm | **1.4x over** |
+
+So `SafetyLimits.max_travel_m`, which defaults to 0.05 m, is between a third and a half of what
+a single full-range repetition needs. It would fire partway through the first rep of every
+block. docs/session-orchestration.md already called for splitting that limit into a per-rep
+allowance and an absolute bound; these are the numbers to size the per-rep one from, and the
+answer is roughly 90 mm plus a margin for the worst finger, not 50 mm.
+
+Note this does not mean the exercise is impossible, only that the limit is wrong. The tether's
+own travel is not the constraint during constant-force following: the stretch stays constant at
+34.9 mm while the arm follows, so only the ramp consumes the PESOLA's ~110 mm of scale.
+
 ## Not measured yet
 
 | Field | Blocked on | What it gates |
 |---|---|---|
 | `ticks_per_metre` | The arm being powered | Any arm motion at all: `control.loop.AxisCalibration` |
 | `yield_sign` | Same, falls out of the same measurement | Which way the arm moves to reduce tension |
-| `excursion_m` | A hand in the session pose, per finger | The per-rep travel allowance and `rom_target_m` |
 
-`excursion_m` needs only a camera and a hand, not the arm, so it is not blocked by the same
-thing. The script exists (`scripts/measure_tip_excursion.py`, `hand_tracking/excursion.py`);
-the measurement has not been taken.
+Procedure for both: [docs/bench-measurements.md](../../docs/bench-measurements.md), measurement 3.
+Note that it needs `--motor <id>`, which nothing in the repo records; that guide explains how to
+identify it safely with the tether slack.
 
 ## Pose dependence
 
