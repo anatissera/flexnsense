@@ -1,5 +1,11 @@
 # Force calibration: servo current → newtons
 
+> **Result, 2026-11-15: negative.** Run against the real follower, this came back as a
+> dead-zone, not a usable signal - see [force-calibration-result.md](./force-calibration-result.md)
+> for the data and why. Force sensing is entirely on the camera; the procedure below is kept
+> as the record of how that was established, and in case a different arm or servo is ever
+> calibrated this way again.
+
 Goal: find out whether arm B's servo current can stand in for a force sensor, and if so, fit the curve that converts it to a usable force signal.
 
 Do this **first**. The admittance controller's force signal comes from here, and if the answer is no, the whole force path has to move onto the camera instead - better to know on day one.
@@ -43,7 +49,7 @@ What you are calibrating is *force along the therapy axis*, not *weight hanging 
 1. Put arm B in **the exact pose it will hold during therapy**. The current↔force mapping depends on arm configuration - the moment arm changes as the arm moves - so a calibration taken in a different pose will not transfer. This matters more on the ElRobot than it would on a 5-joint arm: 7 joints for a 1-DOF task means the "pose" includes which joints you chose to lock, see [elrobot.md](./elrobot.md).
 2. Attach the PESOLA to the gripper using **the same attachment you will use with a patient**.
 3. Arrange the pull so the force acts **along the direction the finger will pull**. Easiest version: orient the rig so that direction is vertical and hang the weights directly. If the therapy axis is horizontal, run a string from the PESOLA over a pulley at the table edge and hang the weights off that.
-4. **Torque must be enabled** and the arm commanded to hold its pose. With torque off the motor draws no current and measures nothing.
+4. **Torque must be enabled** and the arm commanded to hold its pose. With torque off the motor draws no current and measures nothing. `scripts/lock_arm.py` does this: it reads each motor's current position, commands that same position back (so nothing moves), then enables torque on all 8 - confirm with `yes` when it asks, it is about to make the arm actively resist being moved.
 5. **Station must already be running**, pointed at this bus (`./station --web ... --tcp ...`), and this arm's joint ranges must already be calibrated in the web UI - an uncalibrated motor's readings aren't meaningful. `scripts/calibrate.py` checks this before you start.
 
 ## Procedure
