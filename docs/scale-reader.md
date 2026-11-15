@@ -151,6 +151,14 @@ Tuning: the filter's noise settings are currently set from test videos. To match
 
 A bonus for rehab: the filter also estimates the **rate of pull** (grams per second), which shows how quickly a patient builds force. It is available in the code (`velocity_g_s`) and could be added to the CSV and the therapist view.
 
+### Other red marks as references
+
+Two matching round dots are the most reliable references, and the only kind found automatically. If the scale has other fixed red marks instead (for example the printed red band next to the label at one end and a small red mark at the other), click them by hand at calibration: after the 0 and 600 clicks the window asks for sticker 1, then sticker 2. Each click snaps to the centre of the red mark under it, and the calibration file stores what the two marks look like (`ref_profile`: their size ratio, shape and redness). From then on the reader accepts only a pair that looks like those two, in that order, so a band and a small mark work even though they are not matching dots.
+
+A worked example with a USB webcam (camera settings, a calibration file, what was measured) is in [config/cameras/rog-eye-s](../config/cameras/rog-eye-s/README.md).
+
+Limits: each mark must be fully visible, clearly red in the picture and fixed to the tube. A mark half covered by a clip changes size from frame to frame and the reading drops out ("sticker hidden"). Recalibrate if the marks or the lighting change a lot.
+
 ## How precise is it?
 
 - The scale itself is accurate to about **±1.8 g** (±0.3 % of 600 g, from the [datasheet](pesola-medio-line-40600-datasheet.pdf)).
@@ -163,7 +171,7 @@ A bonus for rehab: the filter also estimates the **rate of pull** (grams per sec
 |---|---|
 | Camera does not open | macOS System Settings → Privacy & Security → Camera → allow your terminal or IDE. |
 | iPhone picture is black | Lock the iPhone, keep it still in landscape near the Mac (Wi-Fi and Bluetooth on, same Apple ID). It should say "Connected to Mac". Opening Photo Booth and choosing the iPhone forces the connection. |
-| "Stickers not found" at calibration | Both dots and the marker must be visible. Check there are **two** dots plus the marker. You can also click dot 1, then dot 2, by hand. |
+| "Stickers not found" at calibration | Both dots and the marker must be visible. Check there are **two** dots plus the marker. You can also click dot 1, then dot 2, by hand (see "Other red marks as references" below). |
 | Reads a few grams at 0 g | Press **z** with nothing on the scale (zero), then **s** to save. |
 | "Sticker hidden" often | Fingers cover a dot, or a dot leaves the picture. Hold the scale by its ends and keep it fully in view. |
 | Jumpy numbers | Use steady, even light; avoid moving shadows and strong reflections on the metal tube. |

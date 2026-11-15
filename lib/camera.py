@@ -14,6 +14,7 @@ while an iPhone reconnects, and hints when permission or the iPhone connection i
 """
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
@@ -36,8 +37,23 @@ IPHONE_HINT = ("  iPhone (Continuity Camera): lock the phone, keep it still in l
 
 
 def list_cameras() -> list[tuple[int, str]]:
-    """(index, name) of the video devices, in AVFoundation order (macOS, via ffmpeg). Empty if unknown."""
-    if sys.platform != "darwin" or not shutil.which("ffmpeg"):
+    """(index, name) of the video devices, with the indices OpenCV uses (macOS). Empty if unknown.
+
+    OpenCV's AVFoundation backend numbers the cameras sorted by their unique ID, which is NOT the order ffmpeg
+    lists them in: with a USB webcam plugged in, ffmpeg's index 1 can be OpenCV's index 0. So the names come
+    from system_profiler (name + unique ID), sorted the way OpenCV sorts; ffmpeg is only the fallback.
+    """
+    if sys.platform != "darwin":
+        return []
+    try:
+        out = subprocess.run(["system_profiler", "SPCameraDataType", "-json"],
+                             capture_output=True, text=True, timeout=15).stdout
+        cams = [(c["spcamera_unique-id"], c["_name"]) for c in json.loads(out)["SPCameraDataType"]]
+        if cams:
+            return [(i, name) for i, (_, name) in enumerate(sorted(cams))]
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+        pass
+    if not shutil.which("ffmpeg"):
         return []
     out = subprocess.run(["ffmpeg", "-hide_banner", "-f", "avfoundation", "-list_devices", "true", "-i", ""],
                          capture_output=True, text=True).stderr
