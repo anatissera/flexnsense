@@ -1,6 +1,6 @@
 # Flex'N Sense pitch deck, version 3 (HTML)
 
-Version 3 of the pitch deck: one HTML file with real footage from the bench and live captures of the dashboard. Compared with version 2 it has a zig-zag timeline that plays one moment at a time, the team photo on the last slide, and a new capture of the updated dashboard. Version 2 is still at [`docs/pitch-v2/`](../pitch-v2/) and version 1, the original PowerPoint, at [`docs/Pitch.pptx`](../Pitch.pptx).
+Version 3 of the pitch deck: one HTML file with real footage from the bench and live captures of the dashboard. Compared with version 2 it has a zig-zag timeline that the presenter steps through one moment at a time, the team photo on the last slide, and a new capture of the updated dashboard. Version 2 is still at [`docs/pitch-v2/`](../pitch-v2/) and version 1, the original PowerPoint, at [`docs/Pitch.pptx`](../Pitch.pptx).
 
 ## Present it
 
@@ -31,8 +31,8 @@ A saved copy downloads as `index.html`. Move it into this folder, over the old o
 8. User interface (a recording of the dashboard while the 3D view turns, with labels)
 9. Inside the dashboard (the 3D hand, the recovery curve, the force-displacement loop)
 10. Team (twelve flags pop in, fly into a ribbon, then the six portraits appear)
-11. Timeline (a zig-zag: each moment opens large for 3 seconds, then shrinks into a circle on the line; wins sit high, failures sit low)
-12. Thank you (the team photo)
+11. Timeline (a zig-zag you step through: each press of next opens a moment large, the following press shrinks it into a circle on the line and opens the next one; wins sit high, failures sit low)
+12. Thank you (the team photo first; press next and a red iris opens onto the "Thank you, Switzerland!" card)
 
 Every animation is CSS or JavaScript in `index.html`. The only pre-recorded motion is the video clips: three from the bench, two screen recordings of the dashboard, and the 3-second clips of the timeline.
 
@@ -63,6 +63,6 @@ Colours and fonts are CSS variables at the top of `index.html` (`:root`).
   - `data-y` is the height of the circle on the 1080 px stage (about 490 to 590 for a win, 770 for a failure).
   - Media goes in `assets/timeline/`: an image, or a landscape clip of 3 seconds with a `.jpg` poster:
     `ffmpeg -ss 4 -t 3 -i in.mp4 -an -vf "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720" -c:v libx264 -crf 22 -pix_fmt yuv420p -movflags +faststart assets/timeline/name.mp4`
-  - `HOLD` in `startJourney` is how long each moment stays large. Pressing next while it plays shows the finished line; pressing next again moves on.
+  - Nothing plays by itself: the slide opens with only the title. Each press of next (→, Space or a click) opens the following moment, and it stays large, with its clip looping, until the next press. After the last moment has shrunk, next goes to slide 12. R starts the slide again.
   - The times and several captions are placeholders until the team fills them in.
 - **Portraits**: `assets/people/`, flags: `assets/flags/`.

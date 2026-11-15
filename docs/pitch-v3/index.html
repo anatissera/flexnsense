@@ -227,6 +227,7 @@ h2{font-size:84px;margin-top:22px}
 .zig polyline{fill:none;stroke:var(--ink);stroke-width:3;stroke-linejoin:round;stroke-linecap:round;transition:stroke-dashoffset .6s var(--ease)}
 .ev{position:absolute;width:0;height:0;margin:0;z-index:2}
 .ev.show{z-index:20}
+.ev.shrink{z-index:21}
 .ev .m{position:absolute;left:-75px;top:-75px;width:150px;height:150px;border-radius:75px;overflow:hidden;background:var(--ink);opacity:0;box-shadow:0 0 0 6px var(--paper),0 0 0 9px var(--ink)}
 .ev[data-dir="down"] .m{box-shadow:0 0 0 6px var(--paper),0 0 0 9px var(--red)}
 .ev.show .m{opacity:1;box-shadow:0 60px 120px -40px rgba(7,11,18,.7)}
@@ -250,16 +251,25 @@ h2{font-size:84px;margin-top:22px}
 
 /* === 11 · THANK YOU ======================================================= */
 .s11 .kb{position:absolute;inset:0}
-.s11 .kb img{object-position:50% 38%}
-.s11 .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,20,31,0) 48%,rgba(14,20,31,.9) 96%)}
-.s11 .card{position:absolute;left:120px;right:120px;bottom:84px;color:#fff}
-.s11 .row{display:flex;align-items:center;gap:36px;padding:0;border:0}
-.s11 .ch{flex:none;width:104px;height:104px;border-radius:14px;overflow:hidden;animation:wave 3.2s ease-in-out infinite}
+.s11 .team img{object-position:50% 38%;transition:filter 1.3s ease}
+.s11 .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,20,31,0) 60%,rgba(14,20,31,.85) 100%)}
+.s11 .cap{position:absolute;left:120px;bottom:80px;display:flex;align-items:center;gap:14px;font-size:30px;font-weight:600;color:rgba(255,255,255,.85);--pin:#0E141F}
+.s11 .cap svg{width:48px;height:48px;color:#fff}
+.s11 .cap .wm{color:#fff}
+.s11 .fin{position:absolute;inset:0;clip-path:circle(0% at 50% 50%);transition:clip-path 1.3s cubic-bezier(.7,0,.2,1)}
+.s11 .ring{position:absolute;left:50%;top:50%;width:240px;height:240px;margin:-120px;border-radius:50%;border:6px solid var(--red);opacity:0;transform:scale(0)}
+.s11.swap .fin{clip-path:circle(75% at 50% 50%)}
+.s11.swap .team img{filter:blur(14px) brightness(.7)}
+.s11.swap .ring{animation:iris 1.3s cubic-bezier(.7,0,.2,1) both}
+@keyframes iris{0%{opacity:1;transform:scale(0)}80%{opacity:.9}100%{opacity:0;transform:scale(10)}}
+.s11 .card{position:absolute;left:50%;top:50%;width:1000px;margin:-300px 0 0 -500px;height:600px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(244,247,251,.86);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:36px;box-shadow:0 50px 100px -40px rgba(7,11,18,.6);opacity:0;transform:translateY(40px) scale(.94);transition:opacity .7s var(--ease),transform .9s var(--ease)}
+.s11.swap .card{opacity:1;transform:none;transition-delay:.75s}
+.s11 .ch{width:112px;height:112px;border-radius:14px;overflow:hidden;animation:wave 3.2s ease-in-out infinite}
 .s11 .ch img{width:100%;height:100%}
-.s11 h1{font-size:116px;font-weight:800;letter-spacing:-.03em;line-height:1;white-space:nowrap}
-.s11 .sig{display:flex;align-items:center;gap:14px;margin-top:30px;font-size:27px;font-weight:600;color:rgba(255,255,255,.78);--pin:#0E141F}
-.s11 .sig svg{width:44px;height:44px;color:#fff}
-.s11 .sig .wm{color:#fff}
+.s11 h1{font-size:112px;font-weight:800;letter-spacing:-.03em;margin-top:40px;text-align:center}
+.s11 .sig{display:flex;align-items:center;gap:14px;margin-top:34px;font-size:27px;font-weight:600;color:var(--ink-2);--pin:#EEF2F7}
+.s11 .sig svg{width:44px;height:44px;color:var(--ink)}
+.s11 .sig .wm{color:var(--ink)}
 
 /* === HUD / EDIT MODE ====================================================== */
 .hint{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);padding:10px 18px;border-radius:999px;background:rgba(7,11,18,.86);color:#fff;font:500 14px var(--f-display);opacity:0;transition:opacity .6s;pointer-events:none;z-index:10;white-space:nowrap}
@@ -590,13 +600,20 @@ body.editing [contenteditable]:focus{outline-style:solid}
 </section>
 
 <!-- ===== 12 · THANK YOU ===== -->
-<section class="slide s11" data-name="Thank you" data-foot="none">
-  <div class="kb"><img src="assets/timeline/team.jpg" alt="The Flex'N Sense team at their bench in Leukerbad"></div>
+<section class="slide s11" data-name="Thank you" data-foot="none" data-enter="finale">
+  <!-- First the team photo. Pressing next opens an iris onto the thank-you card. -->
+  <div class="kb team"><img src="assets/timeline/team.jpg" alt="The Flex'N Sense team at their bench in Leukerbad"></div>
   <div class="shade"></div>
-  <div class="card" data-a="up" style="--d:300ms">
-    <div class="row"><div class="ch"><img src="assets/flags/ch.svg" alt="Switzerland"></div><h1>Thank you, Switzerland!</h1></div>
-    <div class="sig"><svg viewBox="0 0 64 64"><use href="#mark"/></svg><span class="wm">Flex<i class="ap"></i>N Sense</span><span>· Leukerbad Robotics Hackathon 2026</span></div>
+  <div class="cap" data-a="up" style="--d:300ms"><svg viewBox="0 0 64 64"><use href="#mark"/></svg><span class="wm">Flex<i class="ap"></i>N Sense</span><span>· the team, Saturday night</span></div>
+  <div class="fin">
+    <div class="kb"><img src="assets/mountains.jpg" alt="Swiss Alps"></div>
+    <div class="card">
+      <div class="ch"><img src="assets/flags/ch.svg" alt="Switzerland"></div>
+      <h1>Thank you,<br>Switzerland!</h1>
+      <div class="sig"><svg viewBox="0 0 64 64"><use href="#mark"/></svg><span class="wm">Flex<i class="ap"></i>N Sense</span><span>· Leukerbad Robotics Hackathon 2026</span></div>
+    </div>
   </div>
+  <i class="ring"></i>
 </section>
 
 <footer id="foot">
@@ -631,7 +648,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
   ruler.querySelectorAll('.t').forEach(t => t.remove());
   slides.forEach((_, i) => { const t = document.createElement('span'); t.className = 't'; t.style.left = (i / (N - 1) * 100) + '%'; ruler.insertBefore(t, mkr); });
 
-  const enter = { tether: startTether, reel: startReel, team: startTeam, journey: startJourney };
+  const enter = { tether: startTether, reel: startReel, team: startTeam, journey: startJourney, finale: startFinale };
 
   function go(n, force) {
     n = Math.max(0, Math.min(N - 1, n));
@@ -776,23 +793,28 @@ body.editing [contenteditable]:focus{outline-style:solid}
     return () => timers.forEach(clearTimeout);
   }
 
-  /* === SLIDE 11: the journey =============================================
-     Each moment opens large (80 % of the stage) for HOLD ms, then shrinks into
-     its circle on the zig-zag and its caption is written. Wins sit high,
-     failures sit low. Pressing "next" while it runs shows the finished line. */
-  let journey = null;
+  /* === SLIDE 11: the journey, one press at a time =========================
+     Press next: a moment opens large (80 % of the stage) and stays.
+     Press next again: it shrinks into its circle on the zig-zag, its caption
+     is written, and the following moment opens. Wins sit high, failures low.
+     After the last moment, next moves to the following slide.              */
+  let stepper = null;                                 // the active slide's own "next" handler
   function startJourney(s) {
-    const HOLD = 3000, MX = 192, MY = 108, W = 1536, H = 864, R = 75;
+    const MX = 192, MY = 108, W = 1536, H = 864, R = 75;
     const evs = [...s.querySelectorAll('.ev')], n = evs.length;
     const line = s.querySelector('#zigline'), veil = s.querySelector('#veil');
     const pts = evs.map((e, i) => ({ x: n > 1 ? 190 + i * 1540 / (n - 1) : 960, y: +e.dataset.y || (e.dataset.dir === 'down' ? 770 : 540) }));
     let len = 0;
     const cum = pts.map((p, i) => i ? (len += Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y)) : 0);
-    const timers = [], anims = [], later = (ms, fn) => timers.push(setTimeout(fn, ms));
+    const timers = [], later = (ms, fn) => timers.push(setTimeout(fn, ms));
     const setLine = (i, instant) => {
       line.style.transition = instant ? 'none' : '';
       line.style.strokeDashoffset = len - (i < 0 ? 0 : cum[i]);
     };
+    const rects = i => ({
+      big: { left: (MX - pts[i].x) + 'px', top: (MY - pts[i].y) + 'px', width: W + 'px', height: H + 'px', borderRadius: '28px' },
+      small: { left: -R + 'px', top: -R + 'px', width: 2 * R + 'px', height: 2 * R + 'px', borderRadius: R + 'px' },
+    });
     line.setAttribute('points', pts.map(p => p.x.toFixed(1) + ',' + p.y).join(' '));
     line.style.strokeDasharray = len + ' ' + len;
     setLine(-1, true);
@@ -801,6 +823,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
       e.style.left = pts[i].x + 'px'; e.style.top = pts[i].y + 'px';
       e.classList.remove('show', 'shrink', 'done');
       const m = e.querySelector('.m'), cap = e.querySelector('figcaption');
+      m.getAnimations().forEach(a => a.cancel());
       m.querySelectorAll('.lab').forEach(l => l.remove());
       const lab = document.createElement('div'); lab.className = 'lab';
       const sm = document.createElement('small'), b = document.createElement('b');
@@ -808,46 +831,53 @@ body.editing [contenteditable]:focus{outline-style:solid}
       sm.append(cap.querySelector('small').textContent); b.textContent = cap.querySelector('b').textContent;
       lab.append(sm, b); m.appendChild(lab);
     });
-    const api = journey = { done: false, finish };
-    function stopAll() {
-      timers.forEach(clearTimeout); timers.length = 0;
-      anims.forEach(a => a.cancel()); anims.length = 0;
-      evs.forEach(e => { const v = e.querySelector('video'); if (v) v.pause(); });
-    }
-    function finish() {
-      stopAll(); veil.classList.remove('on');
-      evs.forEach(e => { e.classList.remove('show', 'shrink'); e.classList.add('done'); });
-      setLine(n - 1); api.done = true;
-    }
-    function step(i) {
-      if (i >= n) { api.done = true; return; }
-      const e = evs[i], m = e.querySelector('.m'), v = e.querySelector('video'), p = pts[i];
-      const big = { left: (MX - p.x) + 'px', top: (MY - p.y) + 'px', width: W + 'px', height: H + 'px', borderRadius: '28px' };
-      const small = { left: -R + 'px', top: -R + 'px', width: 2 * R + 'px', height: 2 * R + 'px', borderRadius: R + 'px' };
-      setLine(i);
+    let at = -1, open = -1, busy = false;             // last moment shown, the one open now, mid-shrink
+    function show(i) {
+      const e = evs[i], m = e.querySelector('.m'), v = e.querySelector('video'), { big } = rects(i);
+      at = open = i; setLine(i);
       e.classList.add('show'); veil.classList.add('on');
-      anims.push(m.animate([{ ...big, opacity: 0, transform: 'scale(.96)' }, { ...big, opacity: 1, transform: 'none' }],
-                           { duration: 400, easing: 'ease-out', fill: 'forwards' }));
+      m.animate([{ ...big, opacity: 0, transform: 'scale(.96)' }, { ...big, opacity: 1, transform: 'none' }],
+                { duration: 400, easing: 'ease-out', fill: 'forwards' });
       if (v) { try { v.currentTime = 0; } catch (err) {} v.play().catch(() => {}); }
-      later(400 + HOLD, () => {
-        veil.classList.remove('on'); e.classList.add('shrink');
-        const a = m.animate([big, small], { duration: 750, easing: 'cubic-bezier(.65,0,.25,1)', fill: 'forwards' });
-        anims.push(a);
-        a.onfinish = () => {
-          e.classList.remove('show', 'shrink'); e.classList.add('done');
-          anims.forEach(x => x.cancel()); anims.length = 0;
-          if (v) v.pause();
-          later(200, () => step(i + 1));
-        };
-      });
     }
-    if (reduce) finish(); else later(900, () => step(0));
-    return () => { stopAll(); journey = null; };
+    function tuck(i) {
+      const e = evs[i], m = e.querySelector('.m'), v = e.querySelector('video'), { big, small } = rects(i);
+      busy = true; e.classList.add('shrink');
+      const a = m.animate([big, small], { duration: 750, easing: 'cubic-bezier(.65,0,.25,1)', fill: 'forwards' });
+      a.onfinish = () => {
+        e.classList.remove('show', 'shrink'); e.classList.add('done');
+        m.getAnimations().forEach(x => x.cancel());
+        if (v) v.pause();
+        busy = false;
+      };
+    }
+    function advance() {
+      if (open < 0 && at >= n - 1) return false;       // all shown: let the deck move on
+      if (busy) return true;
+      if (open < 0) { show(at + 1); return true; }
+      const i = open; open = -1;
+      tuck(i);
+      if (i < n - 1) later(300, () => show(i + 1)); else veil.classList.remove('on');
+      return true;
+    }
+    if (reduce) { evs.forEach(e => e.classList.add('done')); setLine(n - 1, true); at = n - 1; }
+    stepper = { advance };
+    return () => {
+      timers.forEach(clearTimeout); stepper = null;
+      evs.forEach(e => { e.querySelector('.m').getAnimations().forEach(a => a.cancel()); const v = e.querySelector('video'); if (v) v.pause(); });
+    };
   }
-  function next() { if (journey && !journey.done) journey.finish(); else go(cur + 1); }
+
+  /* === SLIDE 12: the team photo, then an iris opens onto the thank-you card === */
+  function startFinale(s) {
+    s.classList.remove('swap');
+    stepper = { advance() { if (s.classList.contains('swap')) return false; s.classList.add('swap'); return true; } };
+    return () => { stepper = null; s.classList.remove('swap'); };
+  }
+  function next() { if (!(stepper && stepper.advance())) go(cur + 1); }
 
   /* === EDIT MODE: press E, click any text, type. Cmd/Ctrl+S saves a copy. == */
-  const EDITABLE = '.slide h1,.slide h2,.slide h3,.slide h5,.slide p,.slide li,.slide .kicker,.slide .lbl b,.slide .lbl span,.slide .edge,.slide .call,.slide figcaption b,.slide figcaption span,.person b,.person span,.tile b,.tile span,.simnote,.meta span,.stop .day small,.stop .day b,.big small,.sig span,.ev figcaption small,.ev figcaption b';
+  const EDITABLE = '.slide h1,.slide h2,.slide h3,.slide h5,.slide p,.slide li,.slide .kicker,.slide .lbl b,.slide .lbl span,.slide .edge,.slide .call,.slide figcaption b,.slide figcaption span,.person b,.person span,.tile b,.tile span,.simnote,.meta span,.stop .day small,.stop .day b,.big small,.sig span,.cap span,.ev figcaption small,.ev figcaption b';
   const hint = document.getElementById('hint');
   function setEditing(on) {
     editing = on;
@@ -861,7 +891,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
     const doc = document.documentElement.cloneNode(true);
     doc.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
     doc.querySelector('body').classList.remove('editing');
-    doc.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    doc.querySelectorAll('.slide').forEach(s => s.classList.remove('active', 'swap'));
     doc.querySelectorAll('.person').forEach(p => p.classList.remove('in'));
     doc.querySelectorAll('.clip').forEach((c, k) => { c.classList.toggle('on', k === 0); c.classList.remove('paused'); c.removeAttribute('style'); });
     doc.querySelector('#flags').classList.remove('docked');
