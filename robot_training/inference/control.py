@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-from station_io import (CameraMapper, GoalSafety, fetch_fresh_obs, goal_command, goal_norm_to_ticks,
+from station_io import (CameraMapper, FrameShapeError, GoalSafety, VIEWS, fetch_fresh_obs, goal_command, goal_norm_to_ticks,
                         new_station_client, safe_enable_torque, send_commands, set_torque)
 
 TASK = ""   # ACT ignora la frase; las policies con lenguaje (SmolVLA) la necesitan: --task
@@ -51,6 +51,32 @@ def add_robot_args(p: argparse.ArgumentParser) -> None:
     s.add_argument("--max-delta-ticks", type=int, default=600,
                    help="abortar tick si |goal-pos| de un joint del brazo supera esto (0 = desactivar)")
     s.add_argument("--max-aborts", type=int, default=5, help="parar tras N aborts consecutivos")
+
+
+def _report_cameras(e: FrameShapeError, args) -> None:
+    """Dice qué cámaras llegan y cuál falta, y guarda lo recibido para verlo."""
+    from PIL import Image
+    import io
+    print(f"Station está publicando {len(e.jpegs)} cámara(s) y la policy necesita {e.exp_images} {VIEWS}.")
+    print("Station pone una imagen por cámara activa, así que hay una cámara que Station no tiene abierta.")
+    if e.jpegs:
+        try:
+            got = CameraMapper(fixed_order=None, **({"refs_path": args.camera_refs} if args.camera_refs else {})).identify(e.jpegs)
+            for i, (v, sc) in enumerate(got):
+                print(f"  images[{i}] se parece a: {v}  (puntuación {sc:.2f})")
+            missing = [v for v in VIEWS if v not in {g[0] for g in got}]
+            if len(missing) == e.exp_images - len(e.jpegs):
+                print(f"  => falta la cámara: {', '.join(missing)}")
+        except SystemExit:
+            pass   # sin camera_refs.npz no podemos identificarlas; aun así guardamos la lámina
+        sheet = Image.new("RGB", (224 * len(e.jpegs), 224))
+        for i, j in enumerate(e.jpegs):
+            sheet.paste(Image.open(io.BytesIO(j)).convert("RGB").resize((224, 224)), (224 * i, 0))
+        out = Path("camera_received.jpg").resolve()
+        sheet.save(out)
+        print(f"  imágenes recibidas guardadas en {out}")
+    print("Qué mirar: la web de Station (:8889) debe mostrar las 3 cámaras; cable/puerto USB de la que falta;\n"
+          "  en Linux, la regla udev de las cámaras UVC (grupo plugdev); y reinicia Station tras reconectar.")
 
 
 async def _confirm(prompt: str) -> bool:
@@ -123,6 +149,11 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
                       f"cola {len(queue)}  {ms:.0f} ms {info} {msg}")
     except KeyboardInterrupt:
         print("\ninterrumpido.")
+    except FrameShapeError as e:
+        print(f"\nERROR: {e}")
+        if len(e.jpegs) != e.exp_images:
+            _report_cameras(e, args)
+        raise SystemExit(1)
     finally:
         if torque_enabled_here and args.torque_off_on_exit:
             try:
