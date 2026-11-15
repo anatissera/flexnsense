@@ -120,6 +120,7 @@ what isn't: [docs/elrobot.md](./docs/elrobot.md).
 - **Hardware:** never open a camera or move an arm from an automated step without the person at the keyboard knowing. Arm commands must respect the safety layer in the README (torque cap, position limits, watchdog, low velocity).
 - **Safety first:** a missing or low-confidence force reading must lead to "release and stop", never to a guess. Do not weaken safety limits to make a test pass.
 - **Never commit** `.env`, `config/scale_calib.json`, `recordings/` or `internal-docs/` (all git-ignored): they are per machine or private.
+- **Do commit** `config/calibration/*.json`: the arm's joint-range calibration lives in the servo firmware and the bench constants describe the physical rig, so neither is per machine and the team shares both. Never hand-edit the numbers; re-measure and commit the result. The procedures are in [docs/bench-measurements.md](./docs/bench-measurements.md).
 - **Privacy:** never save full camera frames of a patient; log numbers, or crops of the device only.
 - **Docs:** when behaviour or commands change, update the README and the guide in `docs/` in the same PR.
 

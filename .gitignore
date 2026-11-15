@@ -69,3 +69,7 @@ models/*.task
 # Raw hand-tracking recordings: bulk per-session data, like recordings/. The fitted numbers
 # they produce are committed (config/calibration/bench.json), the recordings themselves are not.
 data/*.jsonl
+
+# NOT ignored, on purpose: config/calibration/*.json. The arm's joint-range calibration lives
+# in the servo firmware and the bench constants describe the physical rig, so neither is per
+# machine and the team shares both. See config/calibration/bench.md.
