@@ -41,6 +41,11 @@ _VOLTAGE_ADDR = 0x3E       # 1 byte, 0.1 V units
 _TEMPERATURE_ADDR = 0x3F   # 1 byte, degrees C
 _CURRENT_ADDR = 0x45       # 2 bytes, milliamps directly (Station already decodes this)
 
+# RAM registers for writing, confirmed from NormaCore's own examples (state.py / st3215.py in
+# st3215-remote-teleop-py and so101-autocalibration-py), not guessed.
+RAM_TORQUE_ENABLE = 0x28   # 1 byte, 0 or 1
+RAM_GOAL_POSITION = 0x2A   # 2 bytes
+
 _MAX_ANGLE_STEP = 4095
 _SIGN_BIT_MASK = 0x8000
 
@@ -163,7 +168,7 @@ async def set_position(client, bus_serial: str, motor_id: int, position: int) ->
         target_bus_serial=bus_serial,
         write=st3215.ST3215WriteCommand(
             motor_id=motor_id,
-            address=0x2A,  # Target position register
+            address=RAM_GOAL_POSITION,
             value=position.to_bytes(2, byteorder="little"),
         ),
     )
@@ -171,6 +176,34 @@ async def set_position(client, bus_serial: str, motor_id: int, position: int) ->
         type=drivers.StationCommandType.STC_ST3215_COMMAND, body=write_cmd.encode()
     )
     await send_commands(client, [cmd])
+
+
+async def sync_write(client, bus_serial: str, address: int, values: dict[int, bytes]) -> None:
+    """Write the same register on several motors in one packet. {motor_id: raw_value_bytes}."""
+    _, _, send_commands, st3215, commands, drivers = _import_generated()
+
+    cmd = st3215.Command(
+        target_bus_serial=bus_serial,
+        sync_write=st3215.ST3215SyncWriteCommand(
+            address=address,
+            motors=[
+                st3215.ST3215SyncWriteCommand_MotorWrite(motor_id=mid, value=val)
+                for mid, val in values.items()
+            ],
+        ),
+    )
+    driver_cmd = commands.DriverCommand(
+        type=drivers.StationCommandType.STC_ST3215_COMMAND, body=cmd.encode()
+    )
+    await send_commands(client, [driver_cmd])
+
+
+async def set_torque(client, bus_serial: str, motor_ids: list[int], enable: bool) -> None:
+    """Enable or disable torque on several motors at once. With torque off a joint is limp
+    (backdrivable); with it on and a goal position set, the servo actively holds that position
+    and resists being moved away from it, which is what makes the arm a rigid anchor."""
+    value = b"\x01" if enable else b"\x00"
+    await sync_write(client, bus_serial, RAM_TORQUE_ENABLE, {mid: value for mid in motor_ids})
 
 
 def build_freeze_arcs(ranges: dict[int, tuple[int, int]]) -> list[tuple[int, int, int, int]]:

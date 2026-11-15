@@ -108,6 +108,9 @@ of the whole workspace.
    `scripts/log_force_calibration.py`, described in
    [force-calibration.md](./force-calibration.md). Needs (1) done first, since an
    uncalibrated motor's position readings aren't meaningful, but is otherwise unrelated.
+   **Run, result negative**: the 345:1 reduction leaves no usable current signal, see
+   [force-calibration-result.md](./force-calibration-result.md). Force sensing is on the
+   camera only.
 
 ## Safety: Station has its own layer, use it
 

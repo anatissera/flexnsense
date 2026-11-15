@@ -89,3 +89,13 @@ def test_build_freeze_arcs_preserves_all_motors():
     arcs = build_freeze_arcs(ranges)
     assert len(arcs) == 8
     assert {a[0] for a in arcs} == set(range(1, 9))
+
+
+def test_register_addresses_match_normacore_examples():
+    """RAM_TORQUE_ENABLE and RAM_GOAL_POSITION are copied from NormaCore's own examples
+    (st3215-remote-teleop-py/state.py) - this guards against an accidental edit drifting
+    from the real register map, which would silently write the wrong thing to a servo."""
+    from lib.station import RAM_GOAL_POSITION, RAM_TORQUE_ENABLE
+
+    assert RAM_TORQUE_ENABLE == 0x28
+    assert RAM_GOAL_POSITION == 0x2A
