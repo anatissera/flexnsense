@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import CameraSelect, { useCameraDevices, videoConstraints } from "./CameraSelect";
 import { buildHandFrame, FINGERTIPS, type HandFrame, type HandSource, type Vec3 } from "../lib/handFrame";
 
 /** Joint name -> angle (rad) for the MyoHand model, written every frame while tracking. */
@@ -79,6 +80,8 @@ export default function HandTracker({ pose, disp, onActive, onFrame, on, onOnCha
   useEffect(() => { onOnChangeRef.current = onOnChange; });
   const setOn = useCallback((value: boolean) => { onOnChangeRef.current(value); }, []);
   const [source, setSource] = useState<HandSource>("mediapipe");
+  const { devices, refresh: refreshDevices } = useCameraDevices();
+  const [deviceId, setDeviceId] = useState("");
   const [status, setStatus] = useState("");
   const [dispMm, setDispMm] = useState<number | null>(null);
   // Progress text goes stale once tracking stops, so only a failure message outlives it.
@@ -137,8 +140,9 @@ export default function HandTracker({ pose, disp, onActive, onFrame, on, onOnCha
 
     const startCamera = async () => {
       setStatus("Starting camera…");
-      stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+      stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(deviceId, 640, 480), audio: false });
       if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return null; }
+      refreshDevices(); // labels only appear once permission is granted
       const video = videoRef.current!;
       video.srcObject = stream;
       await video.play();
@@ -279,7 +283,7 @@ export default function HandTracker({ pose, disp, onActive, onFrame, on, onOnCha
       tipRef.current = { now: 0, ref: null };
       setDispMm(null);
     };
-  }, [on, source, pose, disp, setOn]);
+  }, [on, source, deviceId, refreshDevices, pose, disp, setOn]);
 
   const onActiveRef = useRef(onActive);
   useEffect(() => { onActiveRef.current = onActive; });
@@ -304,6 +308,7 @@ export default function HandTracker({ pose, disp, onActive, onFrame, on, onOnCha
             <option value="wilor">WiLoR (local GPU server)</option>
           </select>
         </label>
+        <CameraSelect label="Hand camera" value={deviceId} devices={devices} onChange={setDeviceId} />
         {shownStatus && <span className="t-small muted">{shownStatus}</span>}
       </div>
       <div>
