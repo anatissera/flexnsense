@@ -55,6 +55,26 @@ The 4 GB question is now answered: WiLoR in fp16 peaks at 1.69 GB of VRAM on the
 
 Independent of 0–4; camera-only, does not touch the arm.
 
+## 5b. Session orchestration - `feature/session-orchestration`
+
+The layer between the 30 Hz force loop and the clinician: the two exercise modes (`active`,
+the patient flexes and the arm yields at constant force; `passive`, the arm pulls the finger
+toward extension and the patient flexes back), the per-rep state machine that cues the patient
+and counts what they actually did, the session state machine that sequences blocks across
+fingers, and the interlock that guarantees arm 1 and arm 2 are never active at the same time.
+The exercise prescription is **data** (finger, mode, reps, cap, hold, stretch target), not a
+trained policy.
+
+Designed in [docs/session-orchestration.md](./docs/session-orchestration.md). Written so far, all pure and tested without hardware: `session/modes.py` (the two modes as data), `session/protocol.py` (the prescription), `session/instructions.py` (what the patient is told), `session/calibration.py` (the bench constants, as explicit absences), `session/snapshot.py` plus `dashboard/app/lib/sessionSnapshot.ts` (the UI contract), `session/interlock.py` (the two-arm custody rule), `session/orchestrator.py` (the session machine) and `session/reps.py` (the per-rep machine, which is where the deadman on a device-driven phase lives). Still to write: `session/server.py`, the state stream the dashboard reads, and the adapter that turns a `RepStep`'s `Law` into calls on `control/`.
+Active mode's work phase is the existing admittance law; the delta on the control side is the
+device-driven phase, where `Decision.may_move` is backwards, dropout tolerance has to go to
+zero, and a range-of-motion target replaces the monotonicity guard. That doc also inventories
+what already exists in the dashboard (`GuideHand`, `LiveAnalyzer`) and lists the open
+questions, the unmeasured spring rate being the one that moves the most numbers.
+
+Depends on 3, whose `control/` package the rep machine drives. Blocks 6 and 7, and it is the
+contract arm 2's policy has to meet.
+
 ## 6. Session metrics - `feature/session-metrics`
 
 Record force against finger displacement across the session and derive the joint stiffness curve. This is the clinical deliverable.

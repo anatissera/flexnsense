@@ -1,0 +1,8 @@
+{
+  "tether_n_per_m": 56.2,
+  "ticks_per_metre": null,
+  "yield_sign": null,
+  "excursion_m": {},
+  "displacement_uncertainty_m": 0.006,
+  "measured_in_pose": "not yet pose-specific: the tether was measured off the arm, hand-pulled against a fixed anchor"
+}
