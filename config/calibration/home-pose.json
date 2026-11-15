@@ -1,0 +1,27 @@
+{
+  "ticks": {
+    "1": 2324,
+    "2": 1992,
+    "3": 1670,
+    "4": 2697,
+    "5": 2351,
+    "6": 2089,
+    "7": 2759
+  },
+  "pull_motors": [
+    1,
+    2,
+    4
+  ],
+  "worst_deviation_mm": 0.79,
+  "pull_distance_mm": 90.0,
+  "directions_tested": 28,
+  "condition_number": 2.379,
+  "smallest_singular_value": 0.10077,
+  "search": {
+    "samples": 6000,
+    "seed": 1,
+    "margin": 0.15
+  },
+  "note": "Found by scripts/find_home_pose.py. Geometry only, from the URDF: this has not been checked against the physical arm for reachability with the rig in place. Confirm nothing collides before trusting it."
+}

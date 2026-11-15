@@ -95,6 +95,31 @@ class CoordinatedAxis:
         if norm < 1e-9:
             raise ValueError("direction must not be the zero vector")
 
+    @classmethod
+    def for_pose(cls, pose_ticks: dict[int, float], direction, chain=None,
+                 distance_m: float = 0.090, **kw) -> "CoordinatedAxis":
+        """Build one by choosing the joints that suit *this* pose, and check the pull is real.
+
+        The alternative, naming joints once in a config file, is wrong because the right set
+        depends on the pose: `lib.kinematics.Chain.choose_pull_motors` picks a different three
+        for a folded arm than for an extended one. This also refuses outright when the pull is
+        not followable from here, which is a real condition rather than a theoretical one: a
+        pose can start well conditioned and drive itself into a singularity partway through a
+        90 mm pull, tracking the first few millimetres perfectly and then wandering.
+        """
+        if chain is None:
+            from lib.kinematics import load_chain
+
+            chain = load_chain()
+        motors = chain.choose_pull_motors(pose_ticks, direction)
+        ok, why = chain.can_pull_straight(motors, pose_ticks, direction, distance_m)
+        if not ok:
+            raise ValueError(
+                f"cannot pull straight from this pose with joints {motors}: {why}"
+            )
+        d = tuple(float(v) for v in direction)
+        return cls(motors=motors, direction=d, **kw)
+
     def unit_direction(self):
         import numpy as np
 
