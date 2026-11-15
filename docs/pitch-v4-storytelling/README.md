@@ -14,6 +14,7 @@ Pull the repo and open `docs/pitch-v4-storytelling/index.html` in Chrome (double
 | F | Full screen |
 | 1 2 3 | On the real-footage slide: open that clip |
 | P | On the real-footage slide: pause or play |
+| S | On the timeline slide: skip, show every moment at once |
 | E | Edit text in the browser (Esc to finish) |
 | ⌘S / Ctrl+S | Save a copy of the deck with your edits |
 
@@ -30,7 +31,7 @@ A saved copy downloads as `index.html`. Move it into this folder, over the old o
 
 **Act 2, the answer**
 
-5. Flex'N Sense (the title, as the answer to the question; the tether clip plays beside it)
+5. Flex'N Sense (the title, as the answer to the question; a portrait clip of our bench, restyled as a clinic, plays beside it)
 6. The promise: hand rehabilitation at home, after surgery
 7. Our solution: "Safety from physics, not only from software."
 8. Who gains: three in the loop
@@ -45,17 +46,20 @@ A saved copy downloads as `index.html`. Move it into this folder, over the old o
 **Act 4, the people and what is next**
 
 13. How we got here (the zig-zag timeline, one moment per press)
-14. The team
-15. What comes next: built this weekend, then one hand clinic, then orthopedic rehabilitation for other joints (new)
-16. Thank you (team photo, then the card)
+14. Our goals at Track 4 (Elderly Care & Rehabilitation, Rehab coach): three numbered goals that match the track's expectations. Give a VLA the capacity to sense with a low-tech proprioceptive ruler, use a standard tool from the physiotherapist's lab, prove that a VLA can be used safely with patients (new)
+15. The team
+16. What comes next: built this weekend, then one hand clinic, then orthopedic rehabilitation for other joints (new)
+17. A future approach: the same bench in Isaac Lab, two arms, scripted motion, no trained policy yet (new)
+18. Thank you (team photo, then the card)
 
 To check before presenting:
 
 - Slides 2 and 3 use images generated with FLUX (Black Forest Labs), in `assets/story/`. Each slide says so on screen. Jordan is not a real patient.
-- Slide 15 uses a concept image supplied by the team (`assets/story/next.jpg`), labelled "Concept image": the robot in it is not something we built.
+- Slide 8 ("Who gains"): the "Rehab AI assistant" disc shows a picture of a small white robot supplied by the team (`assets/story/little-robot.jpg`), not the team's arm. Its source and licence are not known: check them before the deck is published anywhere. It is not labelled on screen, so say aloud that it is a concept: our real arm is on slides 7, 9 and 10.
+- Slide 16 uses a concept image supplied by the team (`assets/story/next.jpg`), labelled "Concept image": the robot in it is not something we built.
 - The wording follows the team's review of 15 Nov: the patient had planned orthopedic surgery (not an injury), the opening is about a village far from the specialist (not about the spa), and the plan stays on the hand first because hand surgery is its own field, with the rest of orthopedic rehabilitation after.
 - The dashboard recording on slide 11 still shows the app's own patient card ("Flexor tendon repair"), which the app sets, not the deck.
-- Slide 15 lists what is built and what comes next. These lines are a first draft: correct them to what is true on Monday (press E to edit). The failures are told on the timeline, slide 13.
+- Slide 16 lists what is built and what comes next. These lines are a first draft: correct them to what is true on Monday (press E to edit). The failures are told on the timeline, slide 13.
 
 Every animation is CSS or JavaScript in `index.html`. The only pre-recorded motion is the video clips: three from the bench, two screen recordings of the dashboard, and the 3-second clips of the timeline.
 
@@ -80,12 +84,15 @@ Colours and fonts are CSS variables at the top of `index.html` (`:root`).
   - `run.mp4` (1920×1200): the whole dashboard while the view cube turns the 3D hand.
   - `hand.mp4` (720×1280): the same recording, cropped to the 3D hand.
   - `recovery.png`, `loop.png`: the "Recovery index vs week" and "Force-displacement loop" charts (index finger, week 24).
-  The webcam was not opened, so the rep machine is shown idle. The data is the dashboard's simulated patient, and slide 9 says so.
-- **Timeline moments** (slide 11): one `<figure class="ev">` per moment inside `#evs` in `index.html`, in order. The line and the spacing are computed from the list, so add, remove or reorder figures freely.
+  The webcam was not opened, so the rep machine is shown idle. The data is the dashboard's simulated patient, and slide 12 says so.
+- **Simulation video** (slide 17, shown as a future approach): `assets/video/sim-two-arms.mp4` (1920×658, 24 s, no audio) with its poster `sim-two-arms.jpg`. It comes from the Isaac Lab simulation in the team's internal notes, 15 Nov 2026, copied as it was. The motion in it is scripted: no trained policy runs, and the slide says so.
+- **Title slide video** (slide 5): `assets/video/tether-clinic.mp4` (720×1112 portrait, 9 s, no audio) with its poster `tether-clinic.jpg`. It is the bench clip `tether.mp4` with its background restyled by a generative video model into a clinic (blue drape, white room), then cut to the 9 seconds where the arm is at the hand and cropped below the hands that hold the upper arm, so only the two arms, the scale and the forearm show. The model also changed details of the people and the arm, so the caption says "restyled": the unaltered footage is on slide 10.
+- **Timeline moments** (slide 13): one `<figure class="ev">` per moment inside `#evs` in `index.html`, in order. The line and the spacing are computed from the list, so add, remove or reorder figures freely.
   - `data-dir="up"` is a win (caption above the circle), `data-dir="down"` is a failure (red ring, caption below).
   - `data-y` is the height of the circle on the 1080 px stage (about 490 to 590 for a win, 770 for a failure).
   - Media goes in `assets/timeline/`: an image, or a landscape clip of 3 seconds with a `.jpg` poster:
     `ffmpeg -ss 4 -t 3 -i in.mp4 -an -vf "scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720" -c:v libx264 -crf 22 -pix_fmt yuv420p -movflags +faststart assets/timeline/name.mp4`
-  - The first moment opens by itself when the slide opens. Each press of next (→, Space or a click) opens the following one. A moment stays large for `HOLD` milliseconds (3000, in `startJourney`) and then closes by itself, so only one is ever open; pressing next while it is open closes it early. After the last moment, next goes to slide 12. R starts the slide again.
+  - The first moment opens by itself when the slide opens. Each press of next (→, Space or a click) opens the following one. A moment stays large for `HOLD` milliseconds (3000, in `startJourney`) and then closes by itself, so only one is ever open; pressing next while it is open closes it early. After the last moment, next goes to the next slide. R starts the slide again.
+  - The Skip button (top right of the slide) or the S key shows every moment at once, and next then goes straight to the next slide. A circle already on the line can be clicked to open its moment again: it closes by itself after `HOLD`, or earlier on a click or on next.
   - The times and several captions are placeholders until the team fills them in.
 - **Portraits**: `assets/people/`, flags: `assets/flags/`.

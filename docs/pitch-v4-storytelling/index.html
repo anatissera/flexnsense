@@ -193,6 +193,12 @@ h2{font-size:84px;margin-top:22px}
 .clip .state{position:absolute;left:24px;top:24px;padding:8px 16px;border-radius:999px;background:rgba(7,11,18,.7);color:#fff;font:700 20px var(--f-data);letter-spacing:.14em;text-transform:uppercase;opacity:0;transition:opacity .3s}
 .clip.on.paused .state{opacity:1}
 
+/* === IN SIMULATION (one wide clip, kept in its own 1920:658 shape) ========= */
+.sim .head{width:1680px}
+.sim .vid{position:absolute;left:120px;top:300px;width:1680px;aspect-ratio:1920/658;background:#0E141F}
+.sim .vid video{width:100%;height:100%}
+.sim .lead{position:absolute;left:120px;top:904px;width:1680px;font-size:27px;line-height:1.34}
+
 /* === 8 · USER INTERFACE =================================================== */
 .s8 .head{width:1680px}
 .shot{position:absolute;left:432px;top:316px;width:1056px;height:660px;border-radius:18px;overflow:hidden;background:#0B0E14;box-shadow:0 40px 80px -36px rgba(7,11,18,.6),0 0 0 1px rgba(14,20,31,.1)}
@@ -275,6 +281,22 @@ h2{font-size:84px;margin-top:22px}
 .ev figcaption b{display:block;font-size:25px;line-height:1.2;letter-spacing:-.01em;margin-top:6px}
 .veil{position:absolute;inset:0;background:rgba(14,20,31,.62);opacity:0;transition:opacity .4s ease;z-index:10;pointer-events:none}
 .veil.on{opacity:1}
+.ev.done .m,.ev.show .m{cursor:pointer}
+.ev.done .m{transition:transform .25s var(--ease)}
+.ev.done .m:hover{transform:scale(1.06)}
+.skip{position:absolute;right:120px;top:54px;z-index:30;padding:9px 20px 8px;border:2px solid var(--line);border-radius:999px;background:var(--paper);color:var(--ink-2);font:700 20px var(--f-data);letter-spacing:.16em;text-transform:uppercase;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .4s ease,color .2s,border-color .2s}
+.skip.on{opacity:1;pointer-events:auto}
+.skip:hover{color:var(--ink);border-color:var(--ink-3)}
+.skip:focus{outline:none}
+
+/* === OUR GOALS AT TRACK 4 (three numbered goals, nothing else) ========== */
+.gl .head{width:1680px}
+.gl .meta{margin-top:14px;font-size:22px}
+.gl h2{font-size:76px}
+.gl .goals{position:absolute;left:120px;top:400px;width:1680px;display:grid;gap:0}
+.gl .goal{display:flex;align-items:center;gap:56px;height:170px;border-top:2px solid var(--ink)}
+.gl .goal b{flex:none;width:90px;font:700 96px var(--f-data);color:var(--ink-3);line-height:1}
+.gl .goal p{font-size:50px;line-height:1.2;font-weight:600;color:var(--ink)}
 
 /* === 11 · THANK YOU ======================================================= */
 .s11 .kb{position:absolute;inset:0}
@@ -389,8 +411,8 @@ body.editing [contenteditable]:focus{outline-style:solid}
     <div class="meta" data-a="up" style="--d:580ms"><span>Leukerbad Robotics Hackathon 2026</span><i></i><span>Elderly Care &amp; Rehabilitation</span></div>
   </div>
   <figure class="hero kb" data-a="reveal" style="--d:150ms">
-    <video data-auto muted loop playsinline preload="auto" poster="assets/video/tether.jpg" src="assets/video/tether.mp4"></video>
-    <figcaption>Our bench in Leukerbad</figcaption>
+    <video data-auto muted loop playsinline preload="auto" poster="assets/video/tether-clinic.jpg" src="assets/video/tether-clinic.mp4"></video>
+    <figcaption>Our bench, restyled as a clinic</figcaption>
   </figure>
 </section>
 
@@ -432,7 +454,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
     <path class="flow" style="--d:1700ms" d="M996 740 L1404 740"/>
   </svg>
   <div class="disc" style="left:1200px;top:290px;--d:300ms" data-a="pop"><img src="assets/physio.jpg" alt=""></div>
-  <div class="disc" style="left:840px;top:740px;--d:450ms" data-a="pop"><img src="assets/robot.jpg" alt="Our robot arm"></div>
+  <div class="disc" style="left:840px;top:740px;--d:450ms" data-a="pop"><img src="assets/story/little-robot.jpg" alt="Concept: a small, friendly white robot"></div>
   <div class="disc" style="left:1560px;top:740px;--d:600ms" data-a="pop"><img src="assets/patient.png" alt=""></div>
   <div class="lbl" style="left:1362px;top:244px;--d:900ms" data-a="fade"><b>Physiotherapist</b><span>supervises, from anywhere</span></div>
   <div class="lbl c" style="left:840px;top:884px;--d:1000ms" data-a="fade"><b>Rehab AI assistant</b><span>the robot guides the exercise</span></div>
@@ -620,6 +642,20 @@ body.editing [contenteditable]:focus{outline-style:solid}
     <figure class="ev" data-dir="up" data-y="490"><div class="m"><img src="assets/leukerbad.jpg" alt=""></div><figcaption><small>Mon 13:00</small><b>Pitch and live demo</b></figcaption></figure>
   </div>
   <div class="veil" id="veil"></div>
+  <button class="skip" id="skip" type="button" tabindex="-1" aria-label="Skip: show every moment">Skip</button>
+</section>
+
+<section class="slide gl" data-name="Our goals">
+  <div class="head">
+    <div class="kicker" data-a="up">Our goals at Track 4</div>
+    <div class="meta" data-a="up" style="--d:60ms"><span>Elderly Care &amp; Rehabilitation</span><i></i><span>Rehab coach</span></div>
+    <h2 data-a="up" style="--d:120ms">Goals that match the track's expectations.</h2>
+  </div>
+  <div class="goals">
+    <div class="goal" data-a="up" style="--d:300ms"><b>1</b><p>Give a VLA the capacity to sense, with a low-tech proprioceptive ruler.</p></div>
+    <div class="goal" data-a="up" style="--d:460ms"><b>2</b><p>Use a standard tool from the physiotherapist's lab.</p></div>
+    <div class="goal" data-a="up" style="--d:620ms"><b>3</b><p>Prove that a VLA can be used safely with patients.</p></div>
+  </div>
 </section>
 
 <section class="slide s9" data-name="Team" data-enter="team">
@@ -662,6 +698,15 @@ body.editing [contenteditable]:focus{outline-style:solid}
     </div>
   </div>
   <figure class="pic photo kb" data-a="reveal" style="--d:250ms"><img src="assets/story/next.jpg" alt="Concept: a small robot helping a man bend his knee on a therapy bench"><figcaption>Concept image</figcaption></figure>
+</section>
+
+<section class="slide sim" data-name="Future: simulation">
+  <div class="head">
+    <div class="kicker" data-a="up">A future approach</div>
+    <h2 data-a="up" style="--d:100ms">Next, train it in simulation.</h2>
+  </div>
+  <figure class="vid photo" data-a="up" style="--d:220ms"><video data-auto muted loop playsinline preload="auto" poster="assets/video/sim-two-arms.jpg" src="assets/video/sim-two-arms.mp4"></video></figure>
+  <p class="lead" data-a="up" style="--d:380ms">Our two arms in Isaac Lab, on NormaCore's model of the ElRobot. One holds the scale and gives way at the limit, the other moves the scale from finger to finger. The motion is scripted: no trained policy runs here yet.</p>
 </section>
 
 <section class="slide s11" data-name="Thank you" data-foot="none" data-enter="finale">
@@ -862,12 +907,14 @@ body.editing [contenteditable]:focus{outline-style:solid}
      stays for HOLD ms, then shrinks into its circle on the zig-zag and its
      caption is written. Each press of next does the same for the following
      moment, so only one is ever open. Pressing next while a moment is open
-     closes it early. After the last one, next moves to the following slide. */
+     closes it early. After the last one, next moves to the following slide.
+     Skip (the button, or S) shows every moment at once. A circle already on
+     the line can be clicked to open its moment again; it closes by itself. */
   let stepper = null;                                 // the active slide's own "next" handler
   function startJourney(s) {
     const HOLD = 3000, MX = 192, MY = 108, W = 1536, H = 864, R = 75;
     const evs = [...s.querySelectorAll('.ev')], n = evs.length;
-    const line = s.querySelector('#zigline'), veil = s.querySelector('#veil');
+    const line = s.querySelector('#zigline'), veil = s.querySelector('#veil'), btn = s.querySelector('#skip');
     const pts = evs.map((e, i) => ({ x: n > 1 ? 190 + i * 1540 / (n - 1) : 960, y: +e.dataset.y || (e.dataset.dir === 'down' ? 770 : 540) }));
     let len = 0;
     const cum = pts.map((p, i) => i ? (len += Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y)) : 0);
@@ -897,10 +944,10 @@ body.editing [contenteditable]:focus{outline-style:solid}
       lab.append(sm, b); m.appendChild(lab);
     });
     let at = -1, open = -1, busy = false, hold = 0;   // last moment shown, the one open now, mid-shrink, its timer
-    function show(i) {
+    function show(i) {                                // open moment i large (first time, or again from its circle)
       const e = evs[i], m = e.querySelector('.m'), v = e.querySelector('video'), { big } = rects(i);
-      at = open = i; setLine(i);
-      e.classList.add('show'); veil.classList.add('on');
+      open = i;
+      e.classList.remove('done'); e.classList.add('show'); veil.classList.add('on');
       m.animate([{ ...big, opacity: 0, transform: 'scale(.96)' }, { ...big, opacity: 1, transform: 'none' }],
                 { duration: 400, easing: 'ease-out', fill: 'forwards' });
       if (v) { try { v.currentTime = 0; } catch (err) {} v.play().catch(() => {}); }
@@ -919,18 +966,54 @@ body.editing [contenteditable]:focus{outline-style:solid}
         busy = false;
       };
     }
+    function settle(i) {                              // put moment i in its circle at once, no animation
+      const e = evs[i], v = e.querySelector('video');
+      e.querySelector('.m').getAnimations().forEach(a => a.cancel());
+      e.classList.remove('show', 'shrink'); e.classList.add('done');
+      if (v) v.pause();
+    }
+    function settleAll() {                            // nothing open, nothing mid-shrink
+      clearTimeout(hold); open = -1; busy = false;
+      evs.forEach((e, i) => { if (e.classList.contains('show')) settle(i); });
+      veil.classList.remove('on');
+    }
     function advance() {
       if (open >= 0) { tuck(open); return true; }      // a moment is open: close it early
       if (busy) return true;                            // mid-shrink: wait
       if (at >= n - 1) return false;                    // all shown: let the deck move on
-      show(at + 1);
+      at++; setLine(at); show(at);
+      if (at >= n - 1) btn.classList.remove('on');      // nothing left to skip
       return true;
     }
+    function skip() {                                 // show every moment at once
+      if (at >= n - 1 && open < 0 && !busy) return;
+      settleAll();
+      evs.forEach((e, i) => { if (!e.classList.contains('done')) settle(i); });
+      at = n - 1; setLine(at);
+      btn.classList.remove('on');
+    }
+    function reopen(i) {                              // a click on a circle: only one moment is ever open
+      settleAll();
+      show(i);
+    }
+    evs.forEach((e, i) => {
+      e.querySelector('.m').onclick = ev => {
+        const isOpen = open === i, isDone = e.classList.contains('done');
+        if (!isOpen && !isDone) return;                 // not shown yet (or mid-shrink): an ordinary click
+        ev.stopPropagation();
+        if (editing) return;
+        isOpen ? tuck(i) : reopen(i);
+      };
+    });
+    btn.onclick = ev => { ev.stopPropagation(); btn.blur(); if (!editing) skip(); };
+    btn.classList.remove('on');
     if (reduce) { evs.forEach(e => e.classList.add('done')); setLine(n - 1, true); at = n - 1; }
-    else if (n) later(700, () => { if (at < 0) show(0); });
-    stepper = { advance };
+    else if (n) { btn.classList.add('on'); later(700, () => { if (at < 0) advance(); }); }
+    stepper = { advance, skip };
     return () => {
-      timers.forEach(clearTimeout); stepper = null;
+      timers.forEach(clearTimeout); clearTimeout(hold); stepper = null;
+      btn.classList.remove('on'); btn.onclick = null;
+      evs.forEach(e => { e.querySelector('.m').onclick = null; });
       evs.forEach(e => { e.querySelector('.m').getAnimations().forEach(a => a.cancel()); const v = e.querySelector('video'); if (v) v.pause(); });
     };
   }
@@ -965,6 +1048,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
     doc.querySelectorAll('.ev').forEach(e => { e.classList.remove('show', 'shrink', 'done'); e.style.left = e.style.top = ''; if (!e.getAttribute('style')) e.removeAttribute('style'); });
     doc.querySelectorAll('.ev .lab').forEach(l => l.remove());
     doc.querySelector('#veil').className = 'veil';
+    doc.querySelector('#skip').className = 'skip';
     doc.querySelector('#zigline').removeAttribute('style'); doc.querySelector('#zigline').setAttribute('points', '');
     doc.querySelector('#stage').className = 'stage nofoot';
     doc.querySelector('#stage').removeAttribute('style');
@@ -993,6 +1077,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
     else if (k === 'f' || k === 'F') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
     else if (reelApi && ['1', '2', '3'].includes(k)) reelApi.open(+k - 1);
     else if (reelApi && (k === 'p' || k === 'P')) reelApi.toggle();
+    else if ((k === 's' || k === 'S') && stepper && stepper.skip) stepper.skip();
   });
   addEventListener('click', e => { if (editing) return; e.clientX < innerWidth * 0.25 ? go(cur - 1) : next(); });
   let tx = null;
