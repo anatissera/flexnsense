@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import CameraSelect, { useCameraDevices, videoConstraints } from "./CameraSelect";
 
 /** One reading from the gauge reader. `n` is newtons (the unit the dashboard runs on). */
 export type GaugeSample = { n: number; g: number; stable: boolean; at: number };
@@ -28,27 +29,13 @@ export default function GaugeForce({ force, onActive }: {
   /** Called when force sensing is switched on or off. */
   onActive?: (on: boolean) => void;
 }) {
-  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const { devices, refresh: refreshDevices } = useCameraDevices();
   const [deviceId, setDeviceId] = useState("");
   const [on, setOn] = useState(false);
   const [status, setStatus] = useState("");
   const [view, setView] = useState<{ n: number | null; g: number | null; stable: boolean }>({ n: null, g: null, stable: false });
   const videoRef = useRef<HTMLVideoElement>(null);
   const socketRef = useRef<WebSocket | null>(null);
-
-  const refreshDevices = useCallback(async () => {
-    try {
-      const all = await navigator.mediaDevices.enumerateDevices();
-      setDevices(all.filter((d) => d.kind === "videoinput"));
-    } catch { /* no mediaDevices (insecure context): the select stays empty and Start reports it */ }
-  }, []);
-  useEffect(() => {
-    let alive = true;
-    navigator.mediaDevices?.enumerateDevices().then((all) => {
-      if (alive) setDevices(all.filter((d) => d.kind === "videoinput"));
-    }, () => {});
-    return () => { alive = false; };
-  }, []);
 
   const onActiveRef = useRef(onActive);
   useEffect(() => { onActiveRef.current = onActive; });
@@ -67,10 +54,7 @@ export default function GaugeForce({ force, onActive }: {
     (async () => {
       try {
         setStatus("Starting camera…");
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: deviceId ? { deviceId: { exact: deviceId }, width: 1280, height: 720 } : { width: 1280, height: 720 },
-          audio: false,
-        });
+        stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(deviceId, 1280, 720), audio: false });
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
         const video = videoRef.current!;
         video.srcObject = stream;
@@ -155,15 +139,7 @@ export default function GaugeForce({ force, onActive }: {
     // Same three-row subgrid as HandTracker, so the two videos share a row, width and height.
     <div className="row-span-3 grid grid-rows-subgrid gap-y-2">
       <div className="flex flex-wrap content-start items-center gap-2">
-        <label className="t-small muted flex items-center gap-1">
-          Force camera
-          <select className="btn" value={deviceId} disabled={on} onChange={(e) => setDeviceId(e.target.value)}>
-            <option value="">Default camera</option>
-            {devices.map((d, i) => (
-              <option key={d.deviceId || i} value={d.deviceId}>{d.label || `Camera ${i + 1}`}</option>
-            ))}
-          </select>
-        </label>
+        <CameraSelect label="Force camera" value={deviceId} devices={devices} onChange={setDeviceId} />
         <button className={on ? "btn btn-danger" : "btn"} onClick={() => setOn(!on)}>
           {on ? "Stop force" : "Start force"}
         </button>
