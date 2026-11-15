@@ -44,6 +44,15 @@ already how `SafetyGate.reset` is written.
 
 ## The two modes, and what to call them
 
+> **There is an earlier design for the device-driven half**, in
+> [docs/pull-mode-design.md](./pull-mode-design.md), and on three points it is ahead both of
+> what is written here and of what is implemented: it **inverts** the monotonicity guard rather
+> than dropping it (while pulling, the force must rise, and a commanded motion that does not
+> raise it means slack, a detached hook or tissue that gave way), it stops a pull on the first
+> of force, angle **or** the local `dF/dtheta` slope rather than on distance alone, and it
+> releases if the force rises unprompted during a hold, which is the patient contracting
+> against the stretch. Reconcile the two before any passive-mode session runs on a finger.
+
 The two exercises differ in **who is the source of motion**, and that is the only difference
 that matters to the code.
 

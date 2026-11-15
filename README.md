@@ -193,6 +193,7 @@ ok, frame, ts, idx = src.read()
 | [docs/hand-tracking.md](./docs/hand-tracking.md) | Hand landmarks: model, the flexion angle, running it |
 | [docs/hardware-setup.md](./docs/hardware-setup.md) | Which physical arm is which: Follower 1/2, Leader 1/2, bus serials, who runs what |
 | [docs/session-orchestration.md](./docs/session-orchestration.md) | The two exercise modes, the rep and session state machines, the two-arm interlock, why arm 1 needs no VLA |
+| [docs/pull-mode-design.md](./docs/pull-mode-design.md) | Passive (device-driven) mode: the inverted monotonicity guard, the three stop conditions, end-feel. Designed, not implemented |
 | [docs/pitch-v2/](./docs/pitch-v2/) | Pitch deck, version 2: an HTML deck with real footage (open `index.html` locally). Version 1 is [docs/Pitch.pptx](./docs/Pitch.pptx) |
 | [AGENTS.md](./AGENTS.md) | Git workflow, branch naming, rules for contributors and coding agents |
 
