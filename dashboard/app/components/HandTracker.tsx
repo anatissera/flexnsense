@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { buildHandFrame, FINGERTIPS, type HandFrame, type HandSource, type Vec3 } from "../lib/handFrame";
 
 /** Joint name -> angle (rad) for the MyoHand model, written every frame while tracking. */
@@ -55,11 +55,10 @@ const TIPS = new Set<number>(FINGERTIPS); // drawn larger and in a second colour
 export const WILOR_URL = "ws://127.0.0.1:8765/track";
 const JPEG_QUALITY = 0.7;
 
-export default function HandTracker({ pose, disp, onStart, onActive, onFrame }: {
+export default function HandTracker({ pose, disp, onActive, onFrame, on, onOnChange }: {
   pose: RefObject<HandPose | null>;
   /** Written every tracked frame with the index tip displacement in mm (null when not tracking). */
   disp?: RefObject<number | null>;
-  onStart?: () => void;
   /** Called when hand tracking is switched on or off. */
   onActive?: (on: boolean) => void;
   /**
@@ -68,11 +67,22 @@ export default function HandTracker({ pose, disp, onStart, onActive, onFrame }: 
    * not need to know which model produced it; only `mano` tells them apart.
    */
   onFrame?: (frame: HandFrame) => void;
+  /**
+   * Whether the tracker is running. It is controlled from outside: the rep machine's Start button
+   * is the one control that switches it on and off. A failed start reports back through
+   * `onOnChange(false)`. This component keeps the model choice and shows the camera and tools.
+   */
+  on: boolean;
+  onOnChange: (on: boolean) => void;
 }) {
-  const [on, setOn] = useState(false);
+  const onOnChangeRef = useRef(onOnChange);
+  useEffect(() => { onOnChangeRef.current = onOnChange; });
+  const setOn = useCallback((value: boolean) => { onOnChangeRef.current(value); }, []);
   const [source, setSource] = useState<HandSource>("mediapipe");
   const [status, setStatus] = useState("");
   const [dispMm, setDispMm] = useState<number | null>(null);
+  // Progress text goes stale once tracking stops, so only a failure message outlives it.
+  const shownStatus = on || /^(Hand tracking failed|No WiLoR|WiLoR)/.test(status) ? status : "";
   const tipRef = useRef<{ now: number; ref: number | null }>({ now: 0, ref: null });
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -269,7 +279,7 @@ export default function HandTracker({ pose, disp, onStart, onActive, onFrame }: 
       tipRef.current = { now: 0, ref: null };
       setDispMm(null);
     };
-  }, [on, source, pose, disp]);
+  }, [on, source, pose, disp, setOn]);
 
   const onActiveRef = useRef(onActive);
   useEffect(() => { onActiveRef.current = onActive; });
@@ -279,19 +289,14 @@ export default function HandTracker({ pose, disp, onStart, onActive, onFrame }: 
   }, [on]);
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          className={on ? "btn btn-danger" : "btn"}
-          aria-pressed={on}
-          onClick={() => { if (!on) onStart?.(); setOn(!on); if (on) setStatus(""); }}
-        >
-          {on ? "Stop hand tracking" : "Hand tracking mode"}
-        </button>
+    // Three rows (controls, video, readout) taken from the parent grid via subgrid, so this column's video
+    // lines up with its neighbour's however the controls wrap.
+    <div className="row-span-3 grid grid-rows-subgrid gap-y-2">
+      <div className="flex flex-wrap content-start items-center gap-2">
         <label className="t-small muted flex items-center gap-1">
           Model
           <select
-            className="btn"
+            className="btn w-32 max-w-full truncate"
             value={source}
             onChange={(e) => setSource(e.target.value as HandSource)}
           >
@@ -299,18 +304,26 @@ export default function HandTracker({ pose, disp, onStart, onActive, onFrame }: 
             <option value="wilor">WiLoR (local GPU server)</option>
           </select>
         </label>
-        {status && <span className="t-small muted">{status}</span>}
+        {shownStatus && <span className="t-small muted">{shownStatus}</span>}
       </div>
-      {on && (
-        <>
-          <div className="relative w-48 overflow-hidden rounded" style={{ transform: "scaleX(-1)" }}>
-            <video ref={videoRef} muted playsInline className="block w-full" />
+      <div>
+        {on && (
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded bg-black" style={{ transform: "scaleX(-1)" }}>
+            <video ref={videoRef} muted playsInline className="block h-full w-full object-cover" />
             <canvas ref={overlayRef} className="absolute inset-0 h-full w-full" />
           </div>
-          <div className="flex items-center gap-2 t-body">
+        )}
+      </div>
+      <div className="space-y-2">
+        {!on && !shownStatus && (
+          <p className="t-small faint">Press Start in the Rep machine to switch on the camera. It begins once a hand is detected.</p>
+        )}
+        {on && (
+        <>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 t-body">
             <span>Index displacement</span>
             <span className="num font-semibold">{dispMm === null ? "–" : dispMm.toFixed(1)} mm</span>
-            <button className="btn" onClick={() => { tipRef.current.ref = tipRef.current.now || null; }}>Zero (finger extended)</button>
+            <button className="btn max-w-full" onClick={() => { tipRef.current.ref = tipRef.current.now || null; }}>Zero (finger extended)</button>
           </div>
           <p className="t-small muted">
             {source === "wilor"
@@ -319,7 +332,8 @@ export default function HandTracker({ pose, disp, onStart, onActive, onFrame }: 
             The 3D hand mirrors your finger flexion. Amber dots are the five fingertips, cyan the other tracked joints.
           </p>
         </>
-      )}
+        )}
+      </div>
     </div>
   );
 }
