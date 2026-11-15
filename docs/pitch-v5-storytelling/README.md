@@ -4,7 +4,7 @@ Version 4 tells the pitch as one patient's story in four acts, with real footage
 
 ## Present it
 
-Pull the repo and open `docs/pitch-v4-storytelling/index.html` in Chrome (double-click, no server or internet needed). Press **F** for full screen. GitHub does not preview HTML files, so it has to be opened from a local copy.
+Pull the repo and open `docs/pitch-v5-storytelling/index.html` in Chrome (double-click, no server or internet needed). Press **F** for full screen. GitHub does not preview HTML files, so it has to be opened from a local copy.
 
 | Key | Does |
 |---|---|
