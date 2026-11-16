@@ -153,7 +153,7 @@ def test_a_missing_start_pose_says_how_to_make_one(run_cpm, tmp_path):
         start_pose=str(tmp_path / "nope.json"), bus_serial="FAKE", station_host="localhost",
         tuning=None,
     )
-    with pytest.raises(SystemExit, match="set_home_pose.py --save --path"):
+    with pytest.raises(SystemExit, match="set_home_pose.py --save --to cpm"):
         asyncio.run(run_cpm.run(args))
 
 
@@ -328,17 +328,22 @@ def test_a_reading_renders_as_grams_for_the_operator(run_cpm):
 
 
 # ------------------------------------------------------------------ the second pose
-def test_set_home_pose_can_write_somewhere_other_than_the_session_home():
+def test_set_home_pose_writes_to_exactly_one_of_the_two_named_poses():
     """CPM needs its own start pose, so the capture script has to be able to write a second
-    file rather than only the one home."""
+    slot - and only that second slot, not an arbitrary path: this repo's rule is that a pose
+    is trustworthy because it was placed and measured against the real rig, so the only
+    legitimate destinations are the named pair in session.home_pose.NAMED_POSES."""
+    from session.home_pose import NAMED_POSES
+
     spec = importlib.util.spec_from_file_location(
         "set_home_pose", REPO / "scripts" / "set_home_pose.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     source = (REPO / "scripts" / "set_home_pose.py").read_text()
-    assert "--path" in source
-    assert "args.path" in source
+    assert "--path" not in source, "writing to an arbitrary path was deliberately removed"
+    assert "args.to" in source
+    assert set(NAMED_POSES) == {"home", "cpm"}
 
 
 def test_a_saved_pose_file_loads_through_the_same_loader(tmp_path):
@@ -351,3 +356,68 @@ def test_a_saved_pose_file_loads_through_the_same_loader(tmp_path):
     loaded = load_home_pose(path)
     assert loaded[1] == 2049
     assert 8 not in loaded
+
+
+# ------------------------------------------------------- the two named poses, closed on purpose
+def test_named_poses_is_exactly_these_two():
+    """Not an open set. Adding a third pose later is a deliberate code change to this dict,
+    not a string someone types at a prompt."""
+    from session.home_pose import NAMED_POSES
+
+    assert set(NAMED_POSES) == {"home", "cpm"}
+
+
+def test_go_home_only_accepts_the_two_named_destinations(capsys):
+    """A typed --path would let a typo or an unrelated file become somewhere the arm actually
+    drives to. --to has to be closed to argparse's own choices, not just documented as such,
+    which is why this calls main() directly rather than through build_args: argparse refuses
+    the bad value and exits before build_args's own capture ever runs."""
+    spec = importlib.util.spec_from_file_location(
+        "go_home", REPO / "scripts" / "go_home.py"
+    )
+    go_home = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(go_home)
+    with pytest.raises(SystemExit):
+        go_home.main(["--to", "/etc/passwd"])
+    assert "invalid choice" in capsys.readouterr().err
+
+
+def test_go_home_defaults_to_the_session_home():
+    spec = importlib.util.spec_from_file_location(
+        "go_home", REPO / "scripts" / "go_home.py"
+    )
+    go_home = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(go_home)
+    assert build_args(go_home, []).to == "home"
+
+
+def test_go_home_can_target_the_cpm_start_pose():
+    from session.home_pose import CPM_START_POSE_PATH, NAMED_POSES
+
+    assert NAMED_POSES["cpm"] == CPM_START_POSE_PATH
+    spec = importlib.util.spec_from_file_location(
+        "go_home", REPO / "scripts" / "go_home.py"
+    )
+    go_home = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(go_home)
+    assert build_args(go_home, ["--to", "cpm"]).to == "cpm"
+
+
+def test_set_home_pose_only_accepts_the_two_named_destinations(capsys):
+    spec = importlib.util.spec_from_file_location(
+        "set_home_pose", REPO / "scripts" / "set_home_pose.py"
+    )
+    set_home_pose = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(set_home_pose)
+    with pytest.raises(SystemExit):
+        set_home_pose.main(["--to", "/etc/passwd"])
+    assert "invalid choice" in capsys.readouterr().err
+
+
+def test_run_cpm_and_go_home_agree_on_where_the_cpm_pose_lives(run_cpm):
+    """run_cpm.py's own default --start-pose and go_home.py --to cpm have to be the same
+    file, or walking there with go_home.py would not actually be where the stroke starts."""
+    from session.home_pose import NAMED_POSES
+
+    args = build_args(run_cpm, [])
+    assert args.start_pose == NAMED_POSES["cpm"]
