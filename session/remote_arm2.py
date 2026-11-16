@@ -238,6 +238,10 @@ class ActuatorSide:
     link: Link
     _move_to: str | None = None
     _lease: Lease | None = None
+    #: This machine's own clock when `_lease` arrived. The lease is timed from here, never
+    #: from the brain's `issued_at`: two machines' monotonic clocks share no origin, so
+    #: comparing them asks which booted first rather than whether permission has run out.
+    _lease_at: float | None = None
     _moving: bool = False
     #: Messages that could not be trusted, for this machine's log.
     rejected: list[str] = field(default_factory=list)
@@ -253,10 +257,14 @@ class ActuatorSide:
             if kind is MessageKind.HOOK_REQUEST:
                 self._move_to = fields["finger"]
                 self._lease = fields["lease"]
+                self._lease_at = now
             elif kind is MessageKind.HEARTBEAT:
                 renewal = fields["lease"]
                 if self._lease is not None and renewal.move_id == self._lease.move_id:
                     self._lease = renewal
+                    # The renewal's clock starts now, on this machine, which is what makes
+                    # "the brain has gone quiet" the thing actually being measured.
+                    self._lease_at = now
                 else:
                     # A renewal for a move this end is not doing cannot authorise anything. It
                     # is how a stale brain, or one that restarted and reused an id, would
@@ -269,9 +277,9 @@ class ActuatorSide:
             else:
                 self.rejected.append(f"unexpected {kind.value} from the brain")
 
-        if self._move_to is None or self._lease is None:
+        if self._move_to is None or self._lease is None or self._lease_at is None:
             return ActuatorDecision(reason="no authorised move")
-        if not self._lease.fresh_at(now):
+        if not self._lease.fresh_at(now, received_at=self._lease_at):
             # Permission expired. This is the branch a dead link takes, and it is the same
             # shape as `control.safety.SafetyGate` refusing to move on a stale force reading:
             # the absence of fresh authorisation is itself the instruction to stop.
@@ -298,10 +306,12 @@ class ActuatorSide:
         )
         self._move_to = None
         self._lease = None
+        self._lease_at = None
         self._moving = False
 
     def _halt(self, reason: str) -> ActuatorDecision:
         was_moving, self._moving = self._moving, False
         self._move_to = None
         self._lease = None
+        self._lease_at = None
         return ActuatorDecision(reason=reason, halt=was_moving)
