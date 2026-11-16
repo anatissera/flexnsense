@@ -113,6 +113,40 @@ async def read_bus_positions(client, bus_serial: str, motor_ids: list[int], time
     raise RuntimeError(f"bus {bus_serial} no encontrado en {ST3215_QUEUE} (buses vistos: {seen})")
 
 
+SERVO_STATUS_BITS = ("voltaje", "límite de ángulo", "sobrecalentamiento", "rango", "checksum", "sobrecarga", "instrucción")
+
+
+async def describe_bus(client, bus_serial: str, timeout: float = 3.0) -> str:
+    """Estado de cada servo del bus (st3215/inference), para saber por qué Station no da frames.
+
+    Station salta el frame de inference/normvla si CUALQUIER motor del bus tiene el registro
+    de estado (0x41) distinto de 0 (formats/normvla.rs, "Skip: motor_error").
+    """
+    qr = client.read_from_tail(ST3215_QUEUE, offset=b"\x00", limit=1, step=1, buf_size=1)
+    entry = await asyncio.wait_for(qr.data.get(), timeout=timeout)
+    if entry is None:
+        return f"{ST3215_QUEUE} sin datos"
+    signed = lambda v, bit: -(v & ~(1 << bit)) if v & (1 << bit) else v     # noqa: E731
+    lines = []
+    for bus in st3215.InferenceStateReader(entry.Data).get_buses() or []:
+        info = bus.get_bus()
+        if not info or info.get_serial_number() != bus_serial:
+            continue
+        for m in sorted(bus.get_motors() or [], key=lambda m: m.get_id()):
+            sb = bytes(m.get_state())
+            if len(sb) < 0x47:
+                lines.append(f"  motor {m.get_id()}: sin estado ({len(sb)} bytes)")
+                continue
+            u16 = lambda a: struct.unpack_from("<H", sb, a)[0]     # noqa: E731
+            status = sb[0x41]
+            why = [n for i, n in enumerate(SERVO_STATUS_BITS) if status >> i & 1]
+            lines.append(f"  motor {m.get_id()}: torque {sb[RAM_TORQUE_ENABLE]} | goal {u16(RAM_GOAL_POSITION)} "
+                         f"pos {u16(RAM_PRESENT_POSITION)} | carga {signed(u16(0x3C), 10) / 10:.0f} % | "
+                         f"{sb[0x3E] / 10:.1f} V | {sb[0x3F]} C | corriente {signed(u16(0x45), 15)} | "
+                         f"estado 0x{status:02X}{' <-- ERROR: ' + ', '.join(why) if why else ''}")
+    return "\n".join(lines) if lines else f"bus {bus_serial} no aparece en {ST3215_QUEUE} (¿USB desconectado?)"
+
+
 async def safe_enable_torque(client, bus_serial: str, motor_ids: list[int]) -> None:
     """Escribe goal = posición actual y DESPUÉS activa el torque (evita un salto al arrancar)."""
     pos = await read_bus_positions(client, bus_serial, motor_ids)
@@ -141,6 +175,7 @@ class Obs:
     positions: np.ndarray      # (8,) ticks actuales
     ranges: list[tuple[int, int]]
     jpegs: list[bytes]         # en el orden de slots de Station (NO de vistas)
+    currents: np.ndarray | None = None   # (8,) corriente de cada servo, unidades del registro (como en el teleop)
 
 
 async def fetch_frame(client, timeout: float) -> normvla.FrameReader:
@@ -177,6 +212,7 @@ async def fetch_fresh_obs(client, last_id: bytes, timeout: float, n_joints: int 
             positions=np.array([j.get_position() for j in joints], dtype=np.int64),
             ranges=[(int(j.get_range_min()), int(j.get_range_max())) for j in joints],
             jpegs=[bytes(im.get_jpeg()) for im in images],
+            currents=np.array([j.get_current_ma() for j in joints], dtype=np.int64),
         )
 
 

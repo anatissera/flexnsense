@@ -64,3 +64,30 @@ def test_gripper_is_exempt_from_the_abort_rule():
         goal, _ = safety.apply(target, pos)
         assert goal is not None
     assert goal[7] == 1000
+
+
+def test_stalled_gripper_goal_is_held_even_if_the_lead_wobbles_around_the_limit():
+    # Seen on the arm: the gripper opens against the ring and stops, with the goal 50 to 75 ticks
+    # ahead. The servo trips its overload protection unless the goal is pulled back.
+    safety = GoalSafety()
+    pos = np.array([2432, 2642, 1000, 2688, 1723, 2565, 3076, 1561])
+    leads = []
+    for gap in [75, 52, 70, 50, 65, 52, 75, 55, 52, 70, 60, 52, 75, 52, 70]:
+        target = pos.copy()
+        target[7] = pos[7] - gap
+        goal, msg = safety.apply(target, pos, np.zeros(8, dtype=np.int64))
+        leads.append(int(pos[7] - goal[7]))
+    assert leads[:12] == [75, 52, 70, 50, 65, 52, 75, 55, 52, 70, 60, 52]
+    assert leads[12:] == [45, 45, 45] and "motor 8 retenido" in msg
+
+
+def test_a_held_motor_is_released_when_the_policy_pulls_back():
+    safety = GoalSafety()
+    pos = np.array([2000] * 7 + [1561])
+    for _ in range(14):
+        target = pos.copy()
+        target[7] = 1490
+        safety.apply(target, pos, None)
+    target[7] = 1700
+    goal, msg = safety.apply(target, pos, None)
+    assert goal[7] == 1700 and "retenido" not in msg
