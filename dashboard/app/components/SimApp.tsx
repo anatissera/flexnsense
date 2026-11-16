@@ -16,6 +16,9 @@ import type { ViewApi } from "./MyoViewer";
 import type { HandFrame } from "../lib/handFrame";
 import MuscleCallout from "./MuscleCallout";
 import DemoBadge from "./DemoBadge";
+import SimulatedGauge from "./SimulatedGauge";
+import { DEMO } from "../lib/demo";
+import { onEmergencyStop } from "../lib/estop";
 import type { MuscleAnchor } from "./MyoViewer";
 import { buildContext, MUSCLE_NAMES, muscleInfo, resolveMuscle, type SessionContext } from "../lib/chatContext";
 import { median } from "../lib/curlsim/dsp";
@@ -78,6 +81,14 @@ const LIVE_ROWS: { key: keyof LiveSnapshot["current"] & string; label: string; u
   { key: "force_relaxation_tau", label: "Relaxation tau", unit: "s", d: 1 },
   { key: "hysteresis", label: "Hysteresis", unit: "%", d: 0 },
 ];
+/**
+ * What the force channel is, in words, for everything a person or the assistant reads. In the
+ * demo build the gauge panel is a simulation writing into the gauge's ref, so a reading that
+ * arrived "from the gauge" must not be called a measurement anywhere.
+ */
+const GAUGE_SOURCE_NOTE = DEMO ? "simulated force, no gauge attached" : "measured force from the gauge";
+const GAUGE_SOURCE_FIELD = DEMO ? "simulated (no gauge attached)" : "gauge reader (measured)";
+
 const PHASE_COLOR: Record<string, string> = {
   baseline: "var(--phase-rest)", rest: "var(--phase-rest)", flexion: "var(--phase-flexion)",
   hold: "var(--phase-hold)", extension: "var(--phase-extension)",
@@ -179,6 +190,10 @@ export default function SimApp() {
   const gaugeRef = useRef<GaugeSample | null>(null);
   const gaugeOn = useRef(false);
   const onGaugeActive = useCallback((on: boolean) => { gaugeOn.current = on; }, []);
+  // The rep machine's simulated force, which in the demo build is what the force panel reports.
+  // A ref, not state: it changes every frame and nothing up here needs to re-render for it.
+  const repForceRef = useRef<number | null>(null);
+  const onRepForce = useCallback((n: number | null) => { repForceRef.current = n; }, []);
   const camToken = useRef(0);
   const camAnalyzer = useRef<LiveAnalyzer | null>(null);
   const camBuf = useRef<CamBuf>(newCamBuf());
@@ -465,6 +480,11 @@ export default function SimApp() {
     setTrackerOn(on);
   }, [stop]);
 
+  // The stop in the top bar covers everything this page drives, not only the rep machine: the
+  // simulated curl stops and the camera is handed back. Switching the tracker off takes the
+  // camera-mode analysis down with it, through HandTracker's own onActive.
+  useEffect(() => onEmergencyStop(() => { stop(); setTrackerOn(false); }), [stop]);
+
   // The main camera's API, handed up by the viewer for the view cube in the top right.
   const viewApiRef = useRef<ViewApi | null>(null);
   const onViewApi = useCallback((api: ViewApi | null) => { viewApiRef.current = api; }, []);
@@ -569,7 +589,7 @@ export default function SimApp() {
     const measured: SessionContext | null = snap && hasReps ? {
       source: camTrial ? "camera" : "simulated",
       inProgress: !!live || camOn,
-      forceSource: !camTrial ? "simulation" : camForce.measured ? "gauge reader (measured)" : "assumed constant 20 N",
+      forceSource: !camTrial ? "simulation" : camForce.measured ? GAUGE_SOURCE_FIELD : "assumed constant 20 N",
       forceDropouts: camTrial && camForce.measured ? { count: camForce.drops.length, totalSeconds: dropSecs } : null,
       repsAnalysed: snap.reps.length,
       recoveryIndex: snap.recovery_index,
@@ -617,7 +637,7 @@ export default function SimApp() {
           screen loses the least important thing last. The column is transparent to the mouse so
           the 3D view behind it still drags and the explore wheel still works. */}
       <div className="pointer-events-none absolute bottom-4 left-4 top-4 flex w-[340px] max-w-[calc(100%-2rem)] flex-col justify-end gap-4">
-        <GuideHand subscribe={subscribeHandFrames} trackerOn={trackerOn} onTrackerChange={requestTracker} />
+        <GuideHand subscribe={subscribeHandFrames} trackerOn={trackerOn} onTrackerChange={requestTracker} onForce={onRepForce} />
         <ChatPanel context={chatContext} onTool={onTool} />
       </div>
       <aside className="panel absolute bottom-4 right-4 top-4 w-[470px] max-w-[calc(100%-2rem)] space-y-4 overflow-y-auto">
@@ -667,7 +687,11 @@ export default function SimApp() {
           <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] grid-rows-[auto_auto_auto] gap-x-5 p-1.5">
             <HandTracker pose={handPoseRef} disp={camDispRef} onActive={onCamActive} onFrame={onHandFrame} on={trackerOn} onOnChange={setTrackerOn} />
             <div aria-hidden className="row-span-3 w-px self-stretch" style={{ background: "var(--line)" }} />
-            <GaugeForce force={gaugeRef} onActive={onGaugeActive} />
+            {/* With no bench there is no gauge to connect to, so the demo build puts a labelled
+                simulation in its place rather than a panel that can only fail to connect. */}
+            {DEMO
+              ? <SimulatedGauge forceRef={gaugeRef} onActive={onGaugeActive} driven={repForceRef} />
+              : <GaugeForce force={gaugeRef} onActive={onGaugeActive} />}
           </div>
           <div className="flex gap-1">
             {FINGERS.map((f) => (
@@ -692,7 +716,7 @@ export default function SimApp() {
               : view.cam
                 // The offline checker can reject a camera trial for force baseline drift: a constant 20 N
                 // assumption reads as drift, and so can a gauge dropout (0 N). Neither means a bad trial.
-                ? `${view.aI.reps.length} reps detected (camera, ${camForce.measured ? "measured force from the gauge" : "constant 20 N force assumed"})`
+                ? `${view.aI.reps.length} reps detected (camera, ${camForce.measured ? GAUGE_SOURCE_NOTE : "constant 20 N force assumed"})`
                 : `Trial rejected: ${view.aI.reasons.join("; ")}`}
             {view.cam && camForce.drops.length > 0 &&
               ` · ${camForce.drops.length} force dropout${camForce.drops.length === 1 ? "" : "s"}, ${dropSecs.toFixed(1)} s total (0 N)`}

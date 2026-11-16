@@ -1,8 +1,16 @@
 import { SYSTEM_PROMPT, TOOLS } from "../../lib/chatContext";
+import { clientKey, take, tooMany } from "../ratelimit";
+
+/** Generous for a person asking questions, cheap for a loop. */
+const LIMIT = 20;
+const WINDOW_S = 60;
 
 export async function POST(req: Request) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return Response.json({ error: "OPENAI_API_KEY is not set in .env" }, { status: 500 });
+
+  const limit = take(`chat:${clientKey(req)}`, LIMIT, WINDOW_S);
+  if (!limit.ok) return tooMany(limit.retryAfterS);
 
   let body: { messages?: unknown[]; context?: unknown };
   try {

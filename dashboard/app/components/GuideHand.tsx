@@ -12,6 +12,7 @@ import type { RepStep } from "../lib/session/reps";
 import { DEMO_PASSIVE_TARGET_M, RepSimulation } from "../lib/session/simulation";
 import { Bar } from "./charts";
 import DemoBadge from "./DemoBadge";
+import { onEmergencyStop } from "../lib/estop";
 
 // Index joint targets (rad) when flexed: MCP, PIP, DIP.
 const FLEX = [0.5, 0.55, 0.35];
@@ -88,13 +89,19 @@ type View = { step: RepStep; forceN: number | null; travelMm: number; capN: numb
  * Nothing here is measured and nothing here can move an arm. The machine that decides when a real
  * arm pulls a real finger is the Python one, behind the safety gate.
  */
-export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
+export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onForce }: {
   /** The tracker's HandFrame stream. A frame arrives only when a hand is found. */
   subscribe: (fn: (frame: HandFrame) => void) => () => void;
   /** Whether the webcam hand tracker is running. */
   trackerOn: boolean;
   /** Ask for the webcam hand tracker to be switched on or off. */
   onTrackerChange: (on: boolean) => void;
+  /**
+   * The simulated force, every frame of a running set, and null when the set ends or a dropout is
+   * being simulated. It is what the demo build shows in place of a gauge reading, so the number
+   * the patient panel shows and the number this machine is deciding on are the same number.
+   */
+  onForce?: (forceN: number | null) => void;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const flexRef = useRef(0);
@@ -117,6 +124,8 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { voiceRef.current = voice; }, [voice]);
   useEffect(() => { dropoutRef.current = dropout; }, [dropout]);
+  const onForceRef = useRef(onForce);
+  useEffect(() => { onForceRef.current = onForce; });
   const said = useRef("");
   const say = useCallback((key: string, text: string) => {
     if (said.current === key) return;
@@ -295,6 +304,7 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
     window.speechSynthesis?.cancel();
     flexRef.current = 0;
     colorRef.current = 0;
+    onForceRef.current?.(null);
     if (waitingRef.current) {
       // Cancelled before a hand was ever seen: there is no set to abandon.
       waitingRef.current = false;
@@ -309,6 +319,12 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
     setPlaying(false);
     releaseCamera();
   };
+
+  // The stop in the top bar lands here, on the same abandon() path as this panel's own Stop. One
+  // way to stop a set means one way a stopped set is recorded, whichever control was pressed.
+  const stopRef = useRef(stop);
+  useEffect(() => { stopRef.current = stop; });
+  useEffect(() => onEmergencyStop(() => stopRef.current()), []);
 
   // The first tracked hand starts the sequence. The tracker only reports frames in which it found a hand.
   useEffect(() => {
@@ -348,6 +364,7 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
       const now = performance.now();
       const r = sim.tick(now / 1000, dropoutRef.current);
       const { step } = r;
+      onForceRef.current?.(r.forceN);
       // Ease toward the pose the cue asks for. Null means hold the current target.
       const asked = GUIDE_FLEX[sim.machine.block.mode][step.phase];
       if (step.finished) flexTarget = 0;
@@ -367,6 +384,7 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
       if (step.finished) {
         setPlaying(false);
         releaseCamera();
+        onForceRef.current?.(null); // the set is over: no source, so no reading
         return;
       }
       raf = requestAnimationFrame(loop);
