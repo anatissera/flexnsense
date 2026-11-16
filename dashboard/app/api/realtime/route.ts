@@ -13,7 +13,19 @@ const WINDOW_S = 60;
 // OpenAI Realtime without ever seeing OPENAI_API_KEY.
 export async function POST(req: Request) {
   const key = process.env.OPENAI_API_KEY;
-  if (!key) return Response.json({ error: "OPENAI_API_KEY is not set in .env" }, { status: 500 });
+  if (!key) {
+    // The text route runs on a Gemini key too; this one cannot. The browser speaks OpenAI's
+    // realtime event protocol directly, and Google's Live API is a different protocol rather
+    // than a different base URL, so it would be a new client and not a new key.
+    return Response.json(
+      {
+        error: process.env.GEMINI_API_KEY
+          ? "Voice needs an OpenAI key. This deployment has a Gemini key, which the text assistant uses; the voice session speaks OpenAI's realtime protocol and has no Gemini equivalent here."
+          : "OPENAI_API_KEY is not set in the environment.",
+      },
+      { status: 500 },
+    );
+  }
 
   const limit = take(`realtime:${clientKey(req)}`, LIMIT, WINDOW_S);
   if (!limit.ok) return tooMany(limit.retryAfterS);

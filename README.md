@@ -241,8 +241,9 @@ either way, on whatever camera the machine has. What is real in each build, the 
 patients, the three stops (button, top bar, voice in four languages), and how to deploy it:
 [docs/dashboard-demo.md](./docs/dashboard-demo.md).
 
-- `OPENAI_API_KEY` is read server-side only (`dashboard/app/api/chat`, `dashboard/app/api/realtime`); the browser never sees it. Without it the simulator still runs, but the chat and voice panel return an error.
-- Optional overrides in `dashboard/.env`: `OPENAI_MODEL` (chat) and `OPENAI_REALTIME_MODEL` (voice).
+- The keys are read server-side only (`dashboard/app/api/chat`, `dashboard/app/api/realtime`); the browser never sees them. Without one the simulator still runs, but the assistant returns an error.
+- The **text** assistant takes either `GEMINI_API_KEY` (Gemini's OpenAI-compatible endpoint) or `OPENAI_API_KEY`. The **voice** assistant is OpenAI-only: the browser speaks OpenAI's realtime protocol directly, which is a different protocol from Google's Live API, not a different base URL. The emergency stop by voice needs no key at all, being the browser's own speech recognition.
+- Optional overrides in `dashboard/.env`: `GEMINI_MODEL`, `OPENAI_MODEL` (chat) and `OPENAI_REALTIME_MODEL` (voice).
 - The MyoHand model files are served from `dashboard/public/models/myohand`.
 - Voice needs microphone permission and network access to `api.openai.com`.
 - The assistant's two API routes are rate limited per address; a public deployment also wants a spend limit on the OpenAI key.
