@@ -21,7 +21,7 @@ from pathlib import Path
 
 import numpy as np
 
-from station_io import (CameraMapper, FrameShapeError, GoalSafety, VIEWS, fetch_fresh_obs, goal_command, goal_norm_to_ticks,
+from station_io import (describe_bus, CameraMapper, FrameShapeError, GoalSafety, VIEWS, fetch_fresh_obs, goal_command, goal_norm_to_ticks,
                         decode_rgb, new_station_client, safe_enable_torque, send_commands, set_torque)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))      # robot_training/ -> hand_features
@@ -67,6 +67,13 @@ def add_robot_args(p: argparse.ArgumentParser) -> None:
     s.add_argument("--max-delta-ticks", type=int, default=600,
                    help="abortar tick si |goal-pos| de un joint del brazo supera esto (0 = desactivar)")
     s.add_argument("--max-aborts", type=int, default=5, help="parar tras N aborts consecutivos")
+    s.add_argument("--gripper-current-limit", type=int, default=100,
+                   help="si la corriente del gripper llega a esto, su goal se fija en la posición actual "
+                        "(como el teleop; evita la protección por sobrecarga del servo). 0 = desactivar")
+    s.add_argument("--stall-lead-limit", type=int, default=55,
+                   help="si un motor lleva 1.2 s parado con el goal a más de esto (ticks) de su posición, el goal "
+                        "se retiene: el servo salta por sobrecarga al 25 %% de carga durante 2 s (~58 ticks). "
+                        "0 = desactivar")
 
 
 def _report_cameras(e: FrameShapeError, args) -> None:
@@ -104,7 +111,11 @@ async def _confirm(prompt: str) -> bool:
 def _hand_adder(args):
     """Devuelve f(state8, jpeg_by_view) -> state13, o None si la policy no usa las yemas de los dedos.
 
-    Solo se llama al pedir un chunk (no en cada tick): WiLoR tarda ~90 ms por imagen.
+    Solo se llama al pedir un chunk (no en cada tick): WiLoR tarda ~60 ms por imagen.
+    Bloquea (carga y ejecuta WiLoR en la GPU): llamarla siempre con asyncio.to_thread, nunca
+    directamente en el bucle de asyncio. Si el bucle se queda bloqueado unos segundos (cargar
+    WiLoR, o su primera llamada, que compila), el cliente de Station deja de atender la conexión
+    y ya no recibe frames ni confirma comandos, aunque Station siga publicando.
     """
     hand_dim = getattr(args, "hand_dim", 0)
     if not hand_dim:
@@ -172,12 +183,17 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
 
         # ── 2. bucle ──
         safety = GoalSafety(n_joints=n, gripper_index=n - 1, max_step=args.max_step_ticks,
-                            gripper_max_step=args.gripper_max_step_ticks, max_delta=args.max_delta_ticks)
+                            gripper_max_step=args.gripper_max_step_ticks, max_delta=args.max_delta_ticks,
+                            gripper_current=args.gripper_current_limit, lead=args.stall_lead_limit)
         queue: deque = deque()
         tick, aborts, last_id = 0, 0, obs.frame_id
         prev = None      # (state, jpeg_by_view) del tick anterior
         plans: list = []  # temporal ensembling: (tick en que se pidió, chunk entero)
-        add_hand = _hand_adder(args)
+        add_hand = await asyncio.to_thread(_hand_adder, args)
+        if add_hand:        # la primera llamada a WiLoR compila (~5 s): fuera del bucle de control
+            await asyncio.to_thread(add_hand, obs.state, cams.by_view(obs.jpegs))
+            obs = await fetch_fresh_obs(client, last_id, args.timeout, n_joints=n)
+            last_id = obs.frame_id
         mode = "DRY-RUN (no se envía nada)" if args.dry_run else "ENVIANDO goals"
         print(f"\n{mode}. Ctrl-C para parar.\n")
         while not args.max_ticks or tick < args.max_ticks:
@@ -189,8 +205,9 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
             if (tick - 1) % args.replan_every == 0 if args.replan_every else not queue:
                 jpegs = cams.by_view(obs.jpegs)
                 if add_hand:        # 8 joints -> 13: las yemas del frame anterior primero, por el relleno causal
-                    prev = (add_hand(*prev), prev[1]) if prev is not None else None
-                    state, hand_info = add_hand(obs.state, jpegs), add_hand.info()
+                    prev = (await asyncio.to_thread(add_hand, *prev), prev[1]) if prev is not None else None
+                    state = await asyncio.to_thread(add_hand, obs.state, jpegs)
+                    hand_info = add_hand.info()
                 else:
                     state, hand_info = obs.state, ""
                 chunk, n_steps, info = await get_chunk(state, jpegs, args.task, prev)
@@ -208,7 +225,7 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
             else:
                 action = queue.popleft()
             target = goal_norm_to_ticks(action, obs.ranges)
-            goal, msg = safety.apply(target, obs.positions)
+            goal, msg = safety.apply(target, obs.positions, obs.currents)
             ms = (time.perf_counter() - t0) * 1000
             if goal is None:
                 aborts += 1
@@ -226,6 +243,14 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
                       f"cola {len(queue)}  {ms:.0f} ms {info} {msg}")
     except KeyboardInterrupt:
         print("\ninterrumpido.")
+    except TimeoutError as e:        # Station ha dejado de publicar: se mira por qué ANTES de quitar el torque
+        print(f"\nERROR: {e}")
+        try:
+            print(f"estado de los servos del bus {args.bus_serial} (un estado distinto de 0x00 para los frames):")
+            print(await describe_bus(client, args.bus_serial))
+        except Exception as e2:
+            print(f"  no se pudo leer el estado de los servos: {e2!r}")
+        raise SystemExit(1)
     except FrameShapeError as e:
         print(f"\nERROR: {e}")
         if len(e.jpegs) != e.exp_images:

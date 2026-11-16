@@ -655,6 +655,11 @@ En cada frame nuevo de Station (10 Hz, el ritmo del dataset):
    - `--max-delta-ticks 600`: si un joint del brazo pide un goal a más de eso de su posición
      real, ese tick no se envía; tras `--max-aborts 5` seguidos, se para. El gripper queda fuera:
      al apretar un objeto su goal va muy por delante de la posición (hasta ~1000 ticks en las demos).
+   - Motor bloqueado (`--stall-lead-limit 55`, `--gripper-current-limit 100`): si un motor lleva
+     1.2 s parado con el goal a más de 55 ticks, el goal se retiene a 45 ticks de la posición hasta
+     que la policy pida ir hacia el otro lado o el motor vuelva a moverse. Sin esto el servo entra
+     en protección por sobrecarga (estado `0x20`) y Station deja de publicar frames. Probado en el
+     brazo con el gripper, que se para al abrir contra la anilla.
 6. Envía un sync write al registro GOAL_POSITION (`0x2A`) del bus del follower.
 
 Arranque y parada:
@@ -909,7 +914,11 @@ El resumen de datos y modelos está en la sección [A](#a-estado-actual-léelo-p
   una imagen por cámara activa). El script dice cuál falta y guarda lo recibido en
   `camera_received.jpg`. Comprueba las 3 cámaras en la web de Station (:8889), el cable/puerto USB,
   y reinicia Station tras reconectar. La policy necesita las 3 vistas: no puede correr con 2.
-- **`inference/normvla` no da frames:** el follower no tiene torque, o el leader también lo tiene.
+- **`inference/normvla` no da frames:** el follower no tiene torque, o el leader también lo tiene
+  (con `st3215-bus: "auto"`), o un servo del follower tiene el registro de estado distinto de 0:
+  Station salta el frame entero (`Skip: motor_error` en su salida). Si pasa a mitad de un episodio,
+  el script imprime el estado de cada servo antes de salir y marca el que tiene error. `normvla`
+  es el nombre de la cola de Station, no del modelo: se usa con cualquier policy.
 - **Station llena el disco:** graba siempre en `station_data/` (~2 GB/hora con 3 cámaras).
 - **`station.yaml`:** `formats: []` funciona; una lista de strings da error de parseo.
 - **Cámaras en Linux:** además del grupo `dialout`, hace falta una regla udev que dé acceso a

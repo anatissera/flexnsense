@@ -30,7 +30,10 @@ class WilorTips:
 
     Necesita un checkout de WiLoR con sus pesos (WILOR_ROOT) y GPU; ~90 ms por imagen en una
     RTX 3050 y ~1.7 GB de VRAM. Solo se llama cuando se pide un chunk, no en cada tick.
-    Si hay varias manos se queda con la primera derecha (la del dataset es la derecha).
+    Misma configuración que el script que anotó el dataset (data_collection/hand_keypoints.py):
+    modo rápido fp16, conf 0.3, rescale_factor 2.0, sobre el JPEG 224x224 de Station. Si hay
+    varias manos se queda con la más cercana a la elegida en la llamada anterior y, en la
+    primera, con la más grande.
     """
 
     def __init__(self, wilor_root: str | None = None, fast: bool = True):
@@ -38,17 +41,38 @@ class WilorTips:
         if not wilor_root or not Path(wilor_root).is_dir():
             raise SystemExit("WiLoR: pasa --wilor-root <checkout de WiLoR> o define WILOR_ROOT "
                              "(o usa --hand-source mediapipe si el dataset se convirtió con --hand mediapipe)")
-        if str(REPO_ROOT) not in sys.path:
-            sys.path.insert(0, str(REPO_ROOT))
+        wilor_root = str(Path(wilor_root).resolve())
+        # chumpy (lo necesita MANO_RIGHT.pkl) es anterior a numpy 1.24 y a Python 3.11.
+        import inspect
+        for name, value in dict(bool=bool, int=int, float=float, complex=complex, object=object,
+                                unicode=str, str=str).items():
+            if name not in np.__dict__:
+                setattr(np, name, value)
+        if not hasattr(inspect, "getargspec"):
+            inspect.getargspec = inspect.getfullargspec
+        os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
+        for path in (wilor_root, str(REPO_ROOT)):
+            if path not in sys.path:
+                sys.path.insert(0, path)
+        # WiLoR crea un renderer OpenGL en su constructor. La inferencia no lo usa y falla en
+        # máquinas sin EGL (eglInitialize, error 12289), así que se sustituye por uno vacío.
+        import wilor.models.wilor as wilor_module
+        wilor_module.MeshRenderer = lambda *a, **k: None
         from hand_tracking.wilor_source import WilorTracker
         self._tracker = WilorTracker(wilor_root, fast=fast)
+        self._last_center = None
 
     def __call__(self, rgb: np.ndarray) -> np.ndarray | None:
         frames = self._tracker.track(np.ascontiguousarray(rgb[..., ::-1]), 0.0)     # WiLoR espera BGR
         if not frames:
             return None
-        hand = next((f for f in frames if f.handedness == "right"), frames[0])
-        lm = hand.landmarks
+        points = [np.asarray(f.landmarks, dtype=np.float32)[:, :2] for f in frames]
+        if self._last_center is not None:
+            i = int(np.argmin([np.linalg.norm(p.mean(0) - self._last_center) for p in points]))
+        else:
+            i = int(np.argmax([np.ptp(p, axis=0).prod() for p in points]))
+        self._last_center = points[i].mean(0)
+        lm = frames[i].landmarks
         return np.array([c for i in TIP_LANDMARKS for c in (lm[i][0], lm[i][1])], dtype=np.float32)   # 5 yemas
 
 
