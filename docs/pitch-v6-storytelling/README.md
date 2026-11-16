@@ -17,6 +17,7 @@ Offline: pull the repo and open `docs/pitch-v6-storytelling/index.html` in Chrom
 | 1 2 3 | On the real-footage slide: open that clip |
 | P | On the real-footage slide: pause or play |
 | S | On the timeline slide: skip, show every moment at once |
+| C | Hide or show the text over the intro film |
 | E | Edit text in the browser (Esc to finish) |
 | ⌘S / Ctrl+S | Save a copy of the deck with your edits |
 
