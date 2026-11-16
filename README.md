@@ -242,19 +242,30 @@ ok, frame, ts, idx = src.read()
 
 ## Dashboard (Next.js app)
 
-A browser dashboard in `dashboard/`: a 3D MyoHand (MuJoCo, in the browser) with a finger-curl stress test, recovery metrics and charts, and a text/voice assistant (OpenAI) that answers from the simulated results. All data is simulated.
+A browser dashboard in `dashboard/`: a 3D MyoHand (MuJoCo, in the browser), the repetition machine driving a simulated patient, two example patients with a clinician's prescription and their past sessions, a finger-curl stress test with recovery metrics and charts, and a text/voice assistant (OpenAI) that answers from the results. All data is simulated.
 
 ```bash
 cd dashboard
 pnpm install                    # Node 20+, pnpm 9
 cp .env.example .env            # then set OPENAI_API_KEY in .env
-pnpm dev                        # http://localhost:3000
+pnpm dev                        # bench build: probes 127.0.0.1 for the gauge and WiLoR servers
+NEXT_PUBLIC_DEMO=1 pnpm dev     # demonstration build: says plainly that nothing is attached
 ```
 
-- `OPENAI_API_KEY` is read server-side only (`dashboard/app/api/chat`, `dashboard/app/api/realtime`); the browser never sees it. Without it the simulator still runs, but the chat and voice panel return an error.
-- Optional overrides in `dashboard/.env`: `OPENAI_MODEL` (chat) and `OPENAI_REALTIME_MODEL` (voice).
+The same build runs next to the rig and as a public demonstration, and `NEXT_PUBLIC_DEMO` is the
+only difference: with it set, nothing is probed, the force panel is a labelled simulation in the
+gauge's place, and every panel carries a badge for where its numbers come from. Hand tracking works
+either way, on whatever camera the machine has. What is real in each build, the two example
+patients, the three stops (button, top bar, voice in four languages), and how to deploy it:
+[docs/dashboard-demo.md](./docs/dashboard-demo.md).
+
+- The keys are read server-side only (`dashboard/app/api/chat`, `dashboard/app/api/realtime`); the browser never sees them. Without one the simulator still runs, but the assistant returns an error.
+- The **text** assistant takes either `GEMINI_API_KEY` (Gemini's OpenAI-compatible endpoint) or `OPENAI_API_KEY`. The **voice** assistant is OpenAI-only: the browser speaks OpenAI's realtime protocol directly, which is a different protocol from Google's Live API, not a different base URL. The emergency stop by voice needs no key at all, being the browser's own speech recognition.
+- Optional overrides in `dashboard/.env`: `GEMINI_MODEL`, `OPENAI_MODEL` (chat) and `OPENAI_REALTIME_MODEL` (voice).
 - The MyoHand model files are served from `dashboard/public/models/myohand`.
 - Voice needs microphone permission and network access to `api.openai.com`.
+- The assistant's two API routes are rate limited per address; a public deployment also wants a spend limit on the OpenAI key.
+- The dashboard needs a screen of at least 1280 by 800 and says so below that.
 - (from `dashboard/`) `pnpm build && pnpm start` runs the production build; `pnpm lint` runs ESLint.
 
 ## Where to start
