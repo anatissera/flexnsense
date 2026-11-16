@@ -75,3 +75,14 @@ gym.register(
         "skrl_cfg_entry_point": "flex_tasks:team_ippo.yaml",
     },
 )
+
+gym.register(
+    id="Flex-Phys-v0",
+    entry_point="flex_tasks.phys_env:PhysEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": "flex_tasks.phys_env_cfg:PhysEnvCfg",
+        "rsl_rl_cfg_entry_point": "flex_tasks.agents:PhysPPORunnerCfg",
+        "default_agent": "rsl_rl",
+    },
+)

@@ -7,12 +7,14 @@
 **Robot-assisted finger rehabilitation after hand surgery, with a force cap the clinician sets remotely.**<br>
 By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
 
+**[Watch the presentation: flexnsense.vercel.app](https://flexnsense.vercel.app)** - a walkthrough of the project with a 3D MyoHand simulation, built into the dashboard.
+
 [![Leukerbad Robotics Hackathon 2026](https://img.shields.io/badge/Leukerbad_Robotics_Hackathon-2026-0b7285)](https://luma.com/event/evt-7RecqicPQUegOIG)
 [![Track: Elderly Care & Rehabilitation](https://img.shields.io/badge/track-Elderly_Care_%26_Rehabilitation-2f9e44)](#the-hackathon)
 [![NormaCore ElRobot](https://img.shields.io/badge/arm-NormaCore_ElRobot_7%2B1_DOF-0b7285)](./docs/elrobot.md)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](./SETUP.md)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)](./gauge_reader)
-[![Tests: 586 passing](https://img.shields.io/badge/tests-586_passing-success)](./tests)
+[![Tests: 914 passing](https://img.shields.io/badge/tests-914_passing-success)](./tests)
 [![Status: prototype](https://img.shields.io/badge/status-prototype-orange)](#status)
 
 ![Arm A holds the hand, the finger pulls on a PESOLA spring scale held by arm B, a camera reads grams, the clinician sets the cap remotely](docs/images/concept.svg)
@@ -44,14 +46,14 @@ By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
 
 We are **Flex'N Sense**, a team of six.
 
-| Name | Background | GitHub |
-|---|---|---|
-| Guillaume Bonifas | Robotics & MedTech, scale-up leader | [@Guitool77](https://github.com/Guitool77) |
-| Damien Frechou | Mechatronics, automation & control systems | |
-| Ana Tissera | AI Engineering, Universidad de San Andrés | [@anatissera](https://github.com/anatissera) |
-| Laurence Liang | Applied AI Engineer at Mistral. Rootly (YC S21) AI Labs, Groq, MDA Space | [@TheFloatingString](https://github.com/TheFloatingString) |
-| Javier Peres | AI Engineer | [@peresramirez](https://github.com/peresramirez) |
-| Justo Valverde | Robotics Software Engineering student, URJC | |
+| Name | Background | GitHub | LinkedIn |
+|---|---|---|---|
+| Guillaume Bonifas | Robotics & MedTech, scale-up leader | [@Guitool77](https://github.com/Guitool77) | [guillaumebonifas](https://www.linkedin.com/in/guillaumebonifas) |
+| Damien Frechou | Mechatronics, automation & control systems | | [damien-frechou](https://www.linkedin.com/in/damien-frechou) |
+| Ana Tissera | AI Engineering, Universidad de San Andrés | [@anatissera](https://github.com/anatissera) | |
+| Laurence Liang | Applied AI Engineer at Mistral. Rootly (YC S21) AI Labs, Groq, MDA Space | [@TheFloatingString](https://github.com/TheFloatingString) | [laurence-liang-innovator](https://www.linkedin.com/in/laurence-liang-innovator) |
+| Javier Peres | AI Engineer | [@peresramirez](https://github.com/peresramirez) | [peresjavier](https://www.linkedin.com/in/peresjavier) |
+| Justo Valverde | Robotics Software Engineering student, URJC | | [justodariovalverde](https://www.linkedin.com/in/justodariovalverde) |
 
 ## The problem
 
@@ -155,13 +157,27 @@ The work is split into the subtasks of [ROADMAP.md](./ROADMAP.md), one branch an
 | # | Subtask | Branch | Status |
 |---|---|---|---|
 | 1 | Force calibration: can servo current stand in for a force sensor? | `feature/force-calibration` | ❌ answered: no ([docs/force-calibration-result.md](./docs/force-calibration-result.md)) |
-| 2 | Gauge reader: PESOLA → grams + confidence from a camera | `feature/gauge-reader` | ✅ merged ([#5](https://github.com/anatissera/leukerbad-hackathon/pull/5)) |
-| 3 | Admittance controller + safety layer | `feature/admittance-control` | 🟡 written, not yet on hardware |
-| 4 | Simulation rig (MuJoCo + spring) | `feature/sim-rig` | ⚪ planned |
-| 5 | Hand tracking / range of motion | `feature/hand-tracking` | ✅ merged ([#16](https://github.com/anatissera/leukerbad-hackathon/pull/16)) |
-| 6 | Session metrics: force–displacement, stiffness | `feature/session-metrics` | ⚪ planned |
-| 7 | Remote clinician dashboard | `feature/remote-dashboard` | ⚪ planned |
-| - | ElRobot (NormaCore Station) instead of LeRobot: the arm we actually have | `feature/elrobot-support` | 🟡 in progress ([#17](https://github.com/anatissera/leukerbad-hackathon/pull/17)) |
+| 2 | Gauge reader: PESOLA → grams + confidence from a camera | `feature/gauge-reader` | ✅ merged ([#5](https://github.com/anatissera/leukerbad-hackathon/pull/5), [#35](https://github.com/anatissera/leukerbad-hackathon/pull/35), [#45](https://github.com/anatissera/leukerbad-hackathon/pull/45)) |
+| 3 | Admittance controller + safety layer | `feature/admittance-control` | ✅ merged, run on the real arm with `scripts/run_session.py` ([#33](https://github.com/anatissera/leukerbad-hackathon/pull/33), [#38](https://github.com/anatissera/leukerbad-hackathon/pull/38)) |
+| 4 | Simulation: the bench in NVIDIA Isaac Sim, both arms trained in Isaac Lab | `feature/isaac-sim-training` | ✅ merged ([#43](https://github.com/anatissera/leukerbad-hackathon/pull/43), [#46](https://github.com/anatissera/leukerbad-hackathon/pull/46), [#48](https://github.com/anatissera/leukerbad-hackathon/pull/48)). Simulation only: none of these policies has moved the real arm. See [isaac-sim/](./isaac-sim/) |
+| 5 | Hand tracking / range of motion | `feature/hand-tracking` | ✅ merged ([#16](https://github.com/anatissera/leukerbad-hackathon/pull/16), [#28](https://github.com/anatissera/leukerbad-hackathon/pull/28)) |
+| 6 | Session metrics: force–displacement, stiffness | `feature/session-metrics` | ⚪ planned on real data. The dashboard shows these metrics for a simulated patient |
+| 7 | Remote clinician dashboard | `feat/dashboard` | ✅ merged, with live force from the scale ([#29](https://github.com/anatissera/leukerbad-hackathon/pull/29)). The patient data in it is simulated |
+| - | ElRobot (NormaCore Station) instead of LeRobot: the arm we actually have | `feature/elrobot-support` | ✅ merged ([#17](https://github.com/anatissera/leukerbad-hackathon/pull/17)) |
+| - | Session layer: exercise modes, rep and session state machines, two-arm interlock | `feature/session-orchestration` | ✅ merged ([#23](https://github.com/anatissera/leukerbad-hackathon/pull/23), [#38](https://github.com/anatissera/leukerbad-hackathon/pull/38)) |
+| - | Second arm: policies trained on teleoperated recordings, to move the scale between fingers | `feature/robot-training` | 🟡 merged ([#50](https://github.com/anatissera/leukerbad-hackathon/pull/50)). The first ACT ran on the arm with a mediocre result; the newer ones are not yet tested on it. See [robot_training/](./robot_training/) |
+
+## Models and data on Hugging Face
+
+| Repo | What it holds |
+|---|---|
+| [peresjav/flexnsense-sim-policies](https://huggingface.co/peresjav/flexnsense-sim-policies) | The policies trained in Isaac Lab (ONNX, TorchScript and checkpoints), the training code and the videos. Simulation only |
+| [peresjav/lerobot-2026](https://huggingface.co/datasets/peresjav/lerobot-2026) (dataset) | Recorded simulation episodes, 512 per policy, as Parquet, without camera images |
+| [JustoDario/flexnsense_skill1](https://huggingface.co/datasets/JustoDario/flexnsense_skill1) (dataset) | 226 teleoperated episodes on the real second arm: moving the scale from one finger to the next, three tasks, three cameras |
+| [JustoDario/flexnsense_act_skill1_rightindex2middle](https://huggingface.co/JustoDario/flexnsense_act_skill1_rightindex2middle) | The first ACT policy trained on those recordings (43 episodes). The one that ran on the arm |
+| [JustoDario/flexnsense_smolvla](https://huggingface.co/JustoDario/flexnsense_smolvla) | SmolVLA fine-tuned on the same 43 episodes. Not tested on the arm |
+
+The newer multi-task ACT policies are in private repos for now; [robot_training/README.md](./robot_training/README.md) lists them.
 
 ## Getting started
 
@@ -189,7 +205,8 @@ control/          subtask 3: the admittance controller, its safety gate and a si
 session/          subtask 5b: exercise modes, the prescription, the session and rep machines, the two-arm interlock
 scripts/          robot and calibration scripts, against Station (force calibration, bench measurements)
 scripts/lerobot/  NOT our hardware: the original SO-101-via-LeRobot scripts, parked in case we ever port
-tests/            tests per package: tests/lib/, tests/gauge_reader/, tests/hand_tracking/
+robot_training/   train ACT policies on ElRobot datasets recorded with NormaCore Station, upload them, run them on the arm (robot_training/README.md)
+tests/            tests per package: tests/lib/, tests/gauge_reader/, tests/hand_tracking/, tests/robot_training/
 docs/             guides and diagrams
 ```
 
@@ -217,6 +234,7 @@ ok, frame, ts, idx = src.read()
 | [docs/hardware-setup.md](./docs/hardware-setup.md) | Which physical arm is which: Follower 1/2, Leader 1/2, bus serials, who runs what |
 | [docs/session-orchestration.md](./docs/session-orchestration.md) | The two exercise modes, the rep and session state machines, the two-arm interlock, why arm 1 needs no VLA |
 | [docs/pull-mode-design.md](./docs/pull-mode-design.md) | Passive (device-driven) mode: the inverted monotonicity guard, the three stop conditions, end-feel. Designed, not implemented |
+| [docs/pitch-v6-storytelling/](./docs/pitch-v6-storytelling/) | Pitch deck (HTML), current version: version 5 with a 25-second intro film in front, which starts on one key press and moves to the first slide when it ends (online at **https://flexnsense.vercel.app**, or open `index.html` locally). The words to say over the film are in `INTRO-SCRIPT.md`. |
 | [docs/pitch-v5-storytelling/](./docs/pitch-v5-storytelling/) | Pitch deck (HTML): the pitch told as one patient's story in four acts, with real footage (open `index.html` locally). The original PowerPoint is [docs/Pitch.pptx](./docs/Pitch.pptx) |
 | [AGENTS.md](./AGENTS.md) | Git workflow, branch naming, rules for contributors and coding agents |
 
