@@ -115,14 +115,135 @@ On arm 2's machine:
 .venv/bin/python -m session.link serve --host 0.0.0.0 --port 8770
 ```
 
-It prints which finger to hook and waits for a person to confirm, which is `ManualHookMover`'s
-contract over a wire. No policy is trained for the hook move (`session/arm2.py`), so there is
-nothing else it could honestly do yet.
+By default it asks a person to move the hook by hand, then report whether it seated. This mode
+does not launch a policy or command the arm. To use the real policy process instead, pass
+`--checkpoint`, `--task` and `--bus-serial`; the operator still confirms the result, and
+`stop_and_home.py` must return success before the actuator reports a confirmed move.
 
 On arm 1's machine, `session.link.connect_to_actuator` returns a link, and a `RemoteHookMover`
 around it goes where a `ManualHookMover` goes. `GET /health` on the actuator reports the schema
 version it speaks, so a mismatch is visible before a session starts rather than as a refused
 message in the middle of one.
+
+### Probe the socket with one manual request
+
+On arm 2's machine, start the default manual server as above. On arm 1's machine, send one
+request:
+
+```bash
+.venv/bin/python scripts/try_remote_hook.py \
+    --url ws://justo.local:8770/arm2 --finger index --timeout 90
+```
+
+Replace `justo.local` with the actuator machine's reachable hostname or IP. The actuator
+terminal asks a person to move the hook by hand and confirm only after checking where it is.
+The client prints the reported result. This exercises one request, lease renewals, and the
+report over the real socket; it does not run `session.orchestrator.Orchestrator` or a full
+prescription. `session.orchestrator` remains a Python state machine without a runnable CLI.
+
+## What actually goes over the socket
+
+Four messages, and no others (`session.wire.MessageKind`). Every one is JSON, one object per
+WebSocket text frame, on the `/arm2` route. These are the literal bytes, produced by
+`session/wire.py` rather than transcribed by hand:
+
+**Brain to actuator: move the hook.** This is the whole command. There is no "run this script"
+and no shell: the actuator is told *which finger*, and it owns how that happens on its own
+Station and its own arm.
+
+```json
+{"schema": 1, "kind": "hook_request", "finger": "index",
+ "lease": {"move_id": 1, "issued_at": 1234.5, "period_s": 0.5}}
+```
+
+**Brain to actuator: the lease is still good.** Sent every cycle while the move is in flight.
+
+```json
+{"schema": 1, "kind": "heartbeat",
+ "lease": {"move_id": 1, "issued_at": 1234.8, "period_s": 0.5}}
+```
+
+**Brain to actuator: stop.**
+
+```json
+{"schema": 1, "kind": "abort", "move_id": 1, "reason": "operator stopped the session"}
+```
+
+**Actuator to brain: what happened.** The only message that may complete a move. `result` is
+`confirmed` or `failed`, and nothing else: there is no "probably".
+
+```json
+{"schema": 1, "kind": "hook_report", "move_id": 1, "result": "confirmed",
+ "finger": "index", "detail": "confirmed by operator"}
+```
+
+### Why there is no "run this command" message
+
+The obvious design is for the brain to send the actuator a command line to execute. This
+protocol deliberately cannot do that, and the reason is the lease.
+
+A shell command, once started, runs until it finishes. If the brain dies halfway through, the
+far arm keeps going with nobody able to stop it, which is the networked form of the failure
+`control.safety.SafetyGate` and `session.reps.RepMachine._deadman` both exist to prevent. So
+the brain does not send *actions*, it sends an **authorisation with a deadline**: a finger to
+hook, valid for `period_s` seconds, renewed by heartbeats for as long as the brain can still
+see that renewing is safe. The actuator halts the moment that lease expires, so silence means
+stop, which is the only safe meaning silence can have.
+
+What the actuator does with the authorisation, which Station commands it writes to which
+motors, is entirely its own. It holds no session state and decides nothing about the session
+(rule 4 above); it executes and reports.
+
+### The lease is timed by the receiver, not by comparing two clocks
+
+Worth knowing because it was a real bug here, found by running the protocol against the
+actuator and watching the arm do nothing.
+
+`Lease.issued_at` is the brain's `time.monotonic()`. Two machines' monotonic clocks have **no
+common origin**: each counts from its own boot. Comparing the brain's `issued_at` against the
+actuator's own clock therefore does not ask "has the lease expired", it asks "which machine
+booted first", and the answer is constant for a whole session:
+
+  * actuator booted first (its clock reads smaller): every lease looks fresh for ever, which
+    is precisely the flag-not-a-lease failure this design exists to prevent;
+  * brain booted first: every lease looks long expired and the arm refuses to move at all.
+    That is the harmless direction, and it is what this bench hit.
+
+So the receiver times the lease on **its own** clock, from when the message arrived:
+`Lease.expires_once_received_at(received_at)`, and `ActuatorSide` keeps the arrival time
+beside the lease. `issued_at` is an identifier and a log line, never a deadline. `period_s`
+travels with the lease, so the actuator enforces the brain's chosen period without being
+configured to match it, and the brain can tighten the rein on one stroke without redeploying
+anything.
+
+`Lease.expires_at` still exists for the brain to reason about its own leases on its own clock.
+The actuator must not use it, and the tests pin that: two leases differing only in `issued_at`
+behave identically at the actuator.
+
+### Trying it without the other machine
+
+```bash
+# one terminal: the actuator, which is what Justo's laptop runs
+.venv/bin/python -m session.link serve --port 8770
+
+# another: the four messages, by hand
+.venv/bin/python - <<'EOF'
+import asyncio, json, websockets
+from session.wire import Lease, encode_hook_request, encode_heartbeat, decode
+
+async def go():
+    async with websockets.connect("ws://127.0.0.1:8770/arm2") as ws:
+        lease = Lease(move_id=1, issued_at=0.0, period_s=5.0)
+        await ws.send(json.dumps(encode_hook_request("index", lease)))
+        print("sent the request; the actuator now prints which finger to hook")
+        print("report back:", decode(json.loads(await ws.recv())))
+asyncio.run(go())
+EOF
+```
+
+`session/remote_arm2.py` is both ends of this in code, and
+`tests/session/test_remote_arm2.py` exercises the timing failures against a fake link and a
+fake clock, which is the only way a lease expiring mid-move is reproducible on demand.
 
 ## Order to build and merge it
 
@@ -156,4 +277,6 @@ part software cannot test:
   position is a reached position, and it cannot see backlash or the camera dropping frames in
   bursts. Run it with a hand on the e-stop and a low cap.
 - **The two-machine handover has never run with both arms powered.** The protocol round-trips
-  over a real socket in the tests, but no hook has moved because of a message.
+  over a real socket, a request reaches the actuator and the lease expires on its own clock,
+  all verified here. What has not happened is a hook moving because of a message, with both
+  Stations running and an arm on each.

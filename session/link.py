@@ -177,31 +177,50 @@ async def connect_to_actuator(url: str, link: QueueLink | None = None):
             async for raw in ws:
                 link.deliver(json.loads(raw))
 
+        tasks = [asyncio.create_task(outgoing()), asyncio.create_task(incoming())]
         try:
-            await asyncio.gather(outgoing(), incoming())
+            done, pending = await asyncio.wait(
+                tasks, return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in pending:
+                task.cancel()
+            for task in done:
+                task.result()
         finally:
+            for task in tasks:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await task
             await ws.close()
 
     return link, asyncio.create_task(run())
 
 
-def main(argv=None) -> int:
-    p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    sub = p.add_subparsers(dest="cmd", required=True)
-    serve = sub.add_parser("serve", help="run the actuator end on arm 2's machine")
-    serve.add_argument("--host", default=DEFAULT_HOST)
-    serve.add_argument("--port", type=int, default=DEFAULT_PORT)
-    args = p.parse_args(argv)
+async def _ask_yes_no(prompt: str) -> bool:
+    """Blocking input() off the event loop, so the server keeps answering heartbeats and
+    health checks while a person decides."""
+    answer = await asyncio.get_running_loop().run_in_executor(None, input, prompt)
+    return answer.strip().lower() in ("y", "yes", "s", "si", "sí")
 
-    import uvicorn
+
+def _policy_on_link(checkpoint: str, task: str, bus_serial: str, inference_dir: str,
+                    n_action_steps: int | None):
+    """`on_link`, backed by the real `robot_training/inference` policy and `stop_and_home.py`.
+
+    Not `PolicyHookMover`: the policy does not decide the outcome, a person watching the arm
+    does, by answering a prompt here. `session/arm2.py`'s rule still holds - success is
+    reported, never assumed - this only replaces who confirms it manually (`ManualHookMover`'s
+    `confirm()` on this machine) with what the operator here actually has: the real policy
+    process and `stop_and_home.py`'s real exit code, not an invented one.
+
+    Untested against real hardware: wired and readable, not run on the arm.
+    """
+    import subprocess
 
     from session.arm2 import HookResult
     from session.remote_arm2 import ActuatorSide
 
     async def on_link(link: QueueLink) -> None:
-        """Hold the arm still and report what a person does, which is the only implementation
-        that exists: `ManualHookMover`'s contract, over a wire. A policy would replace this
-        function and nothing else in the file."""
         actuator = ActuatorSide(link)
         loop = asyncio.get_running_loop()
         last = None
@@ -211,15 +230,115 @@ def main(argv=None) -> int:
                 print(f"!! halt: {decision.reason}")
             if decision.move_to != last:
                 last = decision.move_to
-                if decision.move_to:
-                    print(f"\n>> move the hook to the {decision.move_to} finger.")
-                    print("   This end has NOT been given a way to move it on its own: no "
-                          "policy is trained (see session/arm2.py), so a person does it and "
-                          "confirms, exactly as ManualHookMover works locally.")
+                if decision.move_to is None:
+                    continue
+                finger = decision.move_to
+                print(f"\n>> launching the policy toward the {finger} finger "
+                      f"(task={task!r}) ...")
+                policy = subprocess.Popen(
+                    ["python", "-s", "run_local.py", "--checkpoint", checkpoint,
+                     "--task", task, "--bus-serial", bus_serial, "--yes",
+                     "--torque-off-on-exit",
+                     *(["--n-action-steps", str(n_action_steps)] if n_action_steps else [])],
+                    cwd=inference_dir,
+                )
+                print("   Watch the arm. The policy does not know when it is done.")
+                done = await _ask_yes_no(
+                    f"   Hooked on the {finger} finger? Press Enter once it is, or type n to "
+                    "give up [Y/n]: "
+                )
+                print("   stopping the policy and homing ...")
+                stop = await loop.run_in_executor(
+                    None,
+                    lambda: subprocess.run(
+                        ["python", "-s", "stop_and_home.py", "--bus-serial", bus_serial],
+                        cwd=inference_dir,
+                    ).returncode,
+                )
+                policy.wait()
+                if stop != 0:
+                    # stop_and_home.py's own contract: nonzero means it did NOT reach home and
+                    # the arm is still holding. Reported as failed whatever the person said,
+                    # because a hook on the right finger with the arm then stuck mid-air is
+                    # not a state the orchestrator should be told is fine.
+                    actuator.report(HookResult.FAILED,
+                                    "stop_and_home.py exited nonzero: did not reach home, the "
+                                    "arm is still holding")
+                elif done:
+                    actuator.report(HookResult.CONFIRMED, "confirmed by the operator at arm 2")
+                else:
+                    actuator.report(HookResult.FAILED, "operator reported the hook did not seat")
             await asyncio.sleep(0.05)
+
+    return on_link
+
+
+async def _manual_on_link(link: QueueLink) -> None:
+    """Ask a person to move the hook by hand, then report their confirmation over the wire."""
+    from session.arm2 import HookResult
+    from session.remote_arm2 import ActuatorSide
+
+    actuator = ActuatorSide(link)
+    loop = asyncio.get_running_loop()
+    last = None
+    while True:
+        decision = actuator.step(loop.time())
+        if decision.halt:
+            print(f"!! halt: {decision.reason}")
+        if decision.move_to != last:
+            last = decision.move_to
+            if decision.move_to:
+                finger = decision.move_to
+                print(f"\n>> move the hook to the {finger} finger by hand.")
+                confirmed = await _ask_yes_no(
+                    f"   Is the hook actually on the {finger} finger? Confirm only after "
+                    "checking [Y/n]: "
+                )
+                if confirmed:
+                    actuator.report(HookResult.CONFIRMED,
+                                    "confirmed by the operator at arm 2")
+                else:
+                    actuator.report(HookResult.FAILED,
+                                    "operator reported the hook did not seat")
+        await asyncio.sleep(0.05)
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+    serve = sub.add_parser("serve", help="run the actuator end on arm 2's machine")
+    serve.add_argument("--host", default=DEFAULT_HOST)
+    serve.add_argument("--port", type=int, default=DEFAULT_PORT)
+    serve.add_argument("--checkpoint", default=None,
+                       help="run the chosen policy toward the requested finger instead of "
+                            "waiting on a person to move the hook by hand. Still needs a "
+                            "person to say when it is done (robot_training/README.md: the "
+                            "policy does not know when the task ends); this only replaces who "
+                            "moves the hook, not who confirms the outcome")
+    serve.add_argument("--task", default="", help="with --checkpoint: the policy's --task")
+    serve.add_argument("--bus-serial", default=None, help="with --checkpoint: the follower bus")
+    serve.add_argument("--inference-dir", default="robot_training/inference",
+                       help="with --checkpoint: cwd for run_local.py and stop_and_home.py, "
+                            "which use flat imports and need it")
+    serve.add_argument("--n-action-steps", type=int, default=None)
+    args = p.parse_args(argv)
+
+    import uvicorn
+
+    if args.checkpoint:
+        if not args.bus_serial:
+            raise SystemExit("--checkpoint needs --bus-serial: it is passed straight to "
+                             "run_local.py and stop_and_home.py")
+        on_link = _policy_on_link(args.checkpoint, args.task, args.bus_serial,
+                                  args.inference_dir, args.n_action_steps)
+    else:
+        on_link = _manual_on_link
 
     print(f"actuator listening on {args.host}:{args.port}{PATH}")
     print("This machine holds no session state and decides nothing: it executes and reports.")
+    if args.checkpoint:
+        print(f"--checkpoint set: a hook request launches the policy toward that finger. A "
+              "person still confirms the outcome (see robot_training/README.md).")
     uvicorn.run(app_for(on_link), host=args.host, port=args.port, log_level="warning")
     return 0
 

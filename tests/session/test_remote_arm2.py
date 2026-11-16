@@ -447,3 +447,99 @@ def test_the_orchestrator_drives_a_remote_arm_with_no_changes_to_itself():
     assert session.hooked_finger == "index", (
         "a confirmed remote move should advance the session exactly as a local one does"
     )
+
+
+# ------------------------------------- the two machines' clocks, which share no origin
+# The bug these cover was real and shipped: `ActuatorSide` compared the brain's `issued_at`
+# against its own clock. Two monotonic clocks count from their own machine's boot, so that
+# comparison asks "which machine booted first", whose answer is constant for a whole session:
+# in one direction every lease looks fresh for ever (the flag-not-a-lease failure this design
+# exists to prevent), in the other the arm never moves at all. Found by running the protocol
+# against the real actuator, where the arm silently did nothing.
+
+def test_the_actuator_moves_even_when_the_brain_booted_much_later():
+    """The brain's clock reads far AHEAD of the actuator's. Timing the lease against
+    `issued_at` would make it look valid for hours."""
+    wire = Loopback()
+    actuator = ActuatorSide(wire.actuator)
+    from session.wire import Lease, encode_hook_request
+
+    # Brain at 900000 s of uptime, actuator at 10 s. Both legitimate.
+    wire.actuator.inbox.append(
+        encode_hook_request("index", Lease(move_id=1, issued_at=900_000.0, period_s=0.5))
+    )
+    assert actuator.step(now=10.0).move_to == "index"
+    # And it still expires on the actuator's own clock, half a second later.
+    assert not actuator.step(now=10.6).may_move
+
+
+def test_the_actuator_moves_even_when_the_brain_booted_much_earlier():
+    """The brain's clock reads far BEHIND the actuator's, which is what happened on this
+    bench: the lease looked long expired and the arm refused to move at all."""
+    wire = Loopback()
+    actuator = ActuatorSide(wire.actuator)
+    from session.wire import Lease, encode_hook_request
+
+    wire.actuator.inbox.append(
+        encode_hook_request("index", Lease(move_id=1, issued_at=0.0, period_s=5.0))
+    )
+    assert actuator.step(now=106_000.0).move_to == "index", (
+        "a lease timed against the brain's clock would read as expired 106000 seconds ago"
+    )
+
+
+def test_a_lease_expires_period_s_after_it_arrived_whatever_the_brain_stamped():
+    """The property that replaces clock comparison: the actuator counts from receipt."""
+    wire = Loopback()
+    actuator = ActuatorSide(wire.actuator)
+    from session.wire import Lease, encode_hook_request
+
+    wire.actuator.inbox.append(
+        encode_hook_request("index", Lease(move_id=1, issued_at=-5_000.0, period_s=0.4))
+    )
+    assert actuator.step(now=500.0).may_move
+    assert actuator.step(now=500.39).may_move
+    assert not actuator.step(now=500.41).may_move
+
+
+def test_a_heartbeat_restarts_the_clock_on_the_actuators_own_time():
+    """Renewal has to extend the lease from when it ARRIVED, or a brain whose clock runs
+    behind could never renew anything."""
+    wire = Loopback()
+    actuator = ActuatorSide(wire.actuator)
+    from session.wire import Lease, encode_heartbeat, encode_hook_request
+
+    lease = Lease(move_id=1, issued_at=0.0, period_s=0.5)
+    wire.actuator.inbox.append(encode_hook_request("index", lease))
+    assert actuator.step(now=1000.0).may_move
+    # Nearly expired on the actuator's clock, then a renewal lands.
+    wire.actuator.inbox.append(encode_heartbeat(lease.renewed(0.3)))
+    assert actuator.step(now=1000.4).may_move, "the renewal should have restarted the clock"
+    assert actuator.step(now=1000.8).may_move
+    assert not actuator.step(now=1001.0).may_move, "and it must still expire"
+
+
+def test_issued_at_is_an_identifier_not_a_deadline_for_the_receiver():
+    """Stated as a property so it cannot quietly go back to being a deadline: two leases that
+    differ ONLY in `issued_at` must behave identically at the actuator."""
+    from session.wire import Lease, encode_hook_request
+
+    seen = []
+    for issued_at in (0.0, 1e6):
+        wire = Loopback()
+        actuator = ActuatorSide(wire.actuator)
+        wire.actuator.inbox.append(
+            encode_hook_request("index", Lease(move_id=1, issued_at=issued_at, period_s=0.5))
+        )
+        seen.append((actuator.step(now=50.0).may_move, actuator.step(now=50.6).may_move))
+    assert seen[0] == seen[1] == (True, False)
+
+
+def test_the_issuers_own_expiry_is_still_available_to_the_brain():
+    """The brain reasons about its own leases on its own clock, which is unaffected."""
+    from session.wire import Lease
+
+    lease = Lease(move_id=1, issued_at=100.0, period_s=0.5)
+    assert lease.expires_at == 100.5
+    assert lease.fresh_at(100.2)
+    assert not lease.fresh_at(100.6)
