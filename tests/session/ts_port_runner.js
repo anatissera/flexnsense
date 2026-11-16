@@ -53,7 +53,7 @@ out.reps = scenarios.reps.map((sc) => {
           confident: inp.confident,
         });
     return {
-      phase: s.phase, law: s.law, driver: s.driver, instruction: s.instruction,
+      phase: s.phase, law: s.law, target: s.target, driver: s.driver, instruction: s.instruction,
       rep_index: s.repIndex, reps_completed: s.repsCompleted, note: s.note,
       finished: s.finished, attempts_abandoned: s.attemptsAbandoned,
     };

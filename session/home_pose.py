@@ -67,3 +67,32 @@ def is_home(pose: dict[int, float], tolerance_ticks: int = 20,
     goal, and demanding exactness would mean never being home. 20 ticks is under 2 degrees.
     """
     return distance_from_home(pose, home) <= tolerance_ticks
+
+
+def home_waypoints(start: dict[int, float], home: dict[int, int] | None = None,
+                   max_step_ticks: int = 80) -> list[dict[int, int]]:
+    """Intermediate poses from `start` to `home`, each joint no more than `max_step_ticks`
+    further along than the last waypoint.
+
+    Pure: no Station, no sleeping, no confirmation prompt. This exists so `scripts/go_home.py`
+    and `scripts/run_session.py`'s own return-to-home share one answer to "how do I get from
+    here to home without asking any servo to cross its whole range in one jump" - a servo
+    given a goal far from its current position moves as fast as it can get there, and that is
+    the one thing this arm must never do near a hand. Each caller still owns the pacing
+    (`settle` between steps) and whatever it does with a `KeyboardInterrupt` midway.
+
+    Returns `[]` if `start` is already at `home` (within rounding): "zero waypoints" and "the
+    last waypoint happens to equal home" would otherwise be the same string of calls with
+    nothing to tell them apart.
+    """
+    if home is None:
+        home = load_home_pose()
+    start_ticks = {m: int(start.get(m, home[m])) for m in home}
+    if all(start_ticks[m] == home[m] for m in home):
+        return []
+    gap = distance_from_home(start_ticks, home)
+    steps = max(1, int(gap / max_step_ticks) + 1)
+    return [
+        {m: int(round(start_ticks[m] + (home[m] - start_ticks[m]) * (i / steps))) for m in home}
+        for i in range(1, steps + 1)
+    ]

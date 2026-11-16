@@ -14,6 +14,7 @@ from session.home_pose import (
     HOME_POSE_PATH,
     distance_from_home,
     home_pose_metadata,
+    home_waypoints,
     is_home,
     load_home_pose,
 )
@@ -132,3 +133,57 @@ def test_a_missing_joint_reading_is_treated_as_being_home():
     home = load_home_pose()
     partial = {m: t for m, t in home.items() if m != 5}
     assert distance_from_home(partial, home) == 0
+
+
+# ---------------------------------------------------------------- home_waypoints
+HOME = {1: 2000, 2: 2000, 3: 2000}
+
+
+def test_already_home_has_no_waypoints():
+    assert home_waypoints(HOME, HOME) == []
+
+
+def test_the_last_waypoint_lands_exactly_on_home():
+    start = {1: 1500, 2: 2500, 3: 1800}
+    waypoints = home_waypoints(start, HOME, max_step_ticks=80)
+    assert waypoints[-1] == HOME
+
+
+def test_no_step_moves_a_joint_more_than_the_cap():
+    """The whole point: a servo given a far-off goal moves as fast as it can get there, and
+    capping the per-step distance is what keeps every intermediate move slow."""
+    start = {1: 1000, 2: 3000, 3: 1500}
+    waypoints = home_waypoints(start, HOME, max_step_ticks=80)
+    prev = start
+    for way in waypoints:
+        for m in HOME:
+            assert abs(way[m] - prev[m]) <= 80 + 1, (m, way, prev)   # +1 for rounding
+        prev = way
+
+
+def test_a_pose_already_within_max_step_ticks_takes_one_waypoint():
+    start = {1: 2030, 2: 1970, 3: 2000}
+    assert len(home_waypoints(start, HOME, max_step_ticks=80)) == 1
+
+
+def test_a_missing_joint_is_treated_as_already_at_home():
+    """Mirrors distance_from_home's own convention: a joint absent from `start` contributes
+    no motion, rather than crashing on a lookup."""
+    start = {1: 1500}
+    waypoints = home_waypoints(start, HOME, max_step_ticks=80)
+    assert waypoints[-1][2] == HOME[2]
+    assert waypoints[-1][3] == HOME[3]
+
+
+def test_every_waypoint_names_every_joint():
+    start = {1: 1000, 2: 3000, 3: 1500}
+    for way in home_waypoints(start, HOME, max_step_ticks=80):
+        assert set(way) == set(HOME)
+
+
+def test_defaults_to_the_saved_home_pose(tmp_path, monkeypatch):
+    saved = {"ticks": {"1": 2050, "2": 1462}}
+    path = tmp_path / "home-pose.json"
+    path.write_text(json.dumps(saved))
+    waypoints = home_waypoints({1: 2000, 2: 2000}, home=load_home_pose(path))
+    assert waypoints[-1] == {1: 2050, 2: 1462}

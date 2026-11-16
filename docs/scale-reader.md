@@ -173,7 +173,8 @@ Limits: each mark must be fully visible, clearly red in the picture and fixed to
 | iPhone picture is black | Lock the iPhone, keep it still in landscape near the Mac (Wi-Fi and Bluetooth on, same Apple ID). It should say "Connected to Mac". Opening Photo Booth and choosing the iPhone forces the connection. |
 | "Stickers not found" at calibration | Both dots and the marker must be visible. Check there are **two** dots plus the marker. You can also click dot 1, then dot 2, by hand (see "Other red marks as references" below). |
 | Reads a few grams at 0 g | Press **z** with nothing on the scale (zero), then **s** to save. |
-| "Sticker hidden" often | Fingers cover a dot, or a dot leaves the picture. Hold the scale by its ends and keep it fully in view. |
+| "Sticker hidden" often | Fingers cover a dot, or a dot leaves the picture. Hold the scale by its ends and keep it fully in view. On a USB webcam under dim light, press **m** for the mask view: if the marks themselves look faint (small, grey, barely-there blobs) rather than covered, the light is too dim or the fixed exposure is too low for this camera - raise `CAMERA_V4L2_EXPOSURE` (Linux) rather than moving anything. |
+| A hand near the scale gets picked up as a dot | Some cameras render skin red enough to cross the mask under some lighting, even though it normally does not. Set `GAUGE_SAT_STRONG` in `.env` to a saturation skin does not reach but the marks do (`gauge_reader/detector.py`'s own numbers: stickers ~220, the marker ~200, skin ~130, wood ~75 - try 150). |
 | Jumpy numbers | Use steady, even light; avoid moving shadows and strong reflections on the metal tube. |
 
 ## Where the code is

@@ -1,7 +1,7 @@
 {
   "tether_n_per_m": 56.2,
   "ticks_per_metre": null,
-  "yield_sign": null,
+  "yield_sign": -1,
   "excursion_m": {
     "middle": 0.11110325317608348,
     "index": 0.11413475134873308,

@@ -121,6 +121,7 @@ what isn't: [docs/elrobot.md](./docs/elrobot.md).
 - **Safety first:** a missing or low-confidence force reading must lead to "release and stop", never to a guess. Do not weaken safety limits to make a test pass.
 - **Never commit** `.env`, `config/scale_calib.json`, `recordings/` or `internal-docs/` (all git-ignored): they are per machine or private.
 - **Do commit** `config/calibration/*.json`: the arm's joint-range calibration lives in the servo firmware and the bench constants describe the physical rig, so neither is per machine and the team shares both. Never hand-edit the numbers; re-measure and commit the result. The procedures are in [docs/bench-measurements.md](./docs/bench-measurements.md).
+- **Do commit** `config/session-tuning.json` and `config/protocols/*.json`: the tuning profile is what the bench proved about the shared rig, and the protocols are the shared clinical intent, so both belong to the team and both are read by the CLI and the dashboard alike. Changing a tuning number is a reviewable diff, not a flag somebody did or did not type: see `session/tuning.py` for what each one is paying for, and change one at a time.
 - **Privacy:** never save full camera frames of a patient; log numbers, or crops of the device only.
 - **Docs:** when behaviour or commands change, update the README and the guide in `docs/` in the same PR.
 

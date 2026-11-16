@@ -62,7 +62,7 @@ export type Phase =
   | "set_done"
   | "aborted";
 
-export type ExerciseMode = "active" | "passive";
+export type ExerciseMode = "active" | "passive" | "cpm";
 
 /** The block being exercised: one finger, one mode, a number of repetitions. */
 export type SnapshotBlock = {

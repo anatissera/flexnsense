@@ -199,3 +199,61 @@ def test_negative_dropout_tolerance_rejected():
 def test_non_positive_travel_limit_rejected():
     with pytest.raises(ValueError, match="max_travel_m"):
         SafetyLimits(f_threshold_n=1.0, f_max_n=2.0, max_travel_m=0.0)
+
+
+# ---------------------------------------------------------------- anticipation_n
+def test_anticipation_defaults_to_zero_and_yields_at_the_literal_cap():
+    """Backwards compatible: every test above this constructs limits() with no
+    anticipation_n at all, and must see the exact same cap-crossing behaviour as before this
+    field existed."""
+    g = gate()
+    at_cap = g.check(THRESHOLD + 0.001, age_s=0.0)
+    just_under = g.check(THRESHOLD - 0.001, age_s=0.0)
+    assert at_cap.action is Action.YIELD
+    assert just_under.action is Action.HOLD
+
+
+def test_anticipation_moves_the_yield_point_earlier():
+    g = gate(anticipation_n=0.2)
+    below_the_old_cap_but_past_the_new_one = g.check(THRESHOLD - 0.1, age_s=0.0)
+    assert below_the_old_cap_but_past_the_new_one.action is Action.YIELD
+    still_below_both = g.check(THRESHOLD - 0.3, age_s=0.0)
+    assert still_below_both.action is Action.HOLD
+
+
+def test_yield_from_n_is_the_cap_minus_the_anticipation():
+    l = limits(anticipation_n=0.2)
+    assert l.yield_from_n == pytest.approx(THRESHOLD - 0.2)
+
+
+def test_zero_anticipation_leaves_yield_from_n_at_the_cap():
+    assert limits().yield_from_n == THRESHOLD
+
+
+def test_the_yield_reason_names_both_numbers_when_anticipating():
+    g = gate(anticipation_n=0.2)
+    d = g.check(THRESHOLD - 0.1, age_s=0.0)
+    assert "yield start" in d.reason
+    assert "anticipating" in d.reason
+    assert f"{THRESHOLD:.2f}" in d.reason
+
+
+def test_the_yield_reason_is_unchanged_with_no_anticipation():
+    """The exact pre-existing wording, so nothing downstream parsing this message breaks for
+    the (default, most common) case of no anticipation at all."""
+    d = gate().check(THRESHOLD + 0.1, age_s=0.0)
+    assert d.reason == f"force {THRESHOLD + 0.1:.2f} N over cap {THRESHOLD:.2f} N"
+
+
+def test_anticipation_cannot_reach_or_exceed_the_cap():
+    """It is a margin below the cap, not a second, lower cap: letting it reach f_threshold_n
+    would mean yielding starts at force zero, and past it would be a negative threshold."""
+    with pytest.raises(ValueError, match="anticipation_n"):
+        limits(anticipation_n=THRESHOLD)
+    with pytest.raises(ValueError, match="anticipation_n"):
+        limits(anticipation_n=THRESHOLD + 0.5)
+
+
+def test_anticipation_cannot_be_negative():
+    with pytest.raises(ValueError, match="anticipation_n"):
+        limits(anticipation_n=-0.1)

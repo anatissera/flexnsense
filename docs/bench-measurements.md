@@ -193,6 +193,39 @@ the tether when it means to release it.
 **Both are pose-dependent.** They are only valid for the arm pose they were measured in. If the
 session pose changes, measure again.
 
+### This measurement could not be taken on this arm, and the reason is not fixable
+
+Every procedure below moves **one** joint and measures how far the attachment point travelled.
+That assumes some joint moves the gripper along the tether. On the ElRobot, in every pose tried
+on the bench, none does: a revolute joint moves the gripper along an arc, and the best-aligned
+joint at the session pose reaches only about 0.4 of the tether's direction, with the rest of its
+travel sideways.
+
+It failed three times on 2026-11-15, and the failures looked different enough to hide the common
+cause:
+
+- motor 4, camera method, large steps: the tether went slack partway, `dx = dF/k` underestimated
+  the travel, and the fit came out at 38524 ticks/m against a geometric prediction of ~3900;
+- motor 4, smaller steps: moving further in one direction first slackened the tether and then
+  tensioned it again, because the arc crossed the tether's axis. `fit_ticks_per_metre` refused
+  the data, correctly, with "moved the opposite way from the rest";
+- motor 1: the same refusal. Motor 1 rotates the base, so it swings the gripper sideways across
+  the tether rather than along it.
+
+No amount of re-measuring fixes this, because the quantity being measured is not well defined for
+a single joint. What replaces it is `scripts/run_session.py --coordinated`, which moves three
+joints together and derives the equivalent conversion, the tether's direction, and `yield_sign`
+from the URDF and the live pose. See the "no single joint follows the tether" section of that
+script's docstring.
+
+`yield_sign` **is** measured and committed: -1, from the camera run above. A direction is a much
+weaker thing to ask of bad magnitude data than a scale factor is, and the URDF geometry agrees
+with it independently (`tests/lib/test_kinematics.py`), which is the only reason it is trusted.
+
+What `--coordinated` still does not know is backlash, so it is a starting point, not a
+calibration. If a way is found to measure travel along the tether under coordinated motion, it
+belongs here.
+
 ### Prerequisites, none of which the script can check
 
 1. Station running, and the norma-core Python client set up (`SETUP.md`).

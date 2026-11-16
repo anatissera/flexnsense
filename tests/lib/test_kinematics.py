@@ -15,6 +15,7 @@ from lib.kinematics import (
     TICKS_PER_TURN,
     check_against_calibration,
     load_chain,
+    load_tick_ranges,
     radians_to_ticks,
     ticks_to_radians,
 )
@@ -400,3 +401,253 @@ def test_a_shorter_pull_can_be_possible_where_a_long_one_is_not(chain):
     motors = chain.choose_pull_motors(CENTRED_POSE)
     assert not chain.can_pull_straight(motors, CENTRED_POSE, sideways, 0.090)[0]
     assert chain.can_pull_straight(motors, CENTRED_POSE, sideways, 0.010)[0]
+
+
+# ---------------------------------------------------------------- the tether's own line
+#: The pose the camera measurement of 2026-11-15 ran in, and the yield sign it measured for
+#: motor 4: negative ticks lowered the force. The cross-check below is the only independent
+#: evidence this repo has for which way out of the gripper the tether runs.
+MEASURED_POSE = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275}
+MEASURED_YIELD_SIGN_MOTOR_4 = -1
+
+
+def test_the_gripper_axis_is_a_unit_vector(chain):
+    assert np.isclose(np.linalg.norm(chain.gripper_axis(OBSERVED_POSE)), 1.0)
+
+
+def test_the_gripper_axis_points_along_the_forearm(chain):
+    """Which of the tip link's three local axes points out of the jaws is a URDF convention,
+    so it is pinned against something computed independently: the vector from the wrist joint
+    to the tip. They agree in every pose, including folded and fully extended ones, which the
+    other two columns do not."""
+    poses = [OBSERVED_POSE, MEASURED_POSE, CENTRED_POSE,
+             {1: 1500, 2: 2500, 3: 1600, 4: 2300, 5: 2048, 6: 2600, 7: 2048},
+             {1: 2048, 2: 1200, 3: 2900, 4: 2900, 5: 2048, 6: 1200, 7: 2048}]
+    for pose in poses:
+        forearm = chain.tip_position(pose) - chain.joint_origin(6, pose)[1]
+        forearm = forearm / np.linalg.norm(forearm)
+        assert float(np.dot(chain.gripper_axis(pose), forearm)) > 0.9, pose
+
+
+def test_the_gripper_axis_turns_with_the_arm(chain):
+    """It is the gripper's own direction, not a fixed direction in the room. If it did not
+    move with the arm it would be useless as the tether's axis."""
+    turned = {**OBSERVED_POSE, 1: OBSERVED_POSE[1] + 500}
+    assert float(np.dot(chain.gripper_axis(OBSERVED_POSE),
+                        chain.gripper_axis(turned))) < 0.95
+
+
+def test_the_tension_direction_opposes_the_gripper_axis(chain):
+    """The finger sits out along the gripper's axis, so travelling that way closes the gap and
+    slackens the line. Tension increases on the way back."""
+    from lib.kinematics import tether_tension_direction
+
+    assert np.allclose(tether_tension_direction(chain, OBSERVED_POSE),
+                       -chain.gripper_axis(OBSERVED_POSE))
+
+
+def test_the_tension_direction_agrees_with_the_measured_yield_sign(chain):
+    """The one bench fact behind all of this. The camera run found that negative ticks on
+    motor 4 lowered the force at MEASURED_POSE; the geometry has to say the same thing, or the
+    sense of the whole coordinated pull is backwards and yielding would tighten the tether."""
+    from lib.kinematics import tether_tension_direction
+
+    direction = tether_tension_direction(chain, MEASURED_POSE)
+    assert chain.yield_sign(4, MEASURED_POSE, direction) == MEASURED_YIELD_SIGN_MOTOR_4
+
+
+def test_the_yield_sign_flips_with_the_pull_direction(chain):
+    direction = chain.tip_velocity_direction(4, OBSERVED_POSE)
+    assert chain.yield_sign(4, OBSERVED_POSE, direction) == -1
+    assert chain.yield_sign(4, OBSERVED_POSE, -direction) == 1
+
+
+def test_a_joint_perpendicular_to_the_pull_has_no_yield_sign(chain):
+    """Refusing beats returning +1: there is no tick direction that releases this pull, and a
+    loop tracking such a joint would yield forever without the force ever coming down."""
+    direction = chain.tip_velocity_direction(4, OBSERVED_POSE)
+    sideways = np.cross(direction, chain.tip_velocity_direction(1, OBSERVED_POSE))
+    with pytest.raises(ValueError, match="perpendicular"):
+        chain.yield_sign(4, OBSERVED_POSE, sideways)
+
+
+# ---------------------------------------------------------------- ticks per metre of the pull
+def test_ticks_per_metre_along_counts_only_motion_along_the_pull(chain):
+    """A joint moving mostly sideways to the tether contributes less travel per tick than its
+    total speed suggests, so the number has to be larger, never smaller."""
+    direction = chain.gripper_axis(OBSERVED_POSE)
+    total = 1.0 / chain.tip_speed_per_tick(4, OBSERVED_POSE)
+    along = chain.ticks_per_metre_along(4, OBSERVED_POSE, direction)
+    assert along > total
+
+
+def test_ticks_per_metre_along_matches_the_total_when_the_joint_follows_the_pull(chain):
+    """The two agree exactly when the joint happens to move straight along the direction."""
+    direction = chain.tip_velocity_direction(4, OBSERVED_POSE)
+    assert np.isclose(chain.ticks_per_metre_along(4, OBSERVED_POSE, direction),
+                      1.0 / chain.tip_speed_per_tick(4, OBSERVED_POSE))
+
+
+def test_ticks_per_metre_along_is_consistent_with_a_finite_difference(chain):
+    direction = chain.gripper_axis(OBSERVED_POSE)
+    tpm = chain.ticks_per_metre_along(4, OBSERVED_POSE, direction)
+    # Five ticks, about 1 mm: the quantity is a derivative, and over a longer move the joint's
+    # arc curves away from the direction by enough to show (50 ticks is already 3 percent out,
+    # which is the same arcing that makes a single-joint pull unusable in the first place).
+    moved = {**OBSERVED_POSE, 4: OBSERVED_POSE[4] + 5}
+    travel = chain.tip_position(moved) - chain.tip_position(OBSERVED_POSE)
+    along = abs(float(np.dot(travel, direction)))
+    assert np.isclose(5 / along, tpm, rtol=0.01)
+
+
+def test_a_joint_perpendicular_to_the_pull_has_no_ticks_per_metre(chain):
+    """The reciprocal of nearly zero is a huge number that passes every later check, so this
+    has to fail here rather than hand the loop a travel scale that can never trip its limit."""
+    direction = chain.tip_velocity_direction(4, OBSERVED_POSE)
+    sideways = np.cross(direction, chain.tip_velocity_direction(1, OBSERVED_POSE))
+    with pytest.raises(ValueError, match="micrometres per tick"):
+        chain.ticks_per_metre_along(4, OBSERVED_POSE, sideways)
+
+
+# ---------------------------------------------------------------- which joint to track
+def test_the_tracked_joint_is_the_one_that_measures_the_pull_best(chain):
+    direction = chain.gripper_axis(OBSERVED_POSE)
+    motors = chain.choose_pull_motors(OBSERVED_POSE, direction)
+    tracked = chain.best_tracked_motor(motors, OBSERVED_POSE, direction)
+
+    assert tracked in motors
+    best = chain.ticks_per_metre_along(tracked, OBSERVED_POSE, direction)
+    for other in motors:
+        assert chain.ticks_per_metre_along(other, OBSERVED_POSE, direction) >= best * 0.999
+
+
+def test_tracking_motor_7_is_never_chosen(chain):
+    """Motor 7 only orients the gripper, so its register would never move. Tracking it would
+    leave the travel limit permanently at zero."""
+    direction = chain.gripper_axis(OBSERVED_POSE)
+    assert chain.best_tracked_motor([4, 7], OBSERVED_POSE, direction) == 4
+
+
+def test_arm_motors_excludes_the_gripper_jaws():
+    from lib.kinematics import ARM_MOTORS
+
+    assert ARM_MOTORS == (1, 2, 3, 4, 5, 6, 7)
+    assert 8 not in ARM_MOTORS
+
+
+# ---------------------------------------------------------------- real joint-range checking
+def test_can_pull_straight_ignores_range_by_default(chain):
+    """Unchanged behaviour when tick_ranges is not passed: every test above this one in the
+    file keeps working without knowing this parameter exists."""
+    pose = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275}
+    direction = chain.tip_velocity_direction(4, pose)
+    motors = chain.choose_pull_motors(pose, direction)
+    ok, _ = chain.can_pull_straight(motors, pose, direction, 0.040)
+    assert ok
+
+
+def test_can_pull_straight_refuses_a_joint_run_past_its_range():
+    """The failure this exists to catch: a pull that passes every other check (rank, gain,
+    straightness) because all of those are computed from the *commanded* ticks, with no idea
+    that one of those commands is physically impossible. Built from a direction and distance
+    chosen to run motor 2 (which moves ~14 mm per 100 ticks here) outside a deliberately
+    narrow synthetic range, so the test does not depend on this arm's real calibration file."""
+    chain = load_chain(URDF)
+    pose = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275}
+    direction = chain.tip_velocity_direction(2, pose)
+    motors = chain.choose_pull_motors(pose, direction)
+    narrow = {m: (0, 4096) for m in motors}
+    narrow[2] = (pose[2] - 5, pose[2] + 5)   # motor 2 can move only 5 ticks either way
+
+    ok, why = chain.can_pull_straight(motors, pose, direction, 0.040, tick_ranges=narrow)
+    assert not ok
+    assert "motor 2" in why
+    assert "past its" in why
+
+
+def test_can_pull_straight_accepts_a_range_wide_enough_to_cover_the_whole_pull(chain):
+    pose = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275}
+    direction = chain.tip_velocity_direction(4, pose)
+    motors = chain.choose_pull_motors(pose, direction)
+    wide = {m: (0, 4096) for m in motors}
+    ok, _ = chain.can_pull_straight(motors, pose, direction, 0.040, tick_ranges=wide)
+    assert ok
+
+
+def test_the_range_violation_is_reported_before_singularity_checks(chain):
+    """Order matters for which message a person sees. A joint pinned against its real stop is
+    the more actionable, more concrete fact; this is implicitly checked by the narrow-range
+    test above also tripping even when gain/condition would otherwise pass, but is worth
+    stating directly: the range check runs inside the same per-waypoint loop as the others,
+    at the first waypoint that violates it, not only at the end."""
+    pose = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275}
+    direction = chain.tip_velocity_direction(2, pose)
+    motors = chain.choose_pull_motors(pose, direction)
+    # Wide enough that, without the range check, this pull is accepted outright.
+    assert chain.can_pull_straight(motors, pose, direction, 0.040)[0]
+    narrow = {m: (0, 4096) for m in motors}
+    narrow[2] = (pose[2] - 5, pose[2] + 5)
+    ok, why = chain.can_pull_straight(motors, pose, direction, 0.040, tick_ranges=narrow)
+    assert not ok and "motor 2" in why
+
+
+def test_load_tick_ranges_reads_the_real_follower_calibration():
+    ranges = load_tick_ranges("5B8E114979", calib_dir=REPO_ROOT / "config/calibration")
+    assert ranges[1] == (1085.0, 3011.0)
+    assert set(ranges) == set(range(1, 9))
+
+
+def test_load_tick_ranges_refuses_a_missing_file(tmp_path):
+    with pytest.raises(FileNotFoundError, match="no calibration"):
+        load_tick_ranges("not-a-real-bus", calib_dir=tmp_path)
+
+
+# ---------------------------------------------------------------- levelling a pull direction
+def test_levelling_zeroes_the_z_component():
+    from lib.kinematics import level_direction
+
+    assert level_direction([0.2, 0.9, 0.12])[2] == 0.0
+
+
+def test_levelling_keeps_the_xy_bearing():
+    """Dropping z and renormalising must not change the compass direction of the pull, only
+    its length: a levelled pull that also turned sideways would be a different line."""
+    from lib.kinematics import level_direction
+
+    levelled = level_direction([0.2, 0.9, 0.12])
+    assert np.isclose(levelled[0] / levelled[1], 0.2 / 0.9)
+
+
+def test_a_levelled_direction_is_still_a_unit_vector():
+    from lib.kinematics import level_direction
+
+    assert np.isclose(np.linalg.norm(level_direction([0.2, 0.9, 0.12])), 1.0)
+
+
+def test_an_already_horizontal_direction_is_unchanged():
+    from lib.kinematics import level_direction
+
+    assert np.allclose(level_direction([0.3, 0.9539392, 0.0]), [0.3, 0.9539392, 0.0])
+
+
+def test_a_vertical_direction_cannot_be_levelled():
+    """Nothing is left in the horizontal plane to renormalise. Returning a zero vector would
+    hand a degenerate pull to `choose_pull_motors` instead of refusing."""
+    from lib.kinematics import level_direction
+
+    with pytest.raises(ValueError, match="vertical"):
+        level_direction([0.0, 0.0, 1.0])
+    with pytest.raises(ValueError, match="vertical"):
+        level_direction([1e-9, 1e-9, 1.0])
+
+
+def test_levelling_the_real_gripper_axis_removes_a_real_tilt(chain):
+    """Why this exists at all, on this arm's own numbers: the gripper's axis at the bench
+    pose is tilted about 0.11 out of horizontal, which is millimetres of climb over a long
+    pull, and is what made a session wander upward where the jog had tracked straight."""
+    from lib.kinematics import level_direction, tether_tension_direction
+
+    pose = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275}
+    tension = tether_tension_direction(chain, pose)
+    assert abs(tension[2]) > 0.05, "expected a real tilt to level away"
+    assert level_direction(tension)[2] == 0.0

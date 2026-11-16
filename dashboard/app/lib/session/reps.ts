@@ -29,6 +29,7 @@ import {
   type Law,
   type Phase,
   type PhasePlan,
+  type Target,
 } from "./modes";
 import { blockCapGf, blockModeSpec, type Block } from "./protocol";
 
@@ -50,6 +51,12 @@ export type RepLimits = {
   homeM: number;
   /** How long a device-driven phase may go without a usable reading before abandoning, seconds. */
   blindGraceS: number;
+  /**
+   * The same, for RESET, which only ever walks back toward the rep's start and so cannot
+   * keep loading the finger. Longer because the successful end of a reset is exactly when
+   * the tether goes slack, which is when the camera loses the PESOLA's markers.
+   */
+  slackBlindGraceS: number;
   /** Longest a single phase may last before the repetition is abandoned, seconds. */
   phaseTimeoutS: number;
 };
@@ -63,6 +70,7 @@ export const DEFAULT_REP_LIMITS: RepLimits = {
   settleS: 0.7,
   homeM: 0.004,
   blindGraceS: 0.3,
+  slackBlindGraceS: 3.0,
   phaseTimeoutS: 60.0,
 };
 
@@ -75,6 +83,7 @@ const LIMIT_KEYS: [keyof RepLimits, string][] = [
   ["settleS", "settle_s"],
   ["homeM", "home_m"],
   ["blindGraceS", "blind_grace_s"],
+  ["slackBlindGraceS", "slack_blind_grace_s"],
   ["phaseTimeoutS", "phase_timeout_s"],
 ];
 
@@ -119,6 +128,12 @@ export type RepStep = {
   phase: Phase;
   /** What the arm should be doing now. */
   law: Law;
+  /**
+   * What bounds the arm's travel this cycle. Needed alongside `law` and not derivable from
+   * it: "pull" appears in a mode's work beat aiming at "rom" and in its reset beat aiming at
+   * "rep_start", which are opposite directions.
+   */
+  target: Target;
   driver: Driver;
   instruction: string;
   /** 1-based index of the repetition in progress, or the total once the set is done. */
@@ -240,13 +255,21 @@ export class RepMachine {
    * phase tolerates a dropout, because a lost reading there leaves the arm static. In a
    * device-driven phase the arm is pulling the finger, so a lost reading would leave it pulling
    * with no idea how hard. Holds still, and abandons the attempt if the reading does not return.
+   *
+   * RESET gets `slackBlindGraceS`, which is longer: it only walks back toward the rep's
+   * start, so it cannot keep loading the finger, and its own success is what makes the
+   * tether go slack and the markers disappear. Keyed on the phase, not the law: active
+   * mode's reset is declared `pull`, the same law as a passive work phase that genuinely
+   * does load the finger.
    */
   private deadman(inp: RepInput): RepStep | null {
     if (!deviceDriven(this.plan)) {
       this.st.blindSince = null;
       return null;
     }
-    const stale = inp.readingAgeS > this.limits.blindGraceS;
+    const grace =
+      this.phase === "reset" ? this.limits.slackBlindGraceS : this.limits.blindGraceS;
+    const stale = inp.readingAgeS > grace;
     if (usable(inp) && !stale) {
       this.st.blindSince = null;
       return null;
@@ -257,9 +280,9 @@ export class RepMachine {
       : `force reading ${fixed(inp.readingAgeS * 1000, 0)} ms old`;
     if (this.st.blindSince === null) {
       this.st.blindSince = inp.now;
-    } else if (inp.now - this.st.blindSince > this.limits.blindGraceS) {
+    } else if (inp.now - this.st.blindSince > grace) {
       return this.abandon(
-        `${why} for more than ${fixed(this.limits.blindGraceS * 1000, 0)} ms while the arm ` +
+        `${why} for more than ${fixed(grace * 1000, 0)} ms while the arm ` +
           "was moving the finger",
       );
     }
@@ -308,16 +331,41 @@ export class RepMachine {
     return this.emit("waiting for the patient to start");
   }
 
-  /** Force rising toward the cap. The run-up, kept separate from the exercise. */
+  /**
+   * Force rising toward the cap. The run-up, kept separate from the exercise.
+   *
+   * A ROM-targeted phase has a second way out: the prescribed stretch distance can be reached
+   * before the cap is, and then the cap is never reached at all, because the thing bounding
+   * the motion is the position target and the arm has stopped at it. The two exits are
+   * different clinical events and the note says which happened: the target means the stroke
+   * was done in full, the cap means the finger was stiffer than the prescription assumed and
+   * it ends short.
+   */
   private ramp(inp: RepInput): RepStep {
-    if (this.timedOut(inp)) return this.abandonAttempt(inp, "the force never reached the cap");
+    if (this.timedOut(inp)) return this.abandonAttempt(inp, this.rampTimeoutReason());
     if (usable(inp)) {
       if ((inp.forceN as number) >= this.block.capN) {
         this.reachedWork = true;
         return this.enter("work", inp, "at the cap");
       }
     }
+    const target = this.plan.target === "rom" ? this.block.romTargetM : null;
+    if (target !== null && target !== undefined && Math.abs(inp.travelM) >= target) {
+      this.reachedWork = true;
+      return this.enter("work", inp, `reached the ${fixed(target * 1000, 0)} mm target under the cap`);
+    }
     return this.emit("force rising toward the cap");
+  }
+
+  /**
+   * Why a ramp ran out, in the terms of whichever thing was supposed to end it. "The force
+   * never reached the cap" is right for a patient-driven ramp and wrong for a device-driven
+   * stretch, where the arm not having travelled is the finding and the force is a consequence.
+   */
+  private rampTimeoutReason(): string {
+    return this.plan.target === "rom"
+      ? "the arm did not reach the stretch target or the cap in time"
+      : "the force never reached the cap";
   }
 
   /** The exercise. Ends when the mover has gone as far as it is going to. */
@@ -330,6 +378,17 @@ export class RepMachine {
       if (target === null) throw new Error("a ROM-targeted phase requires rom_target_m");
       if (Math.abs(inp.travelM) >= target) {
         return this.enter("hold", inp, `reached the ${fixed(target * 1000, 0)} mm target`);
+      }
+      // The stretch can also be over because the cap stopped it: the pull law halts a
+      // tension-raising step at the cap, and the only thing raising the force was that step,
+      // so waiting for more travel waits forever. Ending here turns "stiffer than prescribed"
+      // into a short stroke that still counts, rather than a timeout and a lost repetition.
+      if (usable(inp) && (inp.forceN as number) >= this.block.capN) {
+        return this.enter(
+          "hold",
+          inp,
+          `stopped at the cap, ${fixed(Math.abs(inp.travelM) * 1000, 0)} of ${fixed(target * 1000, 0)} mm`,
+        );
       }
       return this.emit(
         `stretching, ${fixed(Math.abs(inp.travelM) * 1000, 0)} of ${fixed(target * 1000, 0)} mm`,
@@ -429,9 +488,13 @@ export class RepMachine {
 
   private emit(note: string, law?: Law, finished = false): RepStep {
     const plan = this.plan;
+    const emitted = law ?? plan.law;
     return {
       phase: this.phase,
-      law: law ?? plan.law,
+      law: emitted,
+      // A phase held still (a dropout, say) has no travel bound to report, because nothing is
+      // moving: reporting the plan's target there would describe a motion just declined.
+      target: emitted === "pull" ? plan.target : "none",
       driver: plan.driver,
       instruction: instructionFor(this.block.mode, this.phase, this.block.finger),
       repIndex: this.repIndex,

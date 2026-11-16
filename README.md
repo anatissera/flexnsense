@@ -114,6 +114,19 @@ else:
 
 Implemented in `control/`: the gate (`safety.py`), the law (`admittance.py`), the wiring to camera and Station (`loop.py`), and a closed-loop simulation for choosing constants (`simulate.py`). The simulation established that the damping `B` is bounded by the gap between the cap and the ceiling (overshoot settles at `B x pull speed`), and that a fast yank is handled by the gate releasing rather than by the loop tracking it: [docs/admittance-design.md](./docs/admittance-design.md).
 
+The arm gives way along the tether with **three joints at once**, not one. No single revolute joint moves the gripper along a straight line, and on this arm none comes close enough to approximate it: the best-aligned joint at the session pose reaches about 0.4 of the tether's direction. `control.loop.CoordinatedAxis` picks three joints for the live pose, refuses poses that cannot follow the pull to the end, and takes the tether's direction from the gripper's own axis, so no one has to read a direction off a 3D view and type it in. It is on by default, so `scripts/run_session.py` already pulls this way (`--no-coordinated` falls back to a single joint). Watch it first with `scripts/simulate_session_video.py`, which renders the whole thing (force, threshold, joints, and how far off the tether's line the gripper strays) from the real control code and the URDF's own meshes, with nothing plugged in.
+
+### Two files decide a session, and they are split by one question
+
+"Would a different patient change this number?"
+
+- **Yes**: it is a prescription, and it lives in `config/protocols/` as a finger, a mode, a rep count, a force cap and a hold time. `session/protocol.py` validates it and warns about anything the bench measurements say will not work on this rig.
+- **No**: it is machine tuning, and it lives in `config/session-tuning.json`: virtual damping, how the camera's outlier gate is set, how fast three joints may chase a goal. `session/tuning.py` is the loader, and it records what each number is paying for, since most of them were found by debugging against the real arm rather than chosen.
+
+Both are committed, for the reason the joint calibration is: they describe the shared rig and the shared clinical intent, not one person's laptop. The CLI and the dashboard read the same files, so a normal session needs no tuning flags at all, and any individual flag still overrides the profile for one run.
+
+Three values in the profile are deliberately *looser* than what the code shipped with: the hard force ceiling, how many blind frames the gate tolerates, and the yield-direction check being off. They sit in their own `safety` block and are printed on every run, because a loosened limit nobody is shown on the way past stops being a decision and becomes an accident.
+
 This is deliberately **not** a learned policy. ACT and Diffusion Policy execute action chunks open-loop and cannot react to contact forces mid-chunk, the exact failure a device pulling on a post-surgical finger must not have. They also need 50–200 demonstrations and ~16 GB of VRAM, against a 4 GB laptop GPU and two days. RL from scratch is out for the same reason.
 
 ### Safety
