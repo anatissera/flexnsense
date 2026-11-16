@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import CameraSelect, { useCameraDevices, videoConstraints } from "./CameraSelect";
 import { buildHandFrame, FINGERTIPS, type HandFrame, type HandSource, type Vec3 } from "../lib/handFrame";
+import { DEMO } from "../lib/demo";
+import DemoBadge from "./DemoBadge";
 
 /** Joint name -> angle (rad) for the MyoHand model, written every frame while tracking. */
 export type HandPose = Record<string, number>;
@@ -297,6 +299,7 @@ export default function HandTracker({ pose, disp, onActive, onFrame, on, onOnCha
     // lines up with its neighbour's however the controls wrap.
     <div className="row-span-3 grid grid-rows-subgrid gap-y-2">
       <div className="flex flex-wrap content-start items-center gap-2">
+        <DemoBadge kind="webcam" />
         <label className="t-small muted flex items-center gap-1">
           Model
           <select
@@ -305,7 +308,10 @@ export default function HandTracker({ pose, disp, onActive, onFrame, on, onOnCha
             onChange={(e) => setSource(e.target.value as HandSource)}
           >
             <option value="mediapipe">MediaPipe (in browser)</option>
-            <option value="wilor">WiLoR (local GPU server)</option>
+            {/* WiLoR needs a GPU server on this machine, so the public build names it and leaves it out of reach. */}
+            <option value="wilor" disabled={DEMO}>
+              {DEMO ? "WiLoR (needs the bench)" : "WiLoR (local GPU server)"}
+            </option>
           </select>
         </label>
         <CameraSelect label="Hand camera" value={deviceId} devices={devices} onChange={setDeviceId} />
