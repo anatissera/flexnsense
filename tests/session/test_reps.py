@@ -250,13 +250,18 @@ def test_a_stale_reading_stops_a_device_driven_advance():
 
 
 def test_the_advance_resumes_if_the_reading_comes_straight_back():
-    """A single dropped frame must not end the exercise, only pause the advance."""
+    """A single dropped frame must not end the exercise, only pause the advance.
+
+    The force comes back *below* the cap, because a stretch still in progress is one whose
+    force is still under the cap: at the cap the pull law has stopped the arm, and WORK now
+    ends there rather than waiting for travel that can no longer happen.
+    """
     m = RepMachine(passive())
     c = Clock(m)
     c.arm_and_cue()
     c.until(lambda s: s.phase is Phase.WORK, force_n=CAP_N)
     assert c.step(force_n=None).law is Law.STILL
-    step = c.step(force_n=CAP_N)
+    step = c.step(force_n=RAMPING)
     assert step.law is Law.PULL and step.may_advance
 
 
@@ -385,3 +390,204 @@ def test_the_resting_tension_scales_with_the_cap():
     firm = RepMachine(Block(finger="index", mode="active", reps=2,
                             cap_n=grams_force_to_newtons(400), hold_s=0.5))
     assert gentle.pretension_n < firm.pretension_n
+
+
+# ---------------------------------------------------------------- the reset's longer grace
+def reach_reset(reps=2):
+    """An active-mode machine parked in RESET, the phase a rep ends in."""
+    m = RepMachine(active(reps=reps))
+    c = Clock(m)
+    c.arm_and_cue()
+    c.until(lambda s: s.phase is Phase.RAMP, force_n=RAMPING)
+    c.until(lambda s: s.phase is Phase.WORK, force_n=CAP_N + 0.2)
+    c.until(lambda s: s.phase is Phase.HOLD, force_n=CAP_N + 0.2)
+    c.until(lambda s: s.phase is Phase.RESET, force_n=CAP_N + 0.2)
+    return m, c
+
+
+def test_a_reset_survives_the_dropout_its_own_success_causes():
+    """The bug this closes, measured on the bench: a reset ends by letting the tether go
+    slack, and a slack tether is exactly when the camera loses the PESOLA's markers. Under
+    the short device-driven grace the session aborted a few frames after every reset had
+    done its job, and never reached a second repetition."""
+    m, c = reach_reset()
+    for _ in range(20):                      # ~0.66 s blind, well past blind_grace_s
+        step = c.step(force_n=None)
+    assert m.phase is Phase.RESET
+    assert not step.finished
+
+
+def test_a_reset_still_abandons_once_the_longer_grace_runs_out():
+    """Longer, not unbounded: a reading that never comes back is still a reason to stop."""
+    m, c = reach_reset()
+    step = c.until(lambda s: s.finished, dt=0.2, force_n=None, limit=200)
+    assert m.phase is Phase.ABORTED
+    assert "no usable force reading" in step.note
+
+
+def test_a_reset_holds_still_while_blind_rather_than_walking_back_unseen():
+    m, c = reach_reset()
+    step = c.step(force_n=None)
+    assert step.law is Law.STILL
+    assert not step.may_advance
+
+
+def test_a_passive_work_pull_keeps_the_short_grace():
+    """The hazard the short grace exists for is unchanged: a passive work phase really is
+    the arm loading the finger, so it must not inherit the reset's longer tolerance."""
+    m = RepMachine(passive())
+    c = Clock(m)
+    c.arm_and_cue()
+    c.until(lambda s: s.phase is Phase.WORK, force_n=CAP_N)
+    step = c.until(lambda s: s.finished, dt=0.2, force_n=None, limit=200)
+    assert m.phase is Phase.ABORTED
+    assert f"{RepLimits().blind_grace_s * 1000:.0f} ms" in step.note
+
+
+def test_the_two_graces_are_configured_separately():
+    limits = RepLimits(blind_grace_s=0.3, slack_blind_grace_s=3.0)
+    assert limits.blind_grace_s != limits.slack_blind_grace_s
+    with pytest.raises(ValueError, match="slack_blind_grace_s"):
+        RepLimits(slack_blind_grace_s=0.0)
+
+
+# ------------------------------------------------------------------------- the cpm mode
+# Both beats are device-driven here, which is what makes it the one mode where a repetition
+# is the same motion every time. The two things worth pinning are that a stroke bounded by
+# its position target completes (it was not, before the ramp learned that exit), and that the
+# deadman governs both halves rather than just one.
+
+def cpm(reps=2, rom_target_m=0.015, **kw) -> Block:
+    return Block(finger="index", mode="cpm", reps=reps, cap_n=CAP_N, hold_s=0.5,
+                 rom_target_m=rom_target_m, **kw)
+
+
+def run_cpm_rep(machine, *, stiffness_n_per_m=56.2, speed_m_s=0.02, dt=0.03, cycles=4000,
+                resting_n=PRETENSIONED, rom_target_m=None):
+    """Drive a machine with a cooperative simulated rig, honouring whatever the plan asks.
+
+    The arm obeys `step.target`, which is the point: a caller that only knew `step.law` could
+    not tell the out-stroke from the return, since both are `Law.PULL`.
+    """
+    rom_target_m = machine.block.rom_target_m if rom_target_m is None else rom_target_m
+    travel, t = 0.0, 0.0
+    phases: list[str] = []
+    notes: list[str] = []
+    for _ in range(cycles):
+        t += dt
+        force = resting_n + stiffness_n_per_m * abs(travel)
+        s = machine.step(RepInput(force_n=force, reading_age_s=0.01, travel_m=travel,
+                                  now=t, confident=True))
+        if not phases or phases[-1] != s.phase.value:
+            phases.append(s.phase.value)
+            notes.append(s.note)
+        if s.law is Law.PULL:
+            if s.target.value == "rom":
+                # Clamped at the target, exactly as `control.loop.ControlLoop._pull_step`
+                # clamps it. Letting the simulated arm sail past would hide the failure these
+                # tests exist for: the real arm stops there, and if nothing else ends the
+                # phase it sits still at its target while the clock runs out.
+                travel = max(-rom_target_m, travel - speed_m_s * dt)
+            elif s.target.value == "rep_start":
+                travel = min(0.0, travel + speed_m_s * dt)
+            elif s.target.value == "none":        # ARMED, taking up slack
+                travel -= speed_m_s * dt
+        if s.finished:
+            break
+    return phases, notes, travel
+
+
+def test_a_cpm_set_completes_with_the_arm_doing_both_halves():
+    m = RepMachine(cpm(reps=2), RepLimits())
+    phases, _, _ = run_cpm_rep(m)
+    assert m.reps_completed == 2, f"phases seen: {phases}"
+    assert m.attempts_abandoned == 0
+    assert phases[-1] == "set_done"
+
+
+def test_a_stroke_bounded_by_its_target_still_completes():
+    """The bug this closes, and it was not hypothetical: a soft tether and a modest target
+    mean the prescribed distance is reached while the force is still under the cap, so the
+    cap is never reached at all and the arm is sitting still at its target. Checking only the
+    cap, the machine stayed in RAMP against a stationary arm until the phase timed out, and
+    abandoned a repetition the arm had performed correctly.
+    """
+    # A target the arm reaches at well under the cap: 10 mm on a 56.2 N/m tether adds 0.56 N
+    # to a resting 0.59 N, against a 1.96 N cap.
+    m = RepMachine(cpm(reps=1, rom_target_m=0.010), RepLimits())
+    phases, notes, _ = run_cpm_rep(m)
+    assert m.reps_completed == 1, f"phases seen: {phases}, notes: {notes}"
+    assert m.attempts_abandoned == 0
+    assert "target under the cap" in notes[phases.index("work")], (
+        "the note has to say the stretch ended at its target, not at the cap: the two are "
+        f"different clinical events. Got: {notes[phases.index('work')]!r}"
+    )
+
+
+def test_a_stiff_finger_ends_the_stroke_at_the_cap_instead():
+    """The other exit, and a clinical finding rather than a fault: the finger was stiffer than
+    the prescription assumed, so the stretch stops short of the target."""
+    m = RepMachine(cpm(reps=1, rom_target_m=0.040), RepLimits())
+    phases, notes, _ = run_cpm_rep(m, stiffness_n_per_m=400.0)
+    assert m.reps_completed == 1, f"phases seen: {phases}"
+    assert notes[phases.index("work")] == "at the cap"
+
+
+def test_the_deadman_governs_the_out_stroke_of_a_cpm_rep():
+    """Device-driven, and it raises tension, so it gets the strict grace."""
+    m = RepMachine(cpm(reps=1), RepLimits())
+    c = Clock(m)
+    c.arm_and_cue()
+    c.until(lambda s: s.phase is Phase.RAMP, force_n=RAMPING)
+    blind = c.step(force_n=None)
+    assert blind.law is Law.STILL, "a blind out-stroke must stop, not keep pulling"
+
+
+def test_the_deadman_governs_the_return_stroke_of_a_cpm_rep_too():
+    """The difference from every other mode: in `active` the return is also device-driven, but
+    in `passive` it is the patient's. Here both halves are the arm's, so both are guarded."""
+    m = RepMachine(cpm(reps=1), RepLimits())
+    assert m.block.mode_spec.reset.device_driven
+    assert m.block.mode_spec.work.device_driven
+
+
+def test_a_cpm_rep_reports_which_way_a_pull_is_aimed():
+    """`Law.PULL` alone is ambiguous in this mode, because both beats use it in opposite
+    directions. A caller that could not tell them apart would run the return stroke outward."""
+    m = RepMachine(cpm(reps=1), RepLimits())
+    seen = {}
+    travel, t = 0.0, 0.0
+    for _ in range(4000):
+        t += 0.03
+        s = m.step(RepInput(force_n=PRETENSIONED + 56.2 * abs(travel), reading_age_s=0.01,
+                            travel_m=travel, now=t, confident=True))
+        if s.law is Law.PULL and s.phase in (Phase.WORK, Phase.RESET):
+            seen[s.phase] = s.target.value
+        if s.law is Law.PULL:
+            if s.target.value == "rom":
+                travel -= 0.02 * 0.03
+            elif s.target.value == "rep_start":
+                travel = min(0.0, travel + 0.02 * 0.03)
+            elif s.target.value == "none":
+                travel -= 0.02 * 0.03
+        if s.finished:
+            break
+    assert seen == {Phase.WORK: "rom", Phase.RESET: "rep_start"}
+
+
+def test_a_held_still_cycle_reports_no_travel_bound():
+    """Reporting the plan's target while declining to move would describe a motion the machine
+    just decided not to make, which is exactly what a caller turns into a command."""
+    m = RepMachine(cpm(reps=1), RepLimits())
+    c = Clock(m)
+    c.arm_and_cue()
+    c.until(lambda s: s.phase is Phase.RAMP, force_n=RAMPING)
+    blind = c.step(force_n=None)
+    assert blind.law is Law.STILL
+    assert blind.target.value == "none"
+
+
+def test_cpm_needs_a_stretch_target_like_any_pulling_mode():
+    """Under the cap nothing tells a pulling arm to stop, so the target is not optional."""
+    with pytest.raises(ValueError, match="needs rom_target_m"):
+        Block(finger="index", mode="cpm", reps=1, cap_n=CAP_N, hold_s=0.5)

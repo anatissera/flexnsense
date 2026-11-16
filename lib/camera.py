@@ -113,11 +113,29 @@ class FrameSource:
         self.cap.release()
 
 
-def configure_camera(cap: cv2.VideoCapture, width: int, height: int) -> list[str]:
-    """Request the resolution and best-effort turn off auto exposure / auto white balance. Returns a report."""
+def configure_camera(cap: cv2.VideoCapture, width: int, height: int, fps: float = 30.0) -> list[str]:
+    """Request the resolution, frame rate and best-effort turn off auto exposure / auto white
+    balance. Returns a report."""
     report = []
+    # Before the resolution: a V4L2 webcam's uncompressed format (YUYV) is often capped far below
+    # its compressed one at the same size - on the ROG EYE S, 1920x1080 is 5 fps over YUYV but 30
+    # (up to 60) over MJPG, and OpenCV does not pick MJPG on its own. Harmless to ask everywhere:
+    # a backend that does not support changing FOURCC (macOS AVFoundation, a video file) just
+    # ignores it, same as the exposure/white-balance sets below.
+    fourcc_ok = cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+    got_fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
+    got_fourcc_s = "".join(chr((got_fourcc >> (8 * i)) & 0xFF) for i in range(4)) if got_fourcc else ""
+    report.append(f"pixel format MJPG: {'accepted' if fourcc_ok else 'NOT supported by backend'}"
+                  f" [read back {got_fourcc_s!r}]")
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    # Asked explicitly rather than left to whatever the driver defaults to for this format/size:
+    # without this, re-opening the same camera at the same resolution has negotiated a different
+    # frame interval run to run on at least one V4L2 webcam, which is a frame rate that visibly
+    # varies session to session, not within one - `FrameSource.fps` is read once at open.
+    fps_ok = cap.set(cv2.CAP_PROP_FPS, fps)
+    report.append(f"frame rate {fps:g}: {'accepted' if fps_ok else 'NOT supported by backend'}"
+                  f" [read back {cap.get(cv2.CAP_PROP_FPS):g}]")
     # Backends disagree on the value meaning "manual": V4L2 uses 0.25 (or 1), others 0. Try them and read back.
     before = cap.get(cv2.CAP_PROP_AUTO_EXPOSURE)
     took = None
@@ -137,6 +155,78 @@ def configure_camera(cap: cv2.VideoCapture, width: int, height: int) -> list[str
     return report
 
 
+def apply_v4l2_controls(cam: int | str) -> list[str]:
+    """Best-effort, opt-in manual exposure / white balance via v4l2-ctl, right after the camera opens.
+
+    Why this exists and why it is not automatic for everyone: `configure_camera()` above turns
+    auto exposure and auto white balance *off* through OpenCV, but several UVC webcams (the ROG
+    EYE S used here is one) reset their *absolute* exposure and white-balance-automatic controls
+    to the device's power-on defaults every time a process opens them fresh - not just on
+    unplug/reboot, the way `data_collection/camera_setup.sh` notes for other cameras. The result
+    without this: every new run of a script that opens the camera comes up dark and colour-cast
+    (exposure stuck at a near-zero default, white balance off with no real value set), and has to
+    be fixed by hand with `v4l2-ctl` each time, from outside the running process.
+
+    `CAMERA_V4L2_FOCUS` and `CAMERA_V4L2_ROI_AUTO` are the same idea for two more things the ROG
+    EYE S hunts continuously on its own: `focus_automatic_continuous` re-focusing as anything in
+    frame moves (a blur pulse every time it does, which a fast-moving scale triggers constantly),
+    and `region_of_interest_auto_ctrls`, a UVC auto-ROI control that shifts what the camera treats
+    as the interesting region of the frame and visibly perturbs the picture doing it - this is
+    most of what reads as the camera "stabilising" on its own. Setting `CAMERA_V4L2_FOCUS` locks
+    focus at that value (`focus_absolute`) and turns continuous autofocus off; `CAMERA_V4L2_ROI_AUTO=0`
+    turns the auto-ROI bitmask off. Find a working focus value by trial with `v4l2-ctl -d
+    /dev/video<N> --set-ctrl=focus_absolute=<value>` while watching the live picture, scale at its
+    working distance, then read `focus_absolute` back as `value=` once it looks sharp.
+
+    So this is per-machine, per-camera config, the same way `CAMERA_INDEX` is: nothing happens
+    unless at least one `CAMERA_V4L2_*` variable is set in `.env`. Linux (v4l2) and an integer
+    camera index only, since that is what maps to `/dev/video<N>`; a no-op everywhere else, same
+    spirit as the rest of this module's macOS/Linux split.
+    """
+    report: list[str] = []
+    if not sys.platform.startswith("linux") or not isinstance(cam, int):
+        return report
+    exposure = env_get("CAMERA_V4L2_EXPOSURE")
+    auto_wb = env_get("CAMERA_V4L2_AUTO_WB")
+    focus = env_get("CAMERA_V4L2_FOCUS")
+    roi_auto = env_get("CAMERA_V4L2_ROI_AUTO")
+    if exposure is None and auto_wb is None and focus is None and roi_auto is None:
+        return report
+    if shutil.which("v4l2-ctl") is None:
+        return [f"v4l2-ctl not installed; CAMERA_V4L2_* settings skipped"]
+
+    device = f"/dev/video{cam}"
+    controls = ["-c", "auto_exposure=1"] if exposure is not None else []
+    if exposure is not None:
+        controls += ["-c", f"exposure_time_absolute={exposure}"]
+    if auto_wb is not None:
+        controls += ["-c", f"white_balance_automatic={1 if auto_wb not in ('0', '', None) else 0}"]
+    if focus is not None:
+        controls += ["-c", "focus_automatic_continuous=0", "-c", f"focus_absolute={focus}"]
+    if roi_auto is not None:
+        controls += ["-c", f"region_of_interest_auto_ctrls={1 if roi_auto not in ('0', '', None) else 0}"]
+    try:
+        result = subprocess.run(["v4l2-ctl", "-d", device, *controls],
+                                capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return [f"v4l2-ctl on {device} failed to run: {exc}"]
+    if result.returncode != 0:
+        report.append(f"v4l2-ctl on {device} reported an error (control may be unsupported): "
+                      f"{result.stderr.strip() or result.returncode}")
+    else:
+        parts = []
+        if exposure is not None:
+            parts.append(f"exposure={exposure}")
+        if auto_wb is not None:
+            parts.append(f"auto_wb={'on' if auto_wb not in ('0', '', None) else 'off'}")
+        if focus is not None:
+            parts.append(f"focus={focus} (autofocus off)")
+        if roi_auto is not None:
+            parts.append(f"roi_auto={'on' if roi_auto not in ('0', '', None) else 'off'}")
+        report.append(f"{device}: {', '.join(parts)} (from CAMERA_V4L2_* in .env)")
+    return report
+
+
 def open_video(path: str | Path) -> FrameSource:
     path = str(path)
     if not Path(path).is_file():
@@ -150,7 +240,8 @@ def open_video(path: str | Path) -> FrameSource:
     return src
 
 
-def open_camera(camera: int | str | None = None, width: int = 1920, height: int = 1080) -> FrameSource:
+def open_camera(camera: int | str | None = None, width: int = 1920, height: int = 1080,
+                fps: float = 30.0) -> FrameSource:
     """Open a live camera (number, name fragment such as 'iphone', or URL); waits for a real picture."""
     cam = resolve_camera(camera if camera is not None else default_camera())
     backend = cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY
@@ -160,7 +251,9 @@ def open_camera(camera: int | str | None = None, width: int = 1920, height: int 
         if sys.platform == "darwin":
             print(MAC_CAMERA_HINT, file=sys.stderr)
         raise SystemExit(2)
-    for line in configure_camera(cap, width, height):
+    for line in configure_camera(cap, width, height, fps):
+        print("camera: " + line)
+    for line in apply_v4l2_controls(cam):
         print("camera: " + line)
     # The first frames after opening are often empty or black while the sensor starts; an iPhone (Continuity
     # Camera) can take several seconds to connect. Wait up to WARMUP_S for a real (non-black) frame.
@@ -190,9 +283,9 @@ def open_camera(camera: int | str | None = None, width: int = 1920, height: int 
 
 
 def open_source(camera: int | str | None = None, video: str | Path | None = None,
-                width: int = 1920, height: int = 1080) -> FrameSource:
+                width: int = 1920, height: int = 1080, fps: float = 30.0) -> FrameSource:
     """A video file if `video` is given, else a live camera."""
-    return open_video(video) if video else open_camera(camera, width, height)
+    return open_video(video) if video else open_camera(camera, width, height, fps)
 
 
 def main() -> int:

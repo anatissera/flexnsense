@@ -24,7 +24,14 @@ from session.calibration import BenchCalibration
 from session.fingers import FINGERS, normalise
 from session.modes import Mode, mode_by_name
 
-__all__ = ["FINGERS", "Block", "Protocol"]
+__all__ = ["FINGERS", "Block", "Protocol", "PRETENSION_FRACTION"]
+
+#: The fraction of the cap `Phase.ARMED` pre-tensions the tether to, and therefore the force a
+#: repetition starts from. Lives here rather than only in `session.reps.RepLimits` because
+#: `Block.check_against` needs it to tell whether a cap allows the stretch it prescribes, and
+#: `session.reps` imports this module (so the dependency cannot run the other way). `RepLimits`
+#: reads it from here, which keeps one number in one place.
+PRETENSION_FRACTION = 0.25
 
 
 @dataclass(frozen=True)
@@ -89,12 +96,18 @@ class Block:
     def mode_spec(self) -> Mode:
         return mode_by_name(self.mode)
 
-    def check_against(self, calib: BenchCalibration) -> list[str]:
+    def check_against(self, calib: BenchCalibration,
+                      pretension_fraction: float = PRETENSION_FRACTION) -> list[str]:
         """Problems that only the bench numbers can reveal. Empty list means nothing to say.
 
         Returned rather than raised: an unmeasured rig is a normal state for a prescription to
         be written in, so this is a warning channel, not validation. The hard failure belongs
         where something tries to *run* on an unmeasured number (`session.calibration`).
+
+        `pretension_fraction` is what `session.reps.RepLimits` will actually arm to, and it
+        matters here because a repetition's stretch is measured from the *rep's* start, where
+        the tether is already pre-tensioned, not from true slack. Counting from slack
+        overstates the stretch a cap allows by exactly that fraction.
         """
         problems: list[str] = []
         excursion = calib.excursion_m.get(self.finger)
@@ -104,6 +117,28 @@ class Block:
                     f"rom_target_m {self.rom_target_m * 1000:.0f} mm exceeds the measured "
                     f"excursion of the {self.finger} ({excursion * 1000:.0f} mm), so the pull "
                     "would reach the end of the finger's range before reaching its target"
+                )
+        if self.rom_target_m is not None and calib.tether_n_per_m is not None:
+            # Whether this prescription's own cap allows its own stretch. A pulling arm stops
+            # at the cap, so a target further out than the cap permits is a stretch the
+            # session can never perform: it ends short every repetition and reports "stopped
+            # at the cap" forever, which reads as a stiff patient when it is actually an
+            # inconsistent prescription. Found by writing an example protocol that had exactly
+            # this wrong (90 gf cap, 12 mm target, 56.2 N/m tether: the cap arrives at 9.6 mm).
+            # Measured from the rep's start, where ARMED has already taken the tether to
+            # `pretension_fraction` of the cap, so only the remainder is available as stretch.
+            headroom_n = self.cap_n * (1.0 - pretension_fraction)
+            reachable_m = calib.stretch_to_reach_m(headroom_n)
+            if self.rom_target_m > reachable_m:
+                problems.append(
+                    f"the {self.cap_gf:.0f} gf cap is reached after "
+                    f"{reachable_m * 1000:.0f} mm of stretch from the rep's start (the tether "
+                    f"is already at {newtons_to_grams_force(self.cap_n * pretension_fraction):.0f} "
+                    f"gf when it begins), short of the {self.rom_target_m * 1000:.0f} mm "
+                    "rom_target_m, so the arm would stop at the cap every repetition and never "
+                    f"reach the target. Raise the cap to about "
+                    f"{newtons_to_grams_force(calib.require_tether_n_per_m() * self.rom_target_m / (1.0 - pretension_fraction)):.0f} "
+                    "gf, or lower the target"
                 )
         if calib.tether_n_per_m is not None and excursion is not None:
             ramp_m = calib.stretch_to_reach_m(self.cap_n)

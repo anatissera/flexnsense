@@ -19,6 +19,15 @@ cp config/cameras/rog-eye-s/scale_calib.json config/scale_calib.json   # optiona
 
 `config/scale_calib.json` is the file the reader and the dashboard force server load. It is per machine and not in git, so copy ours there or make your own.
 
+**The `cp` above assumes the same OS and camera backend.** This calibration's `ref_profile` was
+learned through OpenCV's AVFoundation backend on the MacBook. The same physical ROG EYE S opened
+through Linux's V4L2 backend (a different driver path, see `lib/camera.py`'s `apply_v4l2_controls`)
+rendered meaningfully less saturated red under one test setup: `redness1`/`redness2` of 75.7/64.6
+there against 110.2/88.0 here, same shapes (`elong1`/`elong2` close on both). Copying this file
+onto a Linux machine in that situation sets the matching threshold *higher* than the live feed can
+reach, which makes "sticker hidden" worse, not better. Calibrate fresh on that machine instead and
+compare its own `ref_profile` against this one only as a sanity check on shape, not on redness.
+
 Always choose the camera by name (`--camera rog`, or **ROG EYE S** in the control panel), not by number: the number changes when cameras are plugged in or out.
 
 ## Camera settings

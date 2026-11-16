@@ -34,6 +34,7 @@ import numpy as np
 from gauge_reader import overlay
 from lib import camera
 from lib.camera import FrameSource
+from lib.env import env_get
 from lib.geometry import Axis
 from lib.units import grams_force_to_newtons
 
@@ -276,10 +277,13 @@ class StickerPipeline:
 
     @staticmethod
     def make_tracker(calib, config=None):
+        from gauge_reader.detector import DetectorConfig
         from gauge_reader.stickers import StickerConfig, StickerProfile, StickerTracker
         if config is None:
             prof = getattr(calib, "ref_profile", None)
-            config = StickerConfig(u_range=tuple(calib.u_range()),
+            sat_strong = env_get("GAUGE_SAT_STRONG")
+            red = DetectorConfig(sat_strong=int(sat_strong)) if sat_strong else DetectorConfig()
+            config = StickerConfig(u_range=tuple(calib.u_range()), red=red,
                                    profile=StickerProfile.from_dict(prof) if prof else None)
         return StickerTracker(config, s1_hint=getattr(calib, "s1_ref", None), s2_hint=getattr(calib, "s2_ref", None))
 
@@ -374,9 +378,16 @@ def is_sticker_calib(calib) -> bool:
     return getattr(calib, "mode", "fixed") == "stickers"
 
 
-def make_pipeline(calib):
-    """Pipeline (fixed) or StickerPipeline, from the calibration's mode."""
-    return StickerPipeline.from_calibration(calib) if is_sticker_calib(calib) else Pipeline.from_calibration(calib)
+def make_pipeline(calib, filt=None):
+    """Pipeline (fixed) or StickerPipeline, from the calibration's mode.
+
+    `filt`, when given, overrides the default `lib.filters.ReadingFilter()` both pipeline
+    classes otherwise construct on their own - the hook a caller needs to tune outlier
+    tolerance (`ReadingFilter.outlier_persist`) for its own use of the reader, without
+    changing the library's own default for every other caller.
+    """
+    return (StickerPipeline.from_calibration(calib, filt=filt) if is_sticker_calib(calib)
+           else Pipeline.from_calibration(calib, filt=filt))
 
 
 # --------------------------------------------------------------------------------------------- sources

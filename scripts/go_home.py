@@ -29,6 +29,7 @@ from lib.env import env_get  # noqa: E402
 from session.home_pose import (  # noqa: E402
     distance_from_home,
     home_pose_metadata,
+    home_waypoints,
     is_home,
     load_home_pose,
 )
@@ -90,22 +91,20 @@ async def run(args) -> int:
         print("Nothing to do.")
         return 0
 
-    steps = max(1, int(gap / args.max_step_ticks) + 1)
-    print(f"\nThis MOVES the arm, in {steps} steps of at most {args.max_step_ticks} ticks.")
+    waypoints = home_waypoints(pose, home, args.max_step_ticks)
+    print(f"\nThis MOVES the arm, in {len(waypoints)} steps of at most "
+          f"{args.max_step_ticks} ticks.")
     print("The tether must not be under load and no finger may be attached: changing pose "
           "drags whatever is hooked up through an arc.")
     if input("Type 'go home' to proceed: ").strip().lower() != "go home":
         print("aborted; nothing moved.")
         return 1
 
-    start = {m: int(pose[m]) for m in home}
     try:
-        for i in range(1, steps + 1):
-            frac = i / steps
-            for m in sorted(home):
-                target = int(round(start[m] + (home[m] - start[m]) * frac))
-                await set_position(client, bus_serial, m, target)
-            print(f"  step {i}/{steps}")
+        for i, way in enumerate(waypoints, start=1):
+            for m in sorted(way):
+                await set_position(client, bus_serial, m, way[m])
+            print(f"  step {i}/{len(waypoints)}")
             await asyncio.sleep(args.settle)
     except KeyboardInterrupt:
         print("\nstopped. The arm is partway to home; rerun to finish, or move it by hand "

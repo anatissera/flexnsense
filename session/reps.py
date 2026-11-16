@@ -33,7 +33,7 @@ from dataclasses import dataclass
 
 from session.instructions import instruction_for
 from session.modes import Driver, Law, Phase, Target, plan_for
-from session.protocol import Block
+from session.protocol import PRETENSION_FRACTION, Block
 
 
 @dataclass(frozen=True)
@@ -59,7 +59,7 @@ class RepLimits:
     #: has no duration: starting and reaching the cap become the same event. `RepMachine`
     #: checks that against the block's actual cap rather than leaving it to be discovered on a
     #: finger.
-    pretension_fraction: float = 0.25
+    pretension_fraction: float = PRETENSION_FRACTION
     #: How much the force has to rise above the rep's baseline before the patient counts as
     #: having started. A few times the gauge reader's noise, so a jittery reading does not
     #: start a repetition on its own.
@@ -84,13 +84,27 @@ class RepLimits:
     #: abandoned. Deliberately short, and the advance stops on the very first missing frame
     #: regardless; this is only how long to keep waiting for the reading to come back.
     blind_grace_s: float = 0.3
+    #: The same, for a device-driven phase that can only ever *reduce* tension, which
+    #: `RESET` in active mode is: the arm walks back toward the rep's start, bounded so it
+    #: can never end up tighter than the operator rigged it.
+    #:
+    #: Longer than `blind_grace_s` on purpose. The reason the short grace exists is that a
+    #: blind pull could keep loading a finger with no idea how hard; a motion that is
+    #: structurally incapable of adding tension does not carry that risk, so the same
+    #: strictness buys nothing. It costs something real, though, and this is measured rather
+    #: than assumed: on the bench, the *successful* end of a reset is exactly when the tether
+    #: goes slack, and a slack tether is when the camera loses the PESOLA's markers. Every
+    #: repetition therefore ended by aborting a few frames after the arm had done its job,
+    #: and the session never reached a second rep. See `_deadman`.
+    slack_blind_grace_s: float = 3.0
     #: Longest a single phase may last before the repetition is abandoned, so nothing waits for
     #: ever on a signal that is never coming.
     phase_timeout_s: float = 60.0
 
     def __post_init__(self) -> None:
         for name in ("pretension_fraction", "start_delta_n", "cue_dwell_s", "cue_timeout_s",
-                     "still_m", "settle_s", "home_m", "blind_grace_s", "phase_timeout_s"):
+                     "still_m", "settle_s", "home_m", "blind_grace_s",
+                     "slack_blind_grace_s", "phase_timeout_s"):
             if getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be positive, got {getattr(self, name)}")
         if self.pretension_fraction >= 1.0:
@@ -135,6 +149,12 @@ class RepStep:
     phase: Phase
     #: What the arm should be doing now. The caller turns this into motion through `control/`.
     law: Law
+    #: What bounds the arm's travel this cycle, when the arm is the one moving. Needed
+    #: alongside `law` and not derivable from it: `Law.PULL` appears in a mode's work beat
+    #: aiming at `Target.ROM` and in its reset beat aiming at `Target.REP_START`, which are
+    #: opposite directions, so a caller holding only the law would know the arm should pull
+    #: and not which way. `control.loop.PullPlan` is what consumes this.
+    target: Target
     driver: Driver
     instruction: str
     #: 1-based index of the repetition in progress, or the total once the set is done.
@@ -263,11 +283,26 @@ class RepMachine:
         static, which is harmless. In a device-driven phase the arm is pulling the finger, so a
         lost reading would leave it pulling with no idea how hard. Returns a `RepStep` that
         holds still, and abandons the attempt if the reading does not come back.
+
+        `RESET` gets `slack_blind_grace_s` instead, which is longer. The hazard the short
+        grace guards against is a blind motion that keeps *loading* a finger; a reset only
+        ever walks back toward the position the repetition began at, so the tension it can
+        reach is bounded by where the operator rigged it rather than by a reading nobody can
+        see. The strictness is not free, and the cost showed up on the bench as a session
+        that could never finish one repetition: a reset ends by letting the tether go slack,
+        a slack tether is precisely when the camera loses the PESOLA's markers, so the short
+        grace fired every time the reset *succeeded*.
+
+        Note this is keyed on the phase, not on `plan.law`: active mode's reset is declared
+        `Law.PULL` in `session/modes.py`, the same law as a passive-mode work pull that
+        genuinely does load the finger, so the law alone cannot tell the two apart.
         """
         if not self.plan.device_driven:
             self._st.blind_since = None
             return None
-        stale = inp.reading_age_s > self.limits.blind_grace_s
+        grace = (self.limits.slack_blind_grace_s if self.phase is Phase.RESET
+                 else self.limits.blind_grace_s)
+        stale = inp.reading_age_s > grace
         if inp.usable and not stale:
             self._st.blind_since = None
             return None
@@ -277,9 +312,9 @@ class RepMachine:
         )
         if self._st.blind_since is None:
             self._st.blind_since = inp.now
-        elif inp.now - self._st.blind_since > self.limits.blind_grace_s:
+        elif inp.now - self._st.blind_since > grace:
             return self.abandon(
-                f"{why} for more than {self.limits.blind_grace_s * 1000:.0f} ms while the arm "
+                f"{why} for more than {grace * 1000:.0f} ms while the arm "
                 "was moving the finger"
             )
         # Hold still, not release: the gate owns releasing, and this is a pause of the advance.
@@ -332,15 +367,52 @@ class RepMachine:
         return self._emit("waiting for the patient to start")
 
     def _ramp(self, inp: RepInput) -> RepStep:
-        """Force rising toward the cap. The run-up, kept separate from the exercise."""
+        """Force rising toward the cap. The run-up, kept separate from the exercise.
+
+        A ROM-targeted phase has a **second** way out, and leaving it out was a real bug: the
+        prescribed stretch distance can be reached before the cap is, and then the cap is never
+        reached at all, because the thing bounding the motion is the position target and the
+        arm has stopped at it. Checking the cap alone, the machine sat in RAMP against a
+        stationary arm until the phase timed out and the repetition was abandoned, with the
+        arm having performed the stretch correctly.
+
+        The two exits are not the same clinical event, and the note says which happened:
+
+        - **the target**: the stroke the prescription asked for, done in full;
+        - **the cap**: the finger was stiffer than the prescription assumed, so it ends short
+          of the target. A meaningful finding, and the reason `rom_target_m` is a target rather
+          than a guarantee.
+
+        Both count as having reached the work phase, because in a mode where the arm does the
+        moving the exercise is the stretch itself, not the act of reaching a force. The honest
+        counting in `_complete_rep` rests on `_reached_work` being set only here, which both
+        of these do, so a stroke that never started still cannot be counted.
+        """
         if self._timed_out(inp):
-            return self._abandon_attempt(inp, "the force never reached the cap")
+            return self._abandon_attempt(inp, self._ramp_timeout_reason())
         if inp.usable:
             assert inp.force_n is not None
             if inp.force_n >= self.block.cap_n:
                 self._reached_work = True
                 return self._enter(Phase.WORK, inp, "at the cap")
+        target = self.block.rom_target_m if self.plan.target is Target.ROM else None
+        if target is not None and abs(inp.travel_m) >= target:
+            self._reached_work = True
+            return self._enter(
+                Phase.WORK, inp, f"reached the {target * 1000:.0f} mm target under the cap"
+            )
         return self._emit("force rising toward the cap")
+
+    def _ramp_timeout_reason(self) -> str:
+        """Why a ramp ran out, in the terms of whichever thing was supposed to end it.
+
+        "The force never reached the cap" is the right sentence for a patient-driven ramp and
+        the wrong one for a device-driven stretch, where the arm not having travelled is the
+        actual finding and the force is a consequence.
+        """
+        if self.plan.target is Target.ROM:
+            return "the arm did not reach the stretch target or the cap in time"
+        return "the force never reached the cap"
 
     def _work(self, inp: RepInput) -> RepStep:
         """The exercise. Ends when the mover has gone as far as it is going to."""
@@ -353,6 +425,20 @@ class RepMachine:
             assert target is not None, "a ROM-targeted phase requires rom_target_m"
             if abs(inp.travel_m) >= target:
                 return self._enter(Phase.HOLD, inp, f"reached the {target * 1000:.0f} mm target")
+            # The stretch can also be over because the cap stopped it, which is the other half
+            # of the same deadlock `_ramp` describes: `control.loop.ControlLoop._pull_step`
+            # halts a tension-raising step at the cap, and the only thing that was raising the
+            # force was that step, so waiting for more travel waits forever. Ending here is
+            # what turns "the finger is stiffer than the prescription assumed" into a short
+            # stroke that still counts, rather than a phase timeout and a lost repetition.
+            if inp.usable:
+                assert inp.force_n is not None
+                if inp.force_n >= self.block.cap_n:
+                    return self._enter(
+                        Phase.HOLD, inp,
+                        f"stopped at the cap, {abs(inp.travel_m) * 1000:.0f} of "
+                        f"{target * 1000:.0f} mm"
+                    )
             return self._emit(
                 f"stretching, {abs(inp.travel_m) * 1000:.0f} of {target * 1000:.0f} mm"
             )
@@ -443,9 +529,14 @@ class RepMachine:
 
     def _emit(self, note: str, law: Law | None = None, finished: bool = False) -> RepStep:
         plan = self.plan
+        emitted = law if law is not None else plan.law
         return RepStep(
             phase=self.phase,
-            law=law if law is not None else plan.law,
+            law=emitted,
+            # A phase held still (a dropout, say) has no travel bound to report, because
+            # nothing is moving: reporting the plan's target there would describe a motion the
+            # machine has just decided not to make.
+            target=plan.target if emitted is Law.PULL else Target.NONE,
             driver=plan.driver,
             instruction=instruction_for(self.block.mode, self.phase, self.block.finger),
             rep_index=self.rep_index,
