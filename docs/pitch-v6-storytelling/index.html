@@ -324,12 +324,14 @@ body.film{background:#000}                 /* no light border around the film if
 .lk .qr{position:absolute;left:1340px;top:330px;width:460px;height:568px;flex-direction:column;justify-content:center;padding:0;text-align:center}
 .lk .qr img{width:330px;height:330px;display:block}
 .lk .qr small{margin-top:26px}
-.lk .qr b{font-size:34px}
+.lk .qr b{font-size:30px;line-height:1.2}
 /* === BUTTONS ON A SLIDE, AND THE POP-UP THEY OPEN ======================== */
 .acts{position:absolute;right:120px;top:54px;z-index:30;display:flex;gap:14px}
 .pill{padding:12px 26px 11px;border:2px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font:700 20px var(--f-data);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
 .pill.ghost{background:var(--paper);color:var(--ink)}
 .pill:focus{outline:none}
+a.pill{text-decoration:none;display:inline-flex;align-items:center}
+.pill.live i{width:11px;height:11px;border-radius:50%;background:var(--green);margin-right:12px;flex:none}
 .modal{position:absolute;inset:0;z-index:80;display:none;align-items:center;justify-content:center;background:rgba(7,11,18,.88)}
 .modal.on{display:flex}
 .sheet{display:none;flex-direction:column;align-items:center}
@@ -654,6 +656,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
   <div class="acts" data-a="fade" style="--d:600ms">
     <button class="pill" type="button" tabindex="-1" data-open="demo">Replay the demo</button>
     <button class="pill ghost" type="button" tabindex="-1" data-open="report">Medical report</button>
+    <a class="pill ghost live" tabindex="-1" href="https://flexnsense-dashboard.vercel.app/" target="_blank" rel="noopener"><i></i>Live dashboard</a>
   </div>
   <div class="shot" data-a="up" style="--d:220ms"><video data-auto muted loop playsinline preload="auto" poster="assets/dash/run.jpg" src="assets/dash/run.mp4"></video></div>
   <svg class="lines" viewBox="0 0 1920 1080" aria-hidden="true">
@@ -822,7 +825,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
     <a data-a="up" style="--d:540ms" href="https://huggingface.co/JustoDario/flexnsense_act_skill1_rightindex2middle" target="_blank" rel="noopener"><i class="ic"><img src="assets/brand/hf-logo.svg" alt=""></i><div class="tx"><small>Hugging Face · model</small><b>ACT policy, second arm</b><span>JustoDario/flexnsense_act_skill1_rightindex2middle</span></div></a>
     <a data-a="up" style="--d:620ms" href="https://flexnsense.vercel.app" target="_blank" rel="noopener"><i class="ic"><svg viewBox="0 0 64 64"><use href="#mark"/></svg></i><div class="tx"><small>This deck</small><b>flexnsense.vercel.app</b><span>Open it on any laptop or phone</span></div></a>
   </div>
-  <a class="qr" data-a="up" style="--d:700ms" href="https://flexnsense.vercel.app" target="_blank" rel="noopener"><img src="assets/brand/qr.svg" alt="QR code of flexnsense.vercel.app"><small>Scan to open the deck</small><b>flexnsense.vercel.app</b></a>
+  <a class="qr" data-a="up" style="--d:700ms" href="https://flexnsense-dashboard.vercel.app/" target="_blank" rel="noopener"><img src="assets/brand/qr.svg" alt="QR code of flexnsense-dashboard.vercel.app"><small>Scan to try the live dashboard</small><b>flexnsense-dashboard<wbr>.vercel.app</b></a>
 </section>
 
 <!-- Pop-ups opened by the buttons on the dashboard slide and the tiles on the simulation slide. Esc, Close or a click outside closes them. -->
