@@ -1,0 +1,4 @@
+# NormaCore Station opens UVC cameras through libuvc (raw /dev/bus/usb access).
+# Give the plugdev group write access to external UVC cameras.
+# The laptop's built-in HP camera (vendor 30c9) is left out on purpose, so Station ignores it.
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{ID_USB_INTERFACES}=="*:0e01*", ATTR{idVendor}!="30c9", GROUP="plugdev", MODE="0664"
