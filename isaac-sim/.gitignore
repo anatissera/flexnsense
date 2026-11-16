@@ -9,3 +9,4 @@ policies/**/*.pt
 media/
 !policies/pull_bench_v1/*
 !policies/team_v3/**
+!policies/phys_v1/**
