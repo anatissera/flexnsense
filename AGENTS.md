@@ -91,7 +91,8 @@ control/          roadmap item 3: the admittance controller
 dashboard/        Next.js web dashboard (own package.json; run pnpm from here)
 scripts/          robot and calibration scripts (e.g. force calibration), against Station
 scripts/lerobot/  NOT our hardware: original SO-101-via-LeRobot scripts, parked in case we ever port
-tests/lib/, tests/gauge_reader/, tests/hand_tracking/, tests/control/
+robot_training/   ElRobot policy training: NormaCore Parquet -> LeRobotDataset, ACT training, HF upload, inference through Station (own README; needs its own LeRobot env, see robot_training/setup_env.sh)
+tests/lib/, tests/gauge_reader/, tests/hand_tracking/, tests/control/, tests/robot_training/
 docs/             user-facing guides (docs/elrobot.md, docs/scale-reader.md, docs/force-calibration.md, docs/hand-tracking.md, docs/admittance-design.md)
 ```
 
