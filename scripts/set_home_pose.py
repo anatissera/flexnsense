@@ -1,8 +1,14 @@
-"""Capture the arm's current pose, as placed by hand, and save it as the session's home.
+"""Capture the arm's current pose, as placed by hand, and save it to one of two named slots.
 
     .venv/bin/python scripts/lock_arm.py --release   # so the arm can be moved by hand
     # ... move the arm to where it should sit between sessions ...
-    .venv/bin/python scripts/set_home_pose.py --save
+    .venv/bin/python scripts/set_home_pose.py --save              # --to home, the default
+    .venv/bin/python scripts/set_home_pose.py --save --to cpm     # scripts/run_cpm.py's start
+
+`--to` only accepts `session.home_pose.NAMED_POSES`'s two keys, not an arbitrary path: a
+captured pose is only trustworthy because someone placed and checked it against the real rig,
+so the destinations it may be written to are the same closed, named pair `scripts/go_home.py`
+reads from, not any file that happens to have a `ticks` key.
 
 `scripts/find_home_pose.py` searches for a home pose from the URDF alone, which is geometry
 that has never been checked against the physical rig: collisions, cables, the leader arm, the
@@ -27,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib.env import env_get  # noqa: E402
 from lib.kinematics import load_chain  # noqa: E402
+from session.home_pose import NAMED_POSES  # noqa: E402
 
 CALIB_DIR = Path("config/calibration")
 HOME_PATH = CALIB_DIR / "home-pose.json"
@@ -78,7 +85,14 @@ def main(argv=None) -> int:
     p.add_argument("--distance", type=float, default=90.0, help="pull distance to test, mm")
     p.add_argument("--directions", type=int, default=14,
                    help="pull directions to test, each tried out and back")
-    p.add_argument("--save", action="store_true", help=f"write {HOME_PATH}")
+    p.add_argument("--save", action="store_true", help="write the pose to --to")
+    p.add_argument("--to", choices=sorted(NAMED_POSES), default="home",
+                   help="which of the two named poses to write. 'home' is the session's "
+                        "parking pose, the one every admittance session starts from and "
+                        "returns to. 'cpm' is scripts/run_cpm.py's start pose: held under "
+                        "tension with the finger already hooked, and therefore NOT somewhere "
+                        "the arm should be parked between sessions. Exactly these two, not "
+                        "an open path: see session.home_pose.NAMED_POSES")
     p.add_argument("--seconds", type=float, default=5.0)
     p.add_argument("--station-host", default=None)
     p.add_argument("--bus-serial", default=None)
@@ -153,8 +167,9 @@ def main(argv=None) -> int:
     dev = dev_plausible
 
     if args.save:
-        CALIB_DIR.mkdir(parents=True, exist_ok=True)
-        HOME_PATH.write_text(json.dumps({
+        out = Path(NAMED_POSES[args.to])
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps({
             "ticks": {str(m): pose[m] for m in sorted(pose)},
             "pull_motors": picks,
             "worst_deviation_mm": round(dev * 1000, 3),
@@ -168,9 +183,9 @@ def main(argv=None) -> int:
                      "scripts/measure_ticks_per_metre.py in this pose before trusting it for "
                      "ticks_per_metre or yield_sign, since both are pose-dependent."),
         }, indent=2) + "\n")
-        print(f"\nwrote {HOME_PATH}")
+        print(f"\nwrote {out}")
     else:
-        print("\n(--save to write this as the session's home pose)")
+        print(f"\n(--save to write this pose to {NAMED_POSES[args.to]!r} as {args.to!r})")
     return 0
 
 
