@@ -17,6 +17,7 @@ Offline: pull the repo and open `docs/pitch-v6-storytelling/index.html` in Chrom
 | 1 2 3 | On the real-footage slide: open that clip |
 | P | On the real-footage slide: pause or play |
 | S | On the timeline slide: skip, show every moment at once |
+| C | Hide or show the text over the intro film |
 | E | Edit text in the browser (Esc to finish) |
 | ⌘S / Ctrl+S | Save a copy of the deck with your edits |
 
@@ -52,7 +53,7 @@ A saved copy downloads as `index.html`. Move it into this folder, over the old o
 **Act 4, the people and what is next**
 
 14. How we got here (the zig-zag timeline, one moment per press)
-15. Our goals at Track 4 (Elderly Care & Rehabilitation, Rehab coach): three numbered goals that match the track's expectations. Give a VLA the capacity to sense with a low-tech proprioceptive ruler, use a standard tool from the physiotherapist's lab, prove that a VLA can be used safely with patients (new)
+15. Our goals at Track 4 (Elderly Care & Rehabilitation, Rehab coach): three numbered goals that match the track's expectations. Give a robot arm the capacity to sense force with a low-tech proprioceptive ruler, use a standard tool from the physiotherapist's lab, prove that a robot arm can be used safely with patients (new)
 16. The team
 17. What comes next: built this weekend, then one hand clinic, then orthopedic rehabilitation for other joints (new)
 18. A future approach: two looping tiles, Isaac Sim (the bench rebuilt) and Isaac Lab (the pull policy in training). A click on a tile opens the whole clip in a pop-up at 80 % of the screen; Esc or Close shuts it (new)
