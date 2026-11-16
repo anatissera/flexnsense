@@ -1,0 +1,22 @@
+{
+  "name": "ROG EYE S",
+  "connection": "USB-C (UVC webcam)",
+  "model_id": "UVC Camera VendorID_2821 ProductID_6592",
+  "unique_id": "0x1200000b0519c0",
+  "select_with": "--camera rog",
+  "opencv_backend": "AVFoundation (macOS)",
+  "opencv_index_on_the_macbook_air": 0,
+  "resolution": [1920, 1080],
+  "fps": 30,
+  "auto_exposure_lock": "not supported by the backend",
+  "auto_white_balance_lock": "not supported by the backend",
+  "measured": {
+    "date": "2026-11-15",
+    "scale_length_in_picture_px": 732,
+    "frames_with_a_reading_percent": 92,
+    "noise_at_rest_std_g": 0.85,
+    "reference_1_red_band": {"area_px": 770, "redness": 110, "elongation": 3.1},
+    "reference_2_far_mark": {"area_px": 350, "redness": 70, "elongation": 1.5},
+    "marker": {"area_px": 120, "redness": 95, "elongation": 1.3}
+  }
+}

@@ -37,7 +37,9 @@ export function LineChart({
   series: Series[]; w?: number; h?: number; xLabel?: string; yLabel?: string;
   yDomain?: [number, number]; xDomain?: [number, number]; cursor?: number; bands?: Band[]; children?: ReactNode;
 }) {
-  const m = { l: 38, r: 8, t: 8, b: 26 };
+  // With a y label, reserve a row above the plot for it. It used to sit on the top tick's row,
+  // so a long label ran straight over the top y tick number.
+  const m = { l: 38, r: 8, t: yLabel ? 22 : 8, b: 26 };
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const s of series) for (let i = 0; i < s.xs.length; i++) {
     const x = s.xs[i], y = s.ys[i];
@@ -78,7 +80,7 @@ export function LineChart({
         <text key={`x${v}`} x={px(v)} y={h - m.b + 11} textAnchor="middle" fontSize={9} fill="currentColor" opacity={0.6}>{v}</text>
       ))}
       {xLabel && <text x={(m.l + w - m.r) / 2} y={h - 2} textAnchor="middle" fontSize={9} fill="currentColor" opacity={0.7}>{xLabel}</text>}
-      {yLabel && <text x={8} y={m.t + 4} fontSize={9} fill="currentColor" opacity={0.7}>{yLabel}</text>}
+      {yLabel && <text x={4} y={11} fontSize={9} fill="currentColor" opacity={0.7}>{yLabel}</text>}
       {series.map((s) => (
         <g key={s.name}>
           <path d={path(s)} fill="none" stroke={s.color} strokeWidth={s.width ?? 1.5} strokeDasharray={s.dashed ? "4 3" : undefined} />

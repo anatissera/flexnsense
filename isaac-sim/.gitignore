@@ -1,0 +1,11 @@
+.env
+runs/
+__pycache__/
+*.pyc
+# the earlier policies are downloaded from Hugging Face (see README.md); the one to test is kept here (130 kB)
+policies/**/*.onnx
+policies/**/*.onnx.data
+policies/**/*.pt
+media/
+!policies/pull_bench_v1/*
+!policies/team_v3/**

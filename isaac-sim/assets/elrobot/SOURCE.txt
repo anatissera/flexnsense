@@ -1,0 +1,5 @@
+Source: https://github.com/norma-core/norma-core, folder hardware/elrobot/simulation
+Commit: 6b494f77fac366a878ae71222458b196f8400dee (2026-11-10)
+Downloaded: 2026-11-15
+Licence: Apache-2.0 (LICENSE in this folder)
+Unmodified.

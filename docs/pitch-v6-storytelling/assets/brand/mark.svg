@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="256" height="256" role="img" aria-label="Flex'N Sense mark">
+  <!-- A finger (or a gauge needle) sweeping to the limit, where the red marker sits. -->
+  <g fill="none" stroke="#0E141F" stroke-width="9" stroke-linecap="round">
+    <path d="M10 46 L10 16" opacity=".16"/>
+    <path d="M10 46 L25 20.02" opacity=".34"/>
+    <path d="M10 46 L35.98 31" opacity=".6"/>
+    <path d="M10 46 L40 46"/>
+  </g>
+  <circle cx="53" cy="46" r="6" fill="#E63B2E"/>
+  <circle cx="10" cy="46" r="2.5" fill="#F4F7FB"/>
+</svg>

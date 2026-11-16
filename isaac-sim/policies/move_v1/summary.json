@@ -1,0 +1,10 @@
+{
+  "arms": 1024,
+  "place_tolerance_m": 0.008,
+  "share_placed": 1.0,
+  "share_dropped": 0.0,
+  "seconds_to_place_mean": 0.4,
+  "seconds_to_place_slowest": 0.783,
+  "highest_lift_m_mean": 0.0455,
+  "share_that_hit_a_finger": 0.0
+}
