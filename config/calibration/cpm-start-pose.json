@@ -1,0 +1,22 @@
+{
+  "ticks": {
+    "1": 2032,
+    "2": 2082,
+    "3": 2415,
+    "4": 2315,
+    "5": 1879,
+    "6": 1315,
+    "7": 3274
+  },
+  "pull_motors": [
+    1,
+    2,
+    4
+  ],
+  "worst_deviation_mm": 0.711,
+  "pull_distance_mm": 90.0,
+  "directions_tested": "plausible tether axes: each of motors 1-6's own pull direction, out and back (12 directions)",
+  "worst_deviation_any_direction_mm": 1.118,
+  "source": "set_home_pose.py: placed by hand on the real rig, not searched",
+  "note": "Chosen on the physical arm, with the rig, cables and the other arm in place, rather than from URDF geometry alone. Re-run scripts/measure_ticks_per_metre.py in this pose before trusting it for ticks_per_metre or yield_sign, since both are pose-dependent."
+}
