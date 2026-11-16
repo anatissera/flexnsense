@@ -1,5 +1,6 @@
 import type { Study } from "./curlsim/study";
 import { FINGERS, FLEXOR_MUSCLES, type Finger } from "./curlsim/types";
+import { FACES, TURNS, VIEW_IDS } from "./viewPresets";
 
 export interface MuscleInfo { name: string; label: string; role: string; finger?: Finger }
 
@@ -109,6 +110,33 @@ export const TOOLS = [
   {
     type: "function",
     function: {
+      name: "set_camera_view",
+      description: `Smoothly rotate the 3D camera to a named view, the same views as the view cube in the top right. The camera only rotates about the hand; it does not zoom or pan. Views: ${FACES.map((f) => `${f.id} = ${f.label}`).join("; ")}; any corner id (e.g. top_right_front) = three-quarter view from that corner; home = back to the starting side profile. "Sagittal" with no side means sagittal_right. "Frontal"/"coronal" means frontal_front. "Transverse"/"axial"/"from above"/"palm" means transverse_top; "from below"/"back of the hand" means transverse_bottom. Use when the user asks to see, show, go to, turn to or look from a view or side.`,
+      parameters: {
+        type: "object",
+        properties: { view: { type: "string", enum: VIEW_IDS } },
+        required: ["view"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "rotate_camera",
+      description: "Smoothly turn the 3D camera relative to where it is now, like the arrow buttons on the view cube: up/down/left/right turn the view about the hand, roll_clockwise/roll_counterclockwise roll it about the viewing axis. Default 90 degrees. Use for relative requests such as 'rotate a bit to the left' or 'flip it upside down' (roll 180); use set_camera_view for a named view.",
+      parameters: {
+        type: "object",
+        properties: {
+          direction: { type: "string", enum: Object.keys(TURNS) },
+          degrees: { type: "number", description: "How far to turn (default 90, 1 to 360)." },
+        },
+        required: ["direction"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "clear_highlights",
       description: "Remove all highlights and floating info boxes.",
       parameters: { type: "object", properties: {} },
@@ -131,7 +159,33 @@ export const LANGUAGE_RULE = "Always reply in the same language the user is spea
 
 const r1 = (v: number | null | undefined, k = 100) => (v == null || !Number.isFinite(v) ? null : Math.round(v * k * 10) / 10);
 
-export function buildContext(study: Study, week: number, sel: Finger, live?: { phase: string; repsDone: number; recovery_index?: number } | null) {
+/** JSON-safe copy with numbers rounded to 3 places (NaN and Infinity become null), to keep the context small. */
+const tidy = <T,>(x: T): unknown =>
+  JSON.parse(JSON.stringify(x, (_k, v) => (typeof v === "number" ? (Number.isFinite(v) ? Math.round(v * 1000) / 1000 : null) : v instanceof Set ? undefined : v)));
+
+/** The curl session the user has just measured (camera) or simulated, as the chat sees it. */
+export interface SessionContext {
+  /** "camera": the tracked finger and gauge force. "simulated": the built-in curl playback. */
+  source: "camera" | "simulated";
+  /** True while the session is still running: numbers and the report are provisional until it stops. */
+  inProgress: boolean;
+  /** Where the force came from: the gauge reader, an assumed constant, or the simulation. */
+  forceSource: string;
+  forceDropouts: { count: number; totalSeconds: number } | null;
+  repsAnalysed: number;
+  /** Fractions of the contralateral hand (0..1); the context shows them as percent. */
+  recoveryIndex: number | null;
+  groupScores: Record<string, number> | null;
+  medianMetrics: unknown;
+  trialVariability: unknown;
+  perRep: unknown;
+}
+
+export function buildContext(
+  study: Study, week: number, sel: Finger,
+  live?: { phase: string; repsDone: number; recovery_index?: number } | null,
+  session?: { measured: SessionContext | null; medicalReport: string | null },
+) {
   return {
     note: "All data is SIMULATED. Recovery values are fractions of the contralateral (healthy) hand, shown here as %. 'simTruth' is the generator's hidden ground truth.",
     patient: study.patient.id,
@@ -158,11 +212,26 @@ export function buildContext(study: Study, week: number, sel: Finger, live?: { p
     ranking: study.sensitivity.baseRanking,
     dataQualityFlags: study.flags.slice(0, 10),
     liveAnalysis: live ?? null,
+    measuredSession: session?.measured ? tidy({
+      source: session.measured.source,
+      inProgress: session.measured.inProgress,
+      forceSource: session.measured.forceSource,
+      forceDropouts: session.measured.forceDropouts,
+      repsAnalysed: session.measured.repsAnalysed,
+      recoveryIndexPct: r1(session.measured.recoveryIndex),
+      groupScoresPct: session.measured.groupScores
+        ? Object.fromEntries(Object.entries(session.measured.groupScores).map(([k, v]) => [k, r1(v)])) : null,
+      medianMetrics: session.measured.medianMetrics,
+      trialVariability: session.measured.trialVariability,
+      perRep: session.measured.perRep,
+    }) : null,
+    medicalReport: session?.medicalReport ?? null,
     muscles: MUSCLES.map((m) => `${m.name}: ${m.label}`),
   };
 }
 
 export const SYSTEM_PROMPT = `You are an assistant embedded in a flexor-tendon recovery simulator (MuJoCo MyoHand 3D model + a stress-test/curl analysis).
 Answer questions about the scene and the study results using ONLY the JSON context provided; if something isn't in it, say so. Be concise.
+The context includes the session the user just measured: "measuredSession" (per-rep and median metrics, group scores, force source and gauge dropouts) and "medicalReport" (the assessment report in Markdown, summarising that session). Both are null until at least one curl repetition has been analysed. Use them for questions about the measured finger curls, the report, or "how did I do". If measuredSession.inProgress is true the session is still running, so say the figures are provisional. If forceSource is not the gauge, say force values are assumed rather than measured; force dropouts were recorded as 0 N.
 All data is simulated; do not give clinical advice. ${LANGUAGE_RULE}
-When the user asks to see, find, or learn about a specific muscle or tendon (or its properties/recovery), CALL the tools: show_muscle_info for a property question, highlight_muscles to just show muscles, show_dashboard_section to point at the dashboard section for a metric, clear_highlights to reset, tour_muscles to automatically step through every muscle popup. Then briefly explain in text. Whenever your answer is about, or names, a specific muscle or tendon (even a general question like "what does the FDP do?" or "how is the index FDS healing?"), also call highlight_muscles (or show_muscle_info) for the relevant muscle(s) so it lights up in the 3D view; do not wait to be asked to show it. Skip highlighting only when the answer isn't about a particular muscle. Muscle names: FDP = deep flexor, FDS = superficial flexor, digits 2-5 = index, middle, ring, little.`;
+When the user asks to see, find, or learn about a specific muscle or tendon (or its properties/recovery), CALL the tools: show_muscle_info for a property question, highlight_muscles to just show muscles, show_dashboard_section to point at the dashboard section for a metric, clear_highlights to reset, tour_muscles to automatically step through every muscle popup, set_camera_view to go to a named view (sagittal, frontal, transverse, a corner, or home) and rotate_camera for a relative turn. Then briefly explain in text. Whenever your answer is about, or names, a specific muscle or tendon (even a general question like "what does the FDP do?" or "how is the index FDS healing?"), also call highlight_muscles (or show_muscle_info) for the relevant muscle(s) so it lights up in the 3D view; do not wait to be asked to show it. Skip highlighting only when the answer isn't about a particular muscle. Muscle names: FDP = deep flexor, FDS = superficial flexor, digits 2-5 = index, middle, ring, little.`;

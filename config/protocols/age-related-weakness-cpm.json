@@ -1,0 +1,38 @@
+{
+  "name": "EXAMPLE, not a prescription: cpm mode, age-related hand weakness, maintaining range",
+  "ceiling_gf": 200,
+  "blocks": [
+    {
+      "finger": "index",
+      "mode": "cpm",
+      "reps": 10,
+      "cap_gf": 110,
+      "hold_s": 1.0,
+      "rom_target_m": 0.012
+    },
+    {
+      "finger": "middle",
+      "mode": "cpm",
+      "reps": 10,
+      "cap_gf": 110,
+      "hold_s": 1.0,
+      "rom_target_m": 0.012
+    },
+    {
+      "finger": "ring",
+      "mode": "cpm",
+      "reps": 10,
+      "cap_gf": 95,
+      "hold_s": 1.0,
+      "rom_target_m": 0.01
+    },
+    {
+      "finger": "little",
+      "mode": "cpm",
+      "reps": 10,
+      "cap_gf": 95,
+      "hold_s": 1.0,
+      "rom_target_m": 0.01
+    }
+  ]
+}

@@ -196,13 +196,15 @@ class StickerCalibration:
     samples: list[tuple[float, float]] = field(default_factory=list)   # (u, grams) known-weight samples
     s1_ref: tuple[float, float] | None = None   # sticker image positions at calibration (orientation hint)
     s2_ref: tuple[float, float] | None = None
+    ref_profile: dict | None = None             # look of hand-clicked references (stickers.StickerProfile.to_dict)
     created_at: str = ""
     notes: str = ""
     mode: str = "stickers"
 
     # ---- construction -------------------------------------------------------------------------
     @classmethod
-    def from_clicks(cls, s1, s2, p0, p1, g0: float = 0.0, g1: float = 600.0) -> "StickerCalibration":
+    def from_clicks(cls, s1, s2, p0, p1, g0: float = 0.0, g1: float = 600.0,
+                    ref_profile: dict | None = None) -> "StickerCalibration":
         """s1, s2: sticker centres; p0, p1: points on the 0 g and full-scale lines (all image pixels, one frame)."""
         s1 = (float(s1[0]), float(s1[1]))
         s2 = (float(s2[0]), float(s2[1]))
@@ -221,6 +223,7 @@ class StickerCalibration:
             offset_g=g0 - slope * u0,
             s1_ref=s1,
             s2_ref=s2,
+            ref_profile=ref_profile,
             created_at=_now_iso(),
         )
 
@@ -297,6 +300,7 @@ class StickerCalibration:
             "samples": [[u, g] for u, g in self.samples],
             "s1_ref": None if self.s1_ref is None else list(self.s1_ref),
             "s2_ref": None if self.s2_ref is None else list(self.s2_ref),
+            "ref_profile": self.ref_profile,
             "created_at": self.created_at,
             "notes": self.notes,
         }
@@ -326,6 +330,7 @@ class StickerCalibration:
             samples=[(float(u), float(g)) for u, g in d.get("samples", [])],
             s1_ref=pt(d.get("s1_ref")),
             s2_ref=pt(d.get("s2_ref")),
+            ref_profile=d.get("ref_profile"),
             created_at=str(d.get("created_at", "")),
             notes=str(d.get("notes", "")),
             mode="stickers",

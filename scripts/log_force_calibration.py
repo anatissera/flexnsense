@@ -1,18 +1,21 @@
-"""Log Feetech servo load/current while known forces are applied to arm B.
+"""Log ST3215 servo current, via Station, while known forces are applied to arm B.
 
 Used to calibrate servo current against grams read off the PESOLA spring scale.
-See docs/force-calibration.md for the rig and the procedure.
+See docs/force-calibration.md for the rig and the procedure, docs/elrobot.md for
+what Station is and how to set up its Python client.
 
-    python scripts/log_force_calibration.py --probe
-    python scripts/log_force_calibration.py --tare
-    python scripts/log_force_calibration.py --out data/calib_up.csv
+    python scripts/log_force_calibration.py --probe --bus-serial <SERIAL>
+    python scripts/log_force_calibration.py --tare --bus-serial <SERIAL>
+    python scripts/log_force_calibration.py --out data/calib_up.csv --bus-serial <SERIAL>
     python scripts/log_force_calibration.py --fit data/calib_up.csv
 
-Register names are discovered at runtime rather than assumed, since they vary
-across lerobot versions. Run --probe first to see what this arm exposes.
+`--fit` reads a CSV and does not need Station or the norma-core client at all.
+Everything else is async, because Station's client is.
 """
+from __future__ import annotations
 
 import argparse
+import asyncio
 import csv
 import os
 import statistics
@@ -22,15 +25,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for `lib`
 from lib.units import grams_force_to_newtons  # noqa: E402
-
-# Names seen across lerobot/Feetech control tables, most useful first.
-CANDIDATE_REGISTERS = [
-    "Present_Load",
-    "Present_Current",
-    "Present_Position",
-    "Present_Temperature",
-    "Present_Voltage",
-]
 
 
 def load_env(path=".env"):
@@ -45,71 +39,67 @@ def load_env(path=".env"):
             os.environ.setdefault(key.strip(), value.strip())
 
 
-def connect(port, arm_id):
-    from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
+async def probe(client, bus_serial, seconds=3.0):
+    """List the motor ids this bus reports, with one current/temperature reading each."""
+    from lib.station import follow_motor_state
 
-    config = SO101FollowerConfig(port=port, id=arm_id)
-    robot = SO101Follower(config)
-    robot.connect(calibrate=False)
-    return robot
-
-
-def get_bus(robot):
-    """The motor bus lives under different attribute names across versions."""
-    for attr in ("bus", "arm", "motors"):
-        bus = getattr(robot, attr, None)
-        if bus is not None and hasattr(bus, "sync_read"):
-            return bus
-    raise RuntimeError(
-        "Could not find a motor bus with sync_read on the robot object. "
-        f"Attributes available: {sorted(vars(robot))}"
-    )
+    seen = {}
+    deadline = time.monotonic() + seconds
+    async for serial, motor_id, state in follow_motor_state(client):
+        if serial == bus_serial:
+            seen[motor_id] = state
+        if time.monotonic() > deadline:
+            break
+    for motor_id in sorted(seen):
+        s = seen[motor_id]
+        print(f"  motor {motor_id}  current={s.current_ma} mA  temp={s.temperature_c} C  "
+              f"range=[{s.range_min}, {s.range_max}]")
+    return seen
 
 
-def probe(bus):
-    """Return the register names this bus can actually read."""
-    available = []
-    for name in CANDIDATE_REGISTERS:
-        try:
-            value = bus.sync_read(name)
-        except Exception as exc:  # noqa: BLE001 - we want to report, not crash
-            print(f"  {name:22s} unavailable ({type(exc).__name__}: {exc})")
+async def sample(client, bus_serial, seconds, hz):
+    """Collect readings for `seconds`, returned as {motor_id: {'current_ma': [...], ...}}."""
+    from lib.station import follow_motor_state
+
+    series: dict[int, dict[str, list]] = {}
+    deadline = time.monotonic() + seconds
+    min_period = 1.0 / hz
+    last_sample_t: dict[int, float] = {}
+
+    async for serial, motor_id, state in follow_motor_state(client):
+        if serial != bus_serial:
+            if time.monotonic() > deadline:
+                break
             continue
-        available.append(name)
-        print(f"  {name:22s} OK  {value}")
-    return available
-
-
-def sample(bus, registers, seconds, hz):
-    """Collect readings for `seconds`, returned as {f'{motor}.{register}': [values]}."""
-    series = {}
-    deadline = time.time() + seconds
-    period = 1.0 / hz
-    while time.time() < deadline:
-        for register in registers:
-            try:
-                reading = bus.sync_read(register)
-            except Exception as exc:  # noqa: BLE001
-                print(f"  read failed on {register}: {exc}", file=sys.stderr)
-                continue
-            for motor, value in reading.items():
-                series.setdefault(f"{motor}.{register}", []).append(value)
-        time.sleep(period)
+        now = time.monotonic()
+        if now - last_sample_t.get(motor_id, 0.0) < min_period:
+            if now > deadline:
+                break
+            continue
+        last_sample_t[motor_id] = now
+        channels = series.setdefault(motor_id, {"current_ma": [], "temperature_c": []})
+        if state.current_ma is not None:
+            channels["current_ma"].append(state.current_ma)
+        if state.temperature_c is not None:
+            channels["temperature_c"].append(state.temperature_c)
+        if now > deadline:
+            break
     return series
 
 
-def summarize(series):
-    """Mean and standard deviation per channel."""
+def summarize(series: dict[int, dict[str, list]]) -> dict[str, float]:
+    """Mean and standard deviation per motor and channel, flattened to CSV-friendly keys."""
     summary = {}
-    for channel, values in series.items():
-        if not values:
-            continue
-        summary[f"{channel}.mean"] = statistics.fmean(values)
-        summary[f"{channel}.std"] = statistics.pstdev(values) if len(values) > 1 else 0.0
+    for motor_id, channels in series.items():
+        for name, values in channels.items():
+            if not values:
+                continue
+            summary[f"motor{motor_id}.{name}.mean"] = statistics.fmean(values)
+            summary[f"motor{motor_id}.{name}.std"] = statistics.pstdev(values) if len(values) > 1 else 0.0
     return summary
 
 
-def run_logging(bus, registers, args):
+async def run_logging(client, bus_serial, args):
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     rows = []
 
@@ -118,7 +108,8 @@ def run_logging(bus, registers, args):
         "Enter.\nEmpty input finishes and writes the file.\n"
     )
     while True:
-        raw = input("grams (blank to finish): ").strip()
+        raw = await asyncio.to_thread(input, "grams (blank to finish): ")
+        raw = raw.strip()
         if not raw:
             break
         try:
@@ -128,15 +119,16 @@ def run_logging(bus, registers, args):
             continue
 
         print(f"  sampling {args.seconds:.1f}s ...", end="", flush=True)
-        series = sample(bus, registers, args.seconds, args.hz)
+        series = await sample(client, bus_serial, args.seconds, args.hz)
         row = {"grams": grams, "direction": args.direction, "timestamp": time.time()}
         row.update(summarize(series))
         rows.append(row)
 
         preview = [
-            f"{ch.rsplit('.', 1)[0]}={row[ch]:.1f}"
+            f"motor{mid}={row[ch]:.1f}"
             for ch in sorted(row)
-            if ch.endswith("Present_Load.mean")
+            if ch.endswith(".current_ma.mean")
+            for mid in [ch.split(".")[0].removeprefix("motor")]
         ]
         print(f" done  {'  '.join(preview) if preview else ''}")
 
@@ -161,15 +153,11 @@ def run_fit(path):
         sys.exit(f"{path}: need at least 3 points to fit, found {len(rows)}")
 
     grams = np.array([float(row["grams"]) for row in rows])
-    channels = [
-        key
-        for key in rows[0]
-        if key.endswith(".mean") and ("Present_Load" in key or "Present_Current" in key)
-    ]
+    channels = [key for key in rows[0] if key.endswith(".current_ma.mean")]
 
-    print(f"{len(rows)} points, {grams.min():.0f}–{grams.max():.0f} g\n")
-    print(f"{'channel':34s} {'slope':>12s} {'R^2':>8s} {'g/count':>10s}")
-    print("-" * 68)
+    print(f"{len(rows)} points, {grams.min():.0f}-{grams.max():.0f} g\n")
+    print(f"{'channel':20s} {'slope':>12s} {'R^2':>8s} {'g/mA':>10s}")
+    print("-" * 54)
 
     results = []
     for channel in channels:
@@ -184,19 +172,19 @@ def run_fit(path):
         results.append((r2, channel, slope, intercept))
 
     for r2, channel, slope, intercept in sorted(results, reverse=True):
-        name = channel.replace(".mean", "")
-        print(f"{name:34s} {slope:12.4f} {r2:8.3f} {abs(slope):10.3f}")
+        name = channel.replace(".current_ma.mean", "")
+        print(f"{name:20s} {slope:12.4f} {r2:8.3f} {abs(slope):10.3f}")
 
     if results:
         r2, channel, slope, intercept = max(results)
-        # grams = slope * counts + intercept is linear, so the N fit is the same line rescaled
+        # grams = slope * mA + intercept is linear, so the N fit is the same line rescaled
         # (see lib/units.py and AGENTS.md "Units": control code reads newtons, not grams).
         slope_n = grams_force_to_newtons(slope)
         intercept_n = grams_force_to_newtons(intercept)
         print(
-            f"\nbest channel: {channel.replace('.mean', '')}\n"
-            f"  grams   = {slope:.4f} * counts + {intercept:.2f}   (R^2 = {r2:.3f})\n"
-            f"  newtons = {slope_n:.6f} * counts + {intercept_n:.4f}   <- what the controller reads"
+            f"\nbest channel: {channel.replace('.current_ma.mean', '')}\n"
+            f"  grams   = {slope:.4f} * mA + {intercept:.2f}   (R^2 = {r2:.3f})\n"
+            f"  newtons = {slope_n:.6f} * mA + {intercept_n:.4f}   <- what the controller reads"
         )
         print(
             "\nNow compare against the opposite-direction sweep: the gap between the "
@@ -204,57 +192,55 @@ def run_fit(path):
         )
 
 
+async def main_async(args):
+    from lib.station import connect
+
+    load_env()
+    host = args.station_host or os.environ.get("STATION_HOST", "localhost")
+    bus_serial = args.bus_serial or os.environ.get("FOLLOWER_BUS_SERIAL")
+    if not bus_serial:
+        sys.exit("No bus serial: pass --bus-serial or set FOLLOWER_BUS_SERIAL in .env "
+                  "(find it on the bus card in Station's web UI)")
+
+    print(f"connecting to Station at {host} ...")
+    client = await connect(host)
+    print(f"connected. bus: {bus_serial}")
+
+    if args.probe:
+        await probe(client, bus_serial)
+        return
+
+    if args.tare:
+        print(f"\nbaseline, nothing attached, {args.seconds:.1f}s:")
+        series = await sample(client, bus_serial, args.seconds, args.hz)
+        for channel, value in sorted(summarize(series).items()):
+            print(f"  {channel:30s} {value:10.2f}")
+        return
+
+    await run_logging(client, bus_serial, args)
+
+
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--probe", action="store_true", help="list readable registers and exit")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--probe", action="store_true", help="list motor ids and current readings, then exit")
     parser.add_argument("--tare", action="store_true", help="sample the unloaded baseline and exit")
-    parser.add_argument("--fit", metavar="CSV", help="fit a recorded sweep and exit (no robot needed)")
+    parser.add_argument("--fit", metavar="CSV", help="fit a recorded sweep and exit (no Station needed)")
     parser.add_argument("--out", default="data/calibration.csv", help="where to write the sweep")
     parser.add_argument(
-        "--direction",
-        default="up",
-        choices=("up", "down"),
+        "--direction", default="up", choices=("up", "down"),
         help="label the sweep direction, for hysteresis comparison",
     )
     parser.add_argument("--seconds", type=float, default=2.0, help="sampling window per point")
     parser.add_argument("--hz", type=float, default=20.0, help="sampling rate")
-    parser.add_argument("--port", help="serial port (default: ROBOT_PORT from .env)")
-    parser.add_argument("--id", default="rehab_follower", help="arm id used at calibration")
+    parser.add_argument("--station-host", help="Station address (default: STATION_HOST from .env, else localhost)")
+    parser.add_argument("--bus-serial", help="which bus (default: FOLLOWER_BUS_SERIAL from .env)")
     args = parser.parse_args()
 
     if args.fit:
         run_fit(args.fit)
         return
 
-    load_env()
-    port = args.port or os.environ.get("ROBOT_PORT")
-    if not port:
-        sys.exit("No port: pass --port or set ROBOT_PORT in .env")
-
-    robot = connect(port, args.id)
-    try:
-        bus = get_bus(robot)
-
-        print("probing registers:")
-        registers = probe(bus)
-        if not registers:
-            sys.exit("No readable registers - check the connection and the lerobot version.")
-        if args.probe:
-            return
-
-        force_registers = [r for r in registers if r in ("Present_Load", "Present_Current")]
-        if not force_registers:
-            sys.exit("Neither Present_Load nor Present_Current is readable; no force signal.")
-
-        if args.tare:
-            print(f"\nbaseline, nothing attached, {args.seconds:.1f}s:")
-            for channel, value in sorted(summarize(sample(bus, registers, args.seconds, args.hz)).items()):
-                print(f"  {channel:40s} {value:10.2f}")
-            return
-
-        run_logging(bus, registers, args)
-    finally:
-        robot.disconnect()
+    asyncio.run(main_async(args))
 
 
 if __name__ == "__main__":
