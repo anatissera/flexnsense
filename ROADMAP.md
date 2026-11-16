@@ -2,12 +2,18 @@
 
 One branch per subtask, one PR into `main`. Order matters where noted.
 
+## 0. ElRobot via NormaCore Station, not LeRobot - `feature/elrobot-support`
+
+**Also blocks everything else that touches the arm.** There is no LeRobot support for the
+ElRobot; every script talks to it through NormaCore's own binary, Station, via `lib/station.py`.
+See [docs/elrobot.md](./docs/elrobot.md).
+
 ## 1. Force calibration - `feature/force-calibration`
 
 **Blocks everything else.** Establish whether servo current can stand in for a force sensor.
 
-- Log `Present_Current` / `Present_Load` from arm B's servos while known forces are applied along the therapy axis.
-- Sweep up and back down to expose hysteresis from the 1/345 gearbox.
+- Log current from arm B's servos (via Station's `st3215/inference` queue) while known forces are applied along the therapy axis.
+- Sweep up and back down to expose hysteresis from the 345:1 gearbox.
 - Fit grams = f(current − baseline); report the dead zone and the noise floor.
 
 Guide: [docs/force-calibration.md](./docs/force-calibration.md).
@@ -27,11 +33,15 @@ Read the PESOLA's red indicator from a fixed camera and output grams + a confide
 
 The control loop from the README, plus the safety layer that does **not** depend on it: servo-level torque cap, software position limits, vision watchdog that releases tension, velocity ceiling, e-stop.
 
-Depends on 1 or 2 for a force signal.
+Force comes from the camera alone: item 1 came back negative, there is no current signal on this arm ([docs/force-calibration-result.md](./docs/force-calibration-result.md)).
+
+Written, tested in software, **not yet run against the arm**: `control/safety.py` (the gate: HOLD / YIELD / RELEASE), `control/admittance.py` (the law), `control/loop.py` (the wiring to the camera and Station), `control/simulate.py` (closed-loop simulation for choosing constants). Design and what the simulation established about B: [docs/admittance-design.md](./docs/admittance-design.md).
+
+Still to do: measure `ticks_per_metre` and the yield direction on the bench, then a bench run against a spring and a weight before any finger.
 
 ## 4. Simulation rig - `feature/sim-rig`
 
-MuJoCo SO-101 model (`TheRobotStudio/SO-ARM100` → `Simulation/SO101`) plus a linear spring (F = k·x, k measurable from the PESOLA in minutes) and a scripted "patient finger" trajectory.
+MuJoCo model plus a linear spring (F = k·x, k measurable from the PESOLA in minutes) and a scripted "patient finger" trajectory. NormaCore ships URDF/STEP/STL for the ElRobot (`hardware/elrobot/simulation` in their repo), but it hasn't been checked for use here yet.
 
 Purpose is **de-risking the controller without a human in the loop** - oscillation, force overshoot, behaviour when the force reading freezes or spikes. Not for generating training data.
 
@@ -43,7 +53,27 @@ Finger range of motion during the session. MediaPipe Hand Landmarker on CPU is t
 
 The 4 GB question is now answered: WiLoR in fp16 peaks at 1.69 GB of VRAM on the RTX 3050 and runs at 11 FPS on 640x480 with two hands once its pyrender overlay is dropped (the dashboard draws its own hand, so that overlay, 73% of the cost, is not needed). Benchmark and the full argument in [docs/hand-tracking.md](./docs/hand-tracking.md). 11 FPS and a 2.5 GB checkpoint behind a server process mean WiLoR is the precision-capture path, not the live one: MediaPipe stays the default in the dashboard. Both already emit the same `HandFrame` (`hand_tracking/frame.py`, `dashboard/app/lib/handFrame.ts`), so the remaining work is the WiLoR service itself, not the plumbing around it.
 
-Independent of 1–4.
+Independent of 0–4; camera-only, does not touch the arm.
+
+## 5b. Session orchestration - `feature/session-orchestration`
+
+The layer between the 30 Hz force loop and the clinician: the two exercise modes (`active`,
+the patient flexes and the arm yields at constant force; `passive`, the arm pulls the finger
+toward extension and the patient flexes back), the per-rep state machine that cues the patient
+and counts what they actually did, the session state machine that sequences blocks across
+fingers, and the interlock that guarantees arm 1 and arm 2 are never active at the same time.
+The exercise prescription is **data** (finger, mode, reps, cap, hold, stretch target), not a
+trained policy.
+
+Designed in [docs/session-orchestration.md](./docs/session-orchestration.md). Written so far, all pure and tested without hardware: `session/modes.py` (the two modes as data), `session/protocol.py` (the prescription), `session/instructions.py` (what the patient is told), `session/calibration.py` (the bench constants, as explicit absences), `session/snapshot.py` plus `dashboard/app/lib/sessionSnapshot.ts` (the UI contract), `session/interlock.py` (the two-arm custody rule), `session/orchestrator.py` (the session machine) and `session/reps.py` (the per-rep machine, which is where the deadman on a device-driven phase lives). Still to write: `session/server.py`, the state stream the dashboard reads, and the adapter that turns a `RepStep`'s `Law` into calls on `control/`.
+Active mode's work phase is the existing admittance law; the delta on the control side is the
+device-driven phase, where `Decision.may_move` is backwards, dropout tolerance has to go to
+zero, and a range-of-motion target replaces the monotonicity guard. That doc also inventories
+what already exists in the dashboard (`GuideHand`, `LiveAnalyzer`) and lists the open
+questions, the unmeasured spring rate being the one that moves the most numbers.
+
+Depends on 3, whose `control/` package the rep machine drives. Blocks 6 and 7, and it is the
+contract arm 2's policy has to meet.
 
 ## 6. Session metrics - `feature/session-metrics`
 

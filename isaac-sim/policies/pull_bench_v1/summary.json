@@ -1,0 +1,26 @@
+{
+  "policy": {
+    "arms": 1024,
+    "limit_N": 1.96,
+    "peak_force_N_mean": 1.5859,
+    "peak_force_N_worst": 3.4654,
+    "share_of_pulls_over_110pct_limit": 0.0254,
+    "seconds_over_110pct_limit_mean": 0.0089,
+    "give_m_mean": 0.0446,
+    "drift_when_not_pulled_m_mean": 0.0015,
+    "peak_force_if_rigid_N_mean": 3.7507,
+    "share_of_pulls_that_would_exceed_limit_if_rigid": 0.9209
+  },
+  "hold": {
+    "arms": 1024,
+    "limit_N": 1.96,
+    "peak_force_N_mean": 3.3851,
+    "peak_force_N_worst": 7.1699,
+    "share_of_pulls_over_110pct_limit": 0.8271,
+    "seconds_over_110pct_limit_mean": 2.9377,
+    "give_m_mean": 0.0066,
+    "drift_when_not_pulled_m_mean": 0.0026,
+    "peak_force_if_rigid_N_mean": 3.7507,
+    "share_of_pulls_that_would_exceed_limit_if_rigid": 0.9209
+  }
+}

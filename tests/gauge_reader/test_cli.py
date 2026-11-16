@@ -350,6 +350,38 @@ def test_sticker_crop_is_only_the_scale():
     assert sticker_crop(frame, (1.0, 1.0), (1.0, 1.0)) is None
 
 
+def test_make_tracker_sat_strong_defaults_off(monkeypatch):
+    """Without GAUGE_SAT_STRONG set, behaviour is unchanged: the knob stays at the detector's default (off).
+
+    Patches gauge_reader.cli.env_get directly rather than the environment: env_get also falls
+    back to reading a real `.env` in the repo root, and a developer's own machine may well have
+    GAUGE_SAT_STRONG set there for their own camera - the test must not depend on that file.
+    """
+    _need_sticker_modules()
+    from gauge_reader import cli
+    from gauge_reader.calibration import StickerCalibration
+    monkeypatch.setattr(cli, "env_get", lambda key, default=None: default)
+    calib = StickerCalibration.from_clicks((100.0, 0.0), (900.0, 0.0), (200.0, 0.0), (800.0, 0.0))
+    tracker = cli.StickerPipeline.make_tracker(calib)
+    assert tracker.config.red.sat_strong == 0
+
+
+def test_make_tracker_sat_strong_from_env(monkeypatch):
+    """GAUGE_SAT_STRONG, when set, reaches the detector config StickerTracker actually uses.
+
+    This is the knob for a camera where skin reads red enough to pass the normal hue/Lab mask
+    (gauge_reader/detector.py's own comment: stickers ~220, the marker ~200, skin ~130, wood ~75
+    - setting it between those two groups keeps a hand out without touching the hue range).
+    Same reason as above for patching env_get directly instead of the environment."""
+    _need_sticker_modules()
+    from gauge_reader import cli
+    from gauge_reader.calibration import StickerCalibration
+    monkeypatch.setattr(cli, "env_get", lambda key, default=None: "150" if key == "GAUGE_SAT_STRONG" else default)
+    calib = StickerCalibration.from_clicks((100.0, 0.0), (900.0, 0.0), (200.0, 0.0), (800.0, 0.0))
+    tracker = cli.StickerPipeline.make_tracker(calib)
+    assert tracker.config.red.sat_strong == 150
+
+
 def test_evaluate_stickers_passes_on_moving_video(moving_video):
     _need_sticker_modules()
     from gauge_reader.cli import evaluate, truth_is_stickers
@@ -465,7 +497,9 @@ def test_calibrate_stickers_clicked_by_hand(moving_video, tmp_path, monkeypatch)
     FakeGUI(monkeypatch, script)
     assert main(["calibrate", "--video", str(moving_video), "--calib", str(out)]) == 0
     c = load_calibration(out)
-    assert c.mode == "stickers" and c.s1_ref == pytest.approx(s1) and c.s2_ref == pytest.approx(s2)
+    # hand clicks snap to the centre of the red mark under them, and its look is learned
+    assert c.mode == "stickers" and c.s1_ref == pytest.approx(s1, abs=1.0) and c.s2_ref == pytest.approx(s2, abs=1.0)
+    assert c.ref_profile is not None and c.ref_profile["area_ratio"] == pytest.approx(1.0, abs=0.3)
 
 
 def test_calibrate_stickers_from_args(moving_video, tmp_path, monkeypatch, capsys):
@@ -485,3 +519,37 @@ def test_calibrate_stickers_from_args(moving_video, tmp_path, monkeypatch, capsy
     FakeGUI(monkeypatch, [None, None, "q"])
     assert main(["calibrate", "--mode", "fixed", "--resume", "--video", str(moving_video), "--calib", str(out)]) == 0
     assert "stickers mode" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------- make_pipeline's filt override
+def test_make_pipeline_defaults_to_the_readers_own_filter():
+    from gauge_reader.calibration import Calibration
+    from gauge_reader.cli import make_pipeline
+    from lib.filters import ReadingFilter
+
+    calib = Calibration.from_clicks((0, 0), (100, 0))
+    pipeline = make_pipeline(calib)
+    assert isinstance(pipeline.filt, ReadingFilter)
+    assert pipeline.filt.outlier_persist == 3   # the library's own documented default
+
+
+def test_make_pipeline_accepts_an_explicit_filter_for_fixed_mode():
+    from gauge_reader.calibration import Calibration
+    from gauge_reader.cli import make_pipeline
+    from lib.filters import ReadingFilter
+
+    calib = Calibration.from_clicks((0, 0), (100, 0))
+    custom = ReadingFilter(outlier_persist=7)
+    pipeline = make_pipeline(calib, filt=custom)
+    assert pipeline.filt is custom
+
+
+def test_make_pipeline_accepts_an_explicit_filter_for_sticker_mode():
+    from gauge_reader.calibration import StickerCalibration
+    from gauge_reader.cli import make_pipeline
+    from lib.filters import ReadingFilter
+
+    calib = StickerCalibration.from_clicks((0, 0), (100, 0), (0, 10), (100, 10))
+    custom = ReadingFilter(outlier_persist=7)
+    pipeline = make_pipeline(calib, filt=custom)
+    assert pipeline.filt is custom

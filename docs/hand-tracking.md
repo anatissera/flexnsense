@@ -160,6 +160,34 @@ remapped ones.
 depth, WiLoR the camera-space depth in metres. Only x and y are contractual there, and `world`
 is what anything quantitative should read.
 
+## Choosing the model in the dashboard
+
+The dashboard's hand tracking panel has a **Model** selector. MediaPipe is the default and needs
+nothing: it runs in the browser. WiLoR needs a server next to the GPU, because it cannot run in a
+browser at all:
+
+```bash
+python -m hand_tracking.server --wilor-root ../WiLoR     # from the WiLoR environment
+```
+
+Then pick "WiLoR (local GPU server)" in the dashboard. The status line shows the measured
+milliseconds per frame, so it is obvious which model is running.
+
+The browser keeps the camera either way: it already holds the permission and the video element.
+For WiLoR it encodes each frame as a JPEG and sends it over a WebSocket to `127.0.0.1:8765`, and
+HandFrames come back. Only one frame is in flight at a time, so the browser's send rate follows
+whatever the GPU manages instead of queueing up frames it cannot keep up with. Frames are decoded,
+measured and discarded; nothing is written to disk.
+
+The 3D hand is driven the same way from either source, because both fill the same `angles`.
+Switching the selector while tracking tears the old source down and starts the new one.
+
+Two things to know when it does not work:
+
+- Only one WiLoR process fits on a 4 GB card. A second one (the standalone `webcam_demo.py`, say)
+  will fail to load with a CUDA out-of-memory error rather than share.
+- The browser and the server cannot both hold the camera. Stop the other one first.
+
 ## Known limits
 
 - One hand at a time by default with MediaPipe (`--max-hands` to change it). WiLoR reports every
@@ -172,3 +200,25 @@ is what anything quantitative should read.
   is roadmap item 6, which combines this with the force reading).
 - Lighting and occlusion affect MediaPipe's detection same as any camera-based method; when no
   hand is found, the CSV row is blank rather than guessing.
+
+## In the browser: the same maths in TypeScript
+
+The dashboard carries ports of the pure hand-tracking geometry, so a page can use it with no
+backend. Python stays the tested side; `tests/session/test_ts_port.py` runs both on the same
+randomised inputs and fails if they disagree.
+
+- `dashboard/app/lib/excursion.ts`: `fitExcursion`, `tipMinusWrist`, and an `ExcursionRecorder`
+  that a "calibrate range of motion" control can feed from the tracker's `onFrame` (pass it
+  `frame.world`) and read once the sweep ends. Mirror of `hand_tracking/excursion.py`.
+- `dashboard/app/lib/handGeometry.ts`: one flexion angle per finger in degrees (PIP for four
+  fingers, IP for the thumb), same convention as above. Mirror of `hand_tracking/landmarks.py`.
+- `landmarksToPose` in `HandTracker.tsx` was already the twin of `hand_tracking/pose.py`.
+
+In the dashboard, pressing **Start** in the Rep machine switches on the camera (with the model chosen
+under **Model** in the right-hand panel) and a **Hand measurements** card appears under the tracker:
+live flexion in degrees for each finger, and a range-of-motion sweep (pick a finger, press Start sweep,
+move it slowly from straight to fully bent, press Stop) that reports the tip travel in mm, how much of
+the motion lay along one line, and a warning when it did not. The card is `components/HandMeasurements.tsx`.
+
+Run the parity test with `python -m pytest tests/session/test_ts_port.py`. It needs `node` and
+`pnpm install` in `dashboard/`, and skips itself otherwise.

@@ -33,3 +33,18 @@ def test_calib_summary_both_modes(tmp_path, monkeypatch):
     if hasattr(vc, "StickerCalibration"):
         vc.StickerCalibration.from_clicks((0, 0), (0, 124), (0, 12), (0, 112)).save(L.CALIB)
         assert "stickers mode" in L.calib_summary()
+
+
+def test_camera_choices_on_linux(tmp_path, monkeypatch):
+    # the panel's camera list on a faked Linux: V4L2 numbers and names, no iPhone needed for a default
+    import gauge_reader.launcher as L
+    from lib import camera
+    (tmp_path / "video2").mkdir()
+    (tmp_path / "video2" / "name").write_text("ROG EYE S: ROG EYE S\n")
+    (tmp_path / "video2" / "index").write_text("0\n")
+    monkeypatch.setattr(camera.sys, "platform", "linux")
+    monkeypatch.setattr(camera, "V4L_SYSFS", tmp_path)
+    assert L.camera_choices() == [(2, "ROG EYE S")]
+    monkeypatch.setattr(camera, "V4L_SYSFS", tmp_path / "missing")
+    monkeypatch.setattr(camera, "V4L_DEV", tmp_path / "missing")
+    assert L.camera_choices() == [(0, "Camera 0"), (1, "Camera 1"), (2, "Camera 2")]

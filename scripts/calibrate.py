@@ -1,13 +1,27 @@
-"""Calibrate the SO-101 follower and/or leader arm using ports from .env.
+"""Check Station's connection and calibration state for a bus. Does not calibrate.
 
-Usage:
-    python scripts/calibrate.py follower
-    python scripts/calibrate.py leader
-    python scripts/calibrate.py both
+NormaCore does not publish a scripted calibration procedure for the ElRobot: joint range
+(min/max per motor) is set in Station's web UI (*ST3215 bus calibration* page), by hand, once
+per physical arm, and then committed to the repo - see config/calibration/README.md.
+
+This script only answers "is Station reachable, and does this bus already have a range for
+every motor", which is what you want before trusting any position command.
+
+    python scripts/calibrate.py --bus-serial <SERIAL>
+    python scripts/calibrate.py --bus-serial <SERIAL> --motors 8   # expect 8, warn if fewer respond
+
+For the SO-101 via LeRobot instead: scripts/lerobot/calibrate.py.
 """
+from __future__ import annotations
 
+import argparse
+import asyncio
 import os
 import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for `lib`
 
 
 def load_env(path=".env"):
@@ -22,45 +36,64 @@ def load_env(path=".env"):
             os.environ.setdefault(key.strip(), value.strip())
 
 
-def calibrate_follower(port, arm_id):
-    from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
+async def check(host, bus_serial, expected_motors, seconds):
+    from lib.station import connect, follow_motor_state
 
-    config = SO101FollowerConfig(port=port, id=arm_id)
-    follower = SO101Follower(config)
-    follower.connect(calibrate=False)
-    follower.calibrate()
-    follower.disconnect()
+    print(f"connecting to Station at {host} ...")
+    client = await connect(host)
+    print(f"connected. watching bus {bus_serial} for {seconds:.0f}s ...")
 
+    seen = {}
+    deadline = time.monotonic() + seconds
+    async for serial, motor_id, state in follow_motor_state(client):
+        if serial == bus_serial:
+            seen[motor_id] = state
+        if time.monotonic() > deadline:
+            break
 
-def calibrate_leader(port, arm_id):
-    from lerobot.teleoperators.so_leader import SO101Leader, SO101LeaderConfig
+    if not seen:
+        sys.exit(f"error: no motors seen on bus {bus_serial!r} in {seconds:.0f}s. "
+                  "Wrong serial, or Station isn't talking to this bus.")
 
-    config = SO101LeaderConfig(port=port, id=arm_id)
-    leader = SO101Leader(config)
-    leader.connect(calibrate=False)
-    leader.calibrate()
-    leader.disconnect()
+    print(f"\n{'motor':>6s} {'range_min':>10s} {'range_max':>10s} {'status':>14s}")
+    uncalibrated = []
+    for motor_id in sorted(seen):
+        s = seen[motor_id]
+        calibrated = s.range_min != 0 or s.range_max != 0
+        if not calibrated:
+            uncalibrated.append(motor_id)
+        print(f"{motor_id:6d} {s.range_min:10d} {s.range_max:10d} "
+              f"{'OK' if calibrated else 'NOT CALIBRATED':>14s}")
+
+    if len(seen) < expected_motors:
+        missing = sorted(set(range(1, expected_motors + 1)) - set(seen))
+        print(f"\nwarning: expected {expected_motors} motors, saw {len(seen)}. "
+              f"Missing ids: {missing}")
+
+    if uncalibrated:
+        print(f"\n{len(uncalibrated)} motor(s) not calibrated: {uncalibrated}")
+        print("Calibrate this bus in Station's web UI (ST3215 bus calibration page), "
+              "then commit the result per config/calibration/README.md.")
+    else:
+        print(f"\nAll {len(seen)} motors report a calibrated range.")
 
 
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in ("follower", "leader", "both"):
-        print(__doc__)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--station-host", help="default: STATION_HOST from .env, else localhost")
+    parser.add_argument("--bus-serial", help="default: FOLLOWER_BUS_SERIAL from .env")
+    parser.add_argument("--motors", type=int, default=8, help="expected motor count (ElRobot: 8)")
+    parser.add_argument("--seconds", type=float, default=3.0, help="how long to watch the bus")
+    args = parser.parse_args()
 
     load_env()
-    target = sys.argv[1]
+    host = args.station_host or os.environ.get("STATION_HOST", "localhost")
+    bus_serial = args.bus_serial or os.environ.get("FOLLOWER_BUS_SERIAL")
+    if not bus_serial:
+        sys.exit("No bus serial: pass --bus-serial or set FOLLOWER_BUS_SERIAL in .env "
+                  "(find it on the bus card in Station's web UI)")
 
-    if target in ("follower", "both"):
-        port = os.environ.get("ROBOT_PORT")
-        if not port:
-            sys.exit("ROBOT_PORT is not set in .env")
-        calibrate_follower(port, arm_id="rehab_follower")
-
-    if target in ("leader", "both"):
-        port = os.environ.get("LEADER_PORT")
-        if not port:
-            sys.exit("LEADER_PORT is not set in .env")
-        calibrate_leader(port, arm_id="rehab_leader")
+    asyncio.run(check(host, bus_serial, args.motors, args.seconds))
 
 
 if __name__ == "__main__":

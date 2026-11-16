@@ -1,34 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 148" width="560" height="148" role="img" aria-labelledby="t">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 168" width="640" height="168" role="img" aria-labelledby="t">
   <title id="t">Flex'N Sense</title>
+  <!-- Same brand as the pitch deck (docs/pitch-v5-storytelling): the mark is a finger, or a gauge needle,
+       sweeping to the limit where the red marker sits, and the red marker is the wordmark's apostrophe.
+       The paper card keeps the dark ink readable on GitHub's dark theme. -->
   <style>
-    .word { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: 800; font-size: 60px; letter-spacing: -1.5px; }
-    .tag { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 500; letter-spacing: 0.4px; fill: #7b8794; }
+    .wm { font-family: "Avenir Next", "Avenir", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif; font-weight: 700; font-size: 68px; letter-spacing: -2px; fill: #0E141F; }
   </style>
-  <g transform="translate(10,10)">
-    <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#102a43"/>
-      <stop offset="1" stop-color="#0b7285"/>
-    </linearGradient>
-    <linearGradient id="finger" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#d9f2ff"/>
-    </linearGradient>
-  </defs>
-  <rect x="2" y="2" width="124" height="124" rx="30" fill="url(#bg)"/>
-  <!-- the finger, flexing: three phalanges -->
-  <path d="M30,104 L38,70 L58,47 L84,40" fill="none" stroke="url(#finger)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- knuckles -->
-  <circle cx="38" cy="70" r="3.2" fill="#0b7285"/>
-  <circle cx="58" cy="47" r="3.2" fill="#0b7285"/>
-  <!-- sensor dot on the fingertip -->
-  <circle cx="86" cy="40" r="7.5" fill="#e12d39" stroke="#ffffff" stroke-width="2.5"/>
-  <!-- sense waves -->
-  <path d="M98,30 A15,15 0 0 1 98,50" fill="none" stroke="#3ebd93" stroke-width="4.5" stroke-linecap="round"/>
-  <path d="M106,22 A26,26 0 0 1 106,58" fill="none" stroke="#3ebd93" stroke-width="4.5" stroke-linecap="round" opacity="0.75"/>
-  <path d="M114,15 A37,37 0 0 1 114,65" fill="none" stroke="#3ebd93" stroke-width="4.5" stroke-linecap="round" opacity="0.45"/>
-
+  <rect width="640" height="168" rx="26" fill="#F4F7FB"/>
+  <g transform="translate(30,22) scale(1.94)">
+    <g fill="none" stroke="#0E141F" stroke-width="9" stroke-linecap="round">
+      <path d="M10 46 L10 16" opacity=".16"/>
+      <path d="M10 46 L25 20.02" opacity=".34"/>
+      <path d="M10 46 L35.98 31" opacity=".6"/>
+      <path d="M10 46 L40 46"/>
+    </g>
+    <circle cx="53" cy="46" r="6" fill="#E63B2E"/>
+    <circle cx="10" cy="46" r="2.5" fill="#F4F7FB"/>
   </g>
-  <text class="word" x="160" y="88"><tspan fill="#2186eb">Flex</tspan><tspan fill="#e12d39">'N</tspan><tspan fill="#3ebd93"> Sense</tspan></text>
-  <text class="tag" x="163" y="118">robot-assisted finger rehabilitation · Leukerbad 2026</text>
+  <text class="wm" x="330" y="109" text-anchor="end">Flex</text>
+  <rect x="335" y="58" width="9" height="21" rx="4.5" fill="#E63B2E" transform="rotate(14 339.5 68.5)"/>
+  <text class="wm" x="350" y="109">N Sense</text>
 </svg>

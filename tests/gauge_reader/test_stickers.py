@@ -186,3 +186,57 @@ def test_speed_lost_and_tracking():
             tr.reset()          # whole-frame search every time
             assert tr.detect(f).found
     assert (time.perf_counter() - t0) / 30 < 0.015
+
+
+# ---------------------------------------------------------------- references learned at calibration (profile)
+def _band_scale(shift=(0, 0), scale=1.0, far_dot=True, marker_u=0.3):
+    """A scale whose references are NOT two matching dots: a wide red band at one end, a small dull mark at
+    the other, and the marker between them. Returns (image, band centre, far mark centre, marker centre)."""
+    import cv2
+    img = np.full((720, 1280, 3), (150, 170, 180), np.uint8)
+    band = np.array([300.0, 400.0]) * scale + shift
+    far = np.array([1000.0, 330.0]) * scale + shift
+    d = (far - band) / np.hypot(*(far - band))
+    angle = float(np.degrees(np.arctan2(d[1], d[0])))
+    cv2.ellipse(img, (int(band[0]), int(band[1])), (int(6 * scale), int(22 * scale)), angle, 0, 360, (40, 40, 235), -1)
+    marker = band + marker_u * (far - band)
+    cv2.circle(img, (int(marker[0]), int(marker[1])), int(6 * scale), (40, 50, 215), -1)
+    if far_dot:
+        cv2.circle(img, (int(far[0]), int(far[1])), int(4 * scale), (60, 55, 125), -1)   # dull: redness ~65
+    return cv2.GaussianBlur(img, (5, 5), 0), band, far, marker
+
+
+def test_generic_rules_reject_band_and_small_mark():
+    from gauge_reader.stickers import StickerTracker
+    img, *_ = _band_scale()
+    assert not StickerTracker().detect(img).found
+
+
+def test_profile_finds_band_and_small_mark():
+    from gauge_reader.stickers import StickerConfig, StickerTracker, measure_profile
+    img, band, far, marker = _band_scale()
+    measured = measure_profile(img, band + 5, far - 4)          # clicks a few pixels off the marks
+    assert measured is not None
+    prof, s1, s2 = measured
+    assert prof.area_ratio > 5 and np.hypot(*(np.array(s1) - band)) < 2 and np.hypot(*(np.array(s2) - far)) < 2
+    # the scale moved and got closer: the same references are still found, in the same order
+    img2, band2, far2, _ = _band_scale(shift=(-60, 40), scale=1.15, marker_u=0.6)
+    d = StickerTracker(StickerConfig(profile=prof)).detect(img2)
+    assert d.found and d.u == pytest.approx(0.6, abs=0.01)
+    assert np.hypot(*(np.array(d.s1) - band2)) < 2 and np.hypot(*(np.array(d.s2) - far2)) < 2
+
+
+def test_profile_never_guesses_a_hidden_reference():
+    from gauge_reader.stickers import StickerConfig, StickerTracker, measure_profile
+    img, band, far, _ = _band_scale()
+    prof, *_ = measure_profile(img, band, far)
+    hidden, *_ = _band_scale(far_dot=False)
+    d = StickerTracker(StickerConfig(profile=prof)).detect(hidden)
+    assert not d.found and d.u is None
+
+
+def test_measure_profile_needs_a_red_mark_under_each_click():
+    from gauge_reader.stickers import measure_profile
+    img, band, far, _ = _band_scale()
+    assert measure_profile(img, band, (200, 100)) is None        # second click on bare background
+    assert measure_profile(img, band, band + 3) is None          # both clicks on the same mark
