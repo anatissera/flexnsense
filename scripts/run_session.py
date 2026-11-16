@@ -136,6 +136,7 @@ import argparse
 import asyncio
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -148,7 +149,7 @@ from lib.kinematics import ARM_MOTORS  # noqa: E402
 from lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
 from session.calibration import BenchCalibration, NotMeasured  # noqa: E402
 from session.modes import MODES, Law, Target  # noqa: E402
-from session.protocol import Block  # noqa: E402
+from session.protocol import Block, Protocol  # noqa: E402
 from session.reps import RepInput, RepLimits, RepMachine  # noqa: E402
 from session.tuning import DEFAULT_TUNING_PATH, load_tuning  # noqa: E402
 
@@ -496,6 +497,73 @@ def pull_plan_for(step, machine, args) -> PullPlan | None:
     )
 
 
+def block_for(args) -> Block:
+    """The prescription this run exercises, from a protocol file or from the flags.
+
+    Two sources, and the file wins when it is given, because a protocol is what a clinician
+    authored and a flag is what someone typed at a prompt. `--protocol` names a file in
+    `config/protocols/`; `--protocol-block` picks which of its blocks to run, since this
+    script runs one block and a protocol holds several (sequencing them across fingers is
+    `session.orchestrator`'s job, and it needs arm 2 to move the hook between them).
+
+    Individual flags still override the file, so a clinician's protocol can be loaded and one
+    number changed for one run without editing the prescription. The override is reported, not
+    silent: a session that quietly ran something other than what the file says is the thing
+    worth preventing here. `--cap-gf` is deliberately *not* overridable this way, because a
+    cap is the number the whole prescription is built around and changing it by flag while
+    claiming to run a named protocol is how the log stops meaning anything.
+    """
+    protocol_path = getattr(args, "protocol", None)
+    if protocol_path is None:
+        return Block(
+            finger=args.finger,
+            mode=args.mode,
+            reps=args.reps,
+            cap_n=grams_force_to_newtons(args.cap_gf),
+            hold_s=args.hold,
+            rom_target_m=(args.rom_mm / 1000.0) if MODES[args.mode].needs_rom_target else None,
+        )
+
+    protocol = Protocol.load(protocol_path)
+    index = getattr(args, "protocol_block", 0)
+    if not 0 <= index < len(protocol):
+        raise SystemExit(
+            f"{protocol_path} has {len(protocol)} block(s), so --protocol-block {index} does "
+            f"not exist. The blocks are:\n" + "\n".join(
+                f"  {i}: {b.reps} x {b.mode} on the {b.finger} at {b.cap_gf:.0f} gf"
+                for i, b in enumerate(protocol)
+            )
+        )
+    block = protocol.blocks[index]
+    print(f"\n!! protocol {protocol.name or protocol_path}")
+    print(f"!! block {index} of {len(protocol)}: {block.reps} x {block.mode} on the "
+          f"{block.finger} at {block.cap_gf:.0f} gf")
+
+    # Only the fields a person would reasonably want to shorten for one run. Each is reported
+    # so the printed banner and the session log disagree with the file out loud, never quietly.
+    overrides: dict[str, object] = {}
+    if args.reps != _default_of(args, "reps"):
+        overrides["reps"] = args.reps
+    if args.hold != _default_of(args, "hold"):
+        overrides["hold_s"] = args.hold
+    if overrides:
+        for name, value in overrides.items():
+            print(f"!! overriding {name}: {getattr(block, name)} -> {value} (from the flags)")
+        block = replace(block, **overrides)
+    print()
+    return block
+
+
+def _default_of(args, name: str):
+    """What the parser would have produced for `name` had nobody typed it.
+
+    Needed to tell "the user asked for 5 reps" from "5 is simply the default", which argparse
+    does not record. Comparing against the default is the cheapest honest way to do it without
+    a second parse or a sentinel on every flag.
+    """
+    return getattr(args, "_defaults", {}).get(name)
+
+
 async def run(args) -> int:
     from lib.station import connect
 
@@ -503,14 +571,7 @@ async def run(args) -> int:
     # an `args` field by now, so this is only for the profile's own name in the banner, and
     # reading it here keeps run() callable from a test with a plain namespace.
     tuning = load_tuning(getattr(args, "tuning", None))
-    block = Block(
-        finger=args.finger,
-        mode=args.mode,
-        reps=args.reps,
-        cap_n=grams_force_to_newtons(args.cap_gf),
-        hold_s=args.hold,
-        rom_target_m=(args.rom_mm / 1000.0) if MODES[args.mode].needs_rom_target else None,
-    )
+    block = block_for(args)
     bench = BenchCalibration.load(BENCH_CALIB)
     for problem in block.check_against(bench):
         print(f"warning: {problem}\n")
@@ -824,6 +885,15 @@ def main(argv=None) -> int:
                    help="the joint that moves along the tether axis. Required unless "
                         "--coordinated, which picks the joints from the pose instead. Rig "
                         "knowledge; see docs/bench-measurements.md for how to identify it safely")
+    p.add_argument("--protocol", default=None,
+                   help="run a block from a clinician's protocol file (config/protocols/) "
+                        "instead of from --finger/--mode/--cap-gf/--reps. The file is what "
+                        "was prescribed, so it wins over those; --reps and --hold still "
+                        "override it for one run, and say so out loud when they do")
+    p.add_argument("--protocol-block", type=int, default=0, metavar="N",
+                   help="which block of --protocol to run, 0-based. This script runs one "
+                        "block; sequencing a whole protocol across fingers needs arm 2 to "
+                        "move the hook between them, which is session.orchestrator's job")
     p.add_argument("--finger", default="index")
     p.add_argument("--mode", default="active", choices=sorted(MODES))
     p.add_argument("--cap-gf", type=float, default=100.0,
@@ -982,6 +1052,13 @@ def main(argv=None) -> int:
                    help="largest per-joint move, in ticks, on the way back to home")
     p.add_argument("--go-home-settle", type=float, default=0.35,
                    help="seconds between steps on the way back to home")
+    # What the parser would have produced had nobody typed anything. argparse does not record
+    # it, and `block_for` needs it to tell "the user asked for 2 reps" from "2 is simply the
+    # default". Registered as a default rather than attached to `args` afterwards, so it is
+    # present for every caller of this parser and not only for `main`: a test or the dashboard
+    # building args through `parse_args` directly would otherwise see no defaults at all and
+    # read every flag as an override.
+    p.set_defaults(_defaults={a.dest: a.default for a in p._actions})
     args = p.parse_args(argv)
     return asyncio.run(run(args))
 
