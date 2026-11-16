@@ -67,27 +67,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib.env import env_get  # noqa: E402
-from lib.kinematics import ARM_MOTORS  # noqa: E402
+from lib.kinematics import ARM_MOTORS, level_direction  # noqa: E402
 from lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
 from session.tuning import DEFAULT_TUNING_PATH, load_tuning  # noqa: E402
 
 START_POSE_PATH = "config/calibration/cpm-start-pose.json"
 GAUGE_CALIB = "config/scale_calib.json"
-
-
-def level_direction(direction):
-    """Drop z and renormalise, so the pull stays horizontal rather than following the
-    gripper's own tilt. The same operation `scripts/jog_coordinated.py` applies."""
-    import numpy as np
-
-    flat = np.array([direction[0], direction[1], 0.0], dtype=float)
-    norm = np.linalg.norm(flat)
-    if norm < 1e-9:
-        raise SystemExit(
-            "the tether direction is almost vertical, so levelling it leaves nothing. Give "
-            "the axis explicitly with --axis x,y,z."
-        )
-    return flat / norm
 
 
 def build_pipeline(calib_path: str, outlier_persist: int = 5):
@@ -114,15 +99,27 @@ def build_pipeline(calib_path: str, outlier_persist: int = 5):
 
 
 async def read_pose(client, bus_serial: str, seconds: float) -> dict[int, float]:
+    """Every joint's current tick reading, or whatever arrived before `seconds` ran out.
+
+    The same function `scripts/jog_coordinated.py` and `scripts/go_home.py` use.
+    `follow_motor_state` yields one tuple per motor across every bus, so filtering to this
+    bus is the caller's job.
+    """
     from lib.station import follow_motor_state
 
     found: dict[int, float] = {}
-    deadline = time.monotonic() + seconds
-    async for state in follow_motor_state(client, bus_serial):
-        for motor_id, value in state.items():
-            found[motor_id] = value
-        if all(m in found for m in ARM_MOTORS) or time.monotonic() > deadline:
-            break
+
+    async def collect():
+        async for bus, mid, motor in follow_motor_state(client):
+            if bus == bus_serial and motor.position is not None:
+                found[mid] = motor.position
+                if all(m in found for m in ARM_MOTORS):
+                    return
+
+    try:
+        await asyncio.wait_for(collect(), timeout=seconds)
+    except asyncio.TimeoutError:
+        pass
     return found
 
 
@@ -319,25 +316,39 @@ async def run(args) -> int:
     supervisor_task = None
     source_cam = None
 
+    # Every joint, not just the three pulling the line: the walk to the start pose below can
+    # move any of the seven, and an un-set RAM_ACC leaves a joint on whatever accel a previous
+    # run happened to leave it at.
     await sync_write(client, bus_serial, RAM_ACC, {
-        m: args.accel.to_bytes(1, byteorder="little") for m in motors
+        m: args.accel.to_bytes(1, byteorder="little") for m in ARM_MOTORS
     })
 
-    async def goto(prev: dict[int, float], target: dict[int, float]) -> None:
+    async def goto(prev: dict[int, float], target: dict[int, float],
+                   move_motors: list[int] | None = None) -> None:
         """One step along the path. Two sync_writes, speed scaled per joint.
 
         The same two-packet pattern `scripts/jog_coordinated.py` uses, and for the same two
         reasons: one bus transaction so every joint's goal lands together, and a speed scaled
         to each joint's share of this step so they arrive together instead of whichever has
         furthest to go still moving after the others stopped.
+
+        `move_motors` defaults to the three pull joints, which is right for a step of the
+        line itself: every other joint is unchanged between waypoints there (`line_trajectory`
+        only moves the joints it was given), so moving the rest too would be writing a
+        no-op delta. It is NOT right for the walk to the start pose, where any of the seven
+        joints may differ from where the arm currently sits, and every one of them has to be
+        passed explicitly - `scripts/go_home.py` moves every key of each waypoint for exactly
+        this reason, and the walk below has to match it rather than assume the pull joints
+        are the only ones that could be out of place.
         """
-        deltas = {m: target[m] - prev[m] for m in motors}
+        move_motors = motors if move_motors is None else move_motors
+        deltas = {m: target[m] - prev[m] for m in move_motors}
         speeds = scaled_speeds(deltas, args.speed)
         await sync_write(client, bus_serial, RAM_GOAL_SPEED, {
-            m: speeds[m].to_bytes(2, byteorder="little") for m in motors
+            m: speeds[m].to_bytes(2, byteorder="little") for m in move_motors
         })
         await sync_write(client, bus_serial, RAM_GOAL_POSITION, {
-            m: round(target[m]).to_bytes(2, byteorder="little") for m in motors
+            m: round(target[m]).to_bytes(2, byteorder="little") for m in move_motors
         })
         await asyncio.sleep(args.settle)
 
@@ -376,13 +387,17 @@ async def run(args) -> int:
         prev = {m: float(live[m]) for m in ARM_MOTORS}
         for way in home_waypoints(prev, {m: int(pose[m]) for m in pose},
                                   max_step_ticks=args.goto_max_step_ticks):
-            await goto(prev, {m: float(v) for m, v in way.items()})
-            prev = {**prev, **{m: float(v) for m, v in way.items()}}
+            way_f = {m: float(v) for m, v in way.items()}
+            # Every joint in the waypoint, not just the three that pull the line: any of the
+            # seven could be away from the start pose, and the walk here has to close all of
+            # that gap, the same as scripts/go_home.py does.
+            await goto(prev, way_f, move_motors=list(way_f))
+            prev = {**prev, **way_f}
             if supervisor and supervisor.stop_reason:
                 stopped = supervisor.stop_reason
                 break
         if stopped is None:
-            await goto(prev, pose)
+            await goto(prev, pose, move_motors=list(ARM_MOTORS))
 
         for rep in range(1, args.reps + 1):
             if stopped:
