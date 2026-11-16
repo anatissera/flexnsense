@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { gramsForceToNewtons, newtonsToGramsForce } from "../lib/units";
-import type { ExerciseMode } from "../lib/session/modes";
+import { modeByName, needsRomTarget, type ExerciseMode } from "../lib/session/modes";
 import type { HandFrame } from "../lib/handFrame";
 import { blockFromGrams, type Block } from "../lib/session/protocol";
 import type { RepStep } from "../lib/session/reps";
@@ -44,11 +44,15 @@ const RUNNING = new Set(["armed", "cueing", "ramp", "work", "hold", "reset"]);
  *
  * Active: flex gently while told to flex, hold, then relax while the arm brings the finger back.
  * Passive: stay relaxed while the arm moves the finger, then flex gently when told to flex back.
+ * Cpm: the same poses as passive, because the finger travels the same path. What differs is who
+ * is moving it on the way back, and that is already in the tint: `step.driver` is `device` in
+ * both beats, so the hand is amber throughout and never asks the patient for anything.
  */
 const GENTLE_FLEX = 0.55;
 const GUIDE_FLEX: Record<ExerciseMode, Partial<Record<string, number | null>>> = {
   active: { cueing: GENTLE_FLEX, ramp: GENTLE_FLEX, work: GENTLE_FLEX, hold: null },
   passive: { hold: null, reset: GENTLE_FLEX },
+  cpm: { hold: null, reset: GENTLE_FLEX },
 };
 /** Time constant of the hand's approach to its target. Long, so the movement is slow and gentle. */
 const FLEX_TAU_S = 0.7;
@@ -266,7 +270,9 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
       // Built now so a bad prescription is reported before the camera is touched.
       pendingBlock.current = blockFromGrams({
         finger: "index", mode, reps, capGf, holdS: 1.0,
-        romTargetM: mode === "passive" ? DEMO_PASSIVE_TARGET_M : null,
+        // Every mode whose arm pulls toward a stretch needs the distance, and the ones that never
+        // pull must not carry it. Asking the mode table keeps a third mode from needing a branch here.
+        romTargetM: needsRomTarget(modeByName(mode)) ? DEMO_PASSIVE_TARGET_M : null,
       });
       new RepSimulation(pendingBlock.current, 0); // validates the block against the machine's own checks
     } catch (e) {
@@ -420,7 +426,8 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
       <div className="flex flex-wrap items-center gap-2">
         <select className="btn btn-sm" value={mode} disabled={playing || waiting} onChange={(e) => setMode(e.target.value as ExerciseMode)}>
           <option value="active" className="text-black">Active (you flex)</option>
-          <option value="passive" className="text-black">Passive (arm pulls)</option>
+          <option value="passive" className="text-black">Passive (arm pulls, you flex back)</option>
+          <option value="cpm" className="text-black">CPM (arm does both)</option>
         </select>
         <select className="btn btn-sm" value={reps} disabled={playing || waiting} onChange={(e) => setReps(+e.target.value)}>
           {[1, 3, 5].map((n) => <option key={n} value={n} className="text-black">{n} reps</option>)}
