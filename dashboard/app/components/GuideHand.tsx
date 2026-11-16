@@ -544,10 +544,12 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
           ))}
         </select>
       </div>
+      {/* True in both builds, so it does not claim anything about what is attached: the panel is a
+          rehearsal of the machine either way, and the real session runs in Python. */}
       <Hint kind="demo">
-        No hardware is detected, so this set is simulated end to end. What is real: the state machine
-        deciding the phases, the cues and the counting, and your own finger in front of the camera.
-        What is not: the force, and the arm it is deciding about.
+        This set is simulated end to end, here in the browser. What is real: the state machine deciding
+        the phases, the cues and the counting, and your own finger in front of the camera. What is not:
+        the force, and the arm it is deciding about. Nothing on this page can move an arm.
       </Hint>
       <div className="flex gap-2">
         {playing || waiting ? (
