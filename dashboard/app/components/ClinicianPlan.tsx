@@ -5,6 +5,7 @@ import { newtonsToGramsForce } from "../lib/units";
 import { blockCapGf, type Block } from "../lib/session/protocol";
 import { planOf, plannedReps, type DemoPatient } from "../lib/demo/patients";
 import DemoBadge from "./DemoBadge";
+import { Hint } from "./Hints";
 
 /**
  * The half of the system a clinician owns: what this patient is supposed to do, who said so, and
@@ -58,6 +59,10 @@ export default function ClinicianPlan({ patient, onLoad, loaded }: {
         </p>
         <p className="mt-1 italic">&ldquo;{patient.plan.note}&rdquo;</p>
       </div>
+      <Hint>
+        Load puts a block into the rep machine at the bottom left, exactly as prescribed: finger, mode,
+        repetitions, cap and hold. Press Start there to run it. Loading never starts anything.
+      </Hint>
       <table className="tbl">
         <thead>
           <tr><th>Finger</th><th>Mode</th><th>Reps</th><th>Cap</th><th>Hold</th><th>Stretch</th><th /></tr>

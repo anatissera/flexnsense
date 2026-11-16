@@ -5,6 +5,7 @@ import CameraSelect, { useCameraDevices, videoConstraints } from "./CameraSelect
 import { buildHandFrame, FINGERTIPS, type HandFrame, type HandSource, type Vec3 } from "../lib/handFrame";
 import { DEMO } from "../lib/demo";
 import DemoBadge from "./DemoBadge";
+import { Hint } from "./Hints";
 
 /** Joint name -> angle (rad) for the MyoHand model, written every frame while tracking. */
 export type HandPose = Record<string, number>;
@@ -328,6 +329,13 @@ export default function HandTracker({ pose, disp, onActive, onFrame, on, onOnCha
       <div className="space-y-2">
         {!on && !shownStatus && (
           <p className="t-small faint">Press Start in the Rep machine to switch on the camera. It begins once a hand is detected.</p>
+        )}
+        {DEMO && (
+          <Hint kind="demo">
+            No hardware detected, so this is your own laptop camera standing in for the one on the boom
+            over the patient&apos;s wrist. It is enough to see the joints tracked and the 3D hand follow your
+            finger, which is the real part. What it cannot do without the rig is measure any force.
+          </Hint>
         )}
         {on && (
         <>

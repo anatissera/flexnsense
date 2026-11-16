@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { gramsForceToNewtons, newtonsToGramsForce } from "../lib/units";
 import { Bar } from "./charts";
 import DemoBadge from "./DemoBadge";
+import { Hint } from "./Hints";
 import type { GaugeSample } from "./GaugeForce";
 
 /**
@@ -126,6 +127,11 @@ export default function SimulatedGauge({ forceRef, onActive, driven }: {
         )}
       </div>
       <div className="space-y-2">
+        <Hint kind="demo">
+          No gauge detected. Start force here anyway: the number is simulated, and while a set runs it
+          is the force the rep machine is actually deciding on, so you can watch it reach the cap and
+          the arm give way.
+        </Hint>
         <p className="t-small muted">
           At the bench this column is a camera watching a PESOLA 600 gf spring scale, reading the red marker
           against the printed scale at about 30 Hz. It is the only force sensor in the system: the servo
