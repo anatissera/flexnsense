@@ -32,7 +32,7 @@ from session.instructions import instruction_for, instruction_key
 from session.modes import Driver, Law, Phase, plan_for
 from session.protocol import Block
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _FORCE_PLACES = 3
 _MM_PLACES = 1
@@ -62,6 +62,16 @@ class SessionSnapshot:
     #: Arm travel from the start of this repetition, in metres. Signed, positive in the
     #: slack direction.
     travel_m: float
+    #: Repetitions actually counted, and attempts that started but did not complete.
+    #:
+    #: Not derivable from `rep_index`, which is only where the machine is now. These two are
+    #: the clinical deliverable this layer exists to produce (`session/reps.py`): a repetition
+    #: is counted only once the force reached the cap, so a patient who moved a little and
+    #: came back shows as an abandoned attempt rather than as a rep. A screen that inferred
+    #: "completed" from the index would report the number the machine was *attempting*, which
+    #: is the dishonest counting the rep machine was built to replace.
+    reps_completed: int = 0
+    attempts_abandoned: int = 0
     #: 0 to 1 through the current phase where that is meaningful, else None. The UI shows a
     #: bar; it does not use this to decide anything.
     progress: float | None = None
@@ -106,7 +116,9 @@ class SessionSnapshot:
             "law": self.law.value,
             "deviceDriven": self.device_driven,
             "instruction": {"key": self.instruction_key, "text": self.instruction},
-            "rep": {"index": self.rep_index, "of": self.rep_total},
+            "rep": {"index": self.rep_index, "of": self.rep_total,
+                    "completed": self.reps_completed,
+                    "abandoned": self.attempts_abandoned},
             "block": None,
             "blockIndex": {"index": self.block_index, "of": self.block_total},
             "forceN": None if self.force_n is None else round(self.force_n, _FORCE_PLACES),

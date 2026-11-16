@@ -28,7 +28,7 @@
  * instruction, the animation and the force the same state by definition.
  */
 
-export const SESSION_SCHEMA_VERSION = 1;
+export const SESSION_SCHEMA_VERSION = 2;
 
 /** Who is the source of motion right now. See the note above: this drives the whole display. */
 export type Driver = "patient" | "device";
@@ -90,7 +90,13 @@ export type SessionSnapshot = {
    * localise without parsing the text.
    */
   instruction: { key: string; text: string };
-  rep: { index: number; of: number };
+  /**
+   * Where the machine is, and what actually happened. `completed` and `abandoned` are not
+   * derivable from `index`: a repetition is counted only once the force reached the cap, so a
+   * patient who moved a little and came back is an abandoned attempt, not a rep. Showing
+   * `index` as progress would report what the machine was attempting.
+   */
+  rep: { index: number; of: number; completed: number; abandoned: number };
   blockIndex: { index: number; of: number };
   /** Null before the session starts. */
   block: SnapshotBlock | null;
