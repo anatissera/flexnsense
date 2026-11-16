@@ -41,7 +41,7 @@ way the home pose was:
 
     .venv/bin/python scripts/lock_arm.py --release
     # ... place the arm by hand, with the finger hooked, where the stroke should begin ...
-    .venv/bin/python scripts/set_home_pose.py --save --path config/calibration/cpm-start-pose.json
+    .venv/bin/python scripts/set_home_pose.py --save --to cpm
 
 This script walks the arm to that pose before it starts, in paced steps, and returns it there
 at the end, which is also where it starts from, so running it again right after needs no walk
@@ -72,9 +72,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.env import env_get  # noqa: E402
 from lib.kinematics import ARM_MOTORS, level_direction  # noqa: E402
 from lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
+from session.home_pose import CPM_START_POSE_PATH  # noqa: E402
 from session.tuning import DEFAULT_TUNING_PATH, load_tuning  # noqa: E402
 
-START_POSE_PATH = "config/calibration/cpm-start-pose.json"
 GAUGE_CALIB = "config/scale_calib.json"
 
 # Bench-proven for exactly this kind of motion: an open-loop walk through a pre-planned list
@@ -246,7 +246,7 @@ async def run(args) -> int:
             "travel to with the finger attached. Capture one:\n\n"
             "    .venv/bin/python scripts/lock_arm.py --release\n"
             "    # place the arm by hand where the stroke should begin\n"
-            f"    .venv/bin/python scripts/set_home_pose.py --save --path {args.start_pose}\n"
+            "    .venv/bin/python scripts/set_home_pose.py --save --to cpm\n"
         ) from None
 
     client = await connect(host=host)
@@ -502,10 +502,10 @@ def main(argv=None) -> int:
                    help="stretch first and release second, instead of the default, which "
                         "travels away from tension first. The default cannot tighten anything "
                         "on a finger whatever else is wrong, which is why it is the default")
-    p.add_argument("--start-pose", default=START_POSE_PATH,
+    p.add_argument("--start-pose", default=CPM_START_POSE_PATH,
                    help="the pose the stroke begins and ends at. Not the session home: that "
                         "is where the arm is parked with nothing hooked. Capture one with "
-                        "scripts/set_home_pose.py --save --path ...")
+                        "scripts/set_home_pose.py --save --to cpm")
     p.add_argument("--start-tolerance-ticks", type=int, default=20,
                    help="how far from the start pose counts as already there")
     p.add_argument("--goto-max-step-ticks", type=int, default=80,

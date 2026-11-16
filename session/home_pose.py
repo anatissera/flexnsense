@@ -26,6 +26,23 @@ from pathlib import Path
 
 HOME_POSE_PATH = "config/calibration/home-pose.json"
 
+#: Where `scripts/run_cpm.py`'s stroke begins and ends: tether already taken up, finger
+#: attached. Not a parking pose, and deliberately not the same file as `HOME_POSE_PATH`,
+#: because a pose with the tether slack and nothing hooked cannot be where a stroke that
+#: needs tension already present starts from. Lives next to `HOME_POSE_PATH` rather than in
+#: `scripts/run_cpm.py` so `scripts/go_home.py` can walk to either one without importing a
+#: script from a script, which `scripts/` being unpackaged rules out anyway.
+CPM_START_POSE_PATH = "config/calibration/cpm-start-pose.json"
+
+#: Every pose `scripts/go_home.py` is willing to walk to, by name. Closed on purpose: an open
+#: `--path` would let a typo or an unrelated file become a destination the arm actually
+#: drives to, and the whole point of a named pose is that it was placed and measured with the
+#: real rig in front of someone, not that it is any JSON file with a `ticks` key.
+NAMED_POSES: dict[str, str] = {
+    "home": HOME_POSE_PATH,
+    "cpm": CPM_START_POSE_PATH,
+}
+
 
 def load_home_pose(path: str | Path = HOME_POSE_PATH) -> dict[int, int]:
     """The home pose as motor id to tick value. Raises with what to run if it is missing."""
