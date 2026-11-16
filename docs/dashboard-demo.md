@@ -92,7 +92,7 @@ alternative and the wrong one: nobody hovers a control they have not noticed.
 ```bash
 cd dashboard
 pnpm install
-cp .env.example .env            # OPENAI_API_KEY for the assistant
+cp .env.example .env            # GEMINI_API_KEY or OPENAI_API_KEY for the assistant
 
 pnpm dev                                    # bench build: probes 127.0.0.1 for the two servers
 NEXT_PUBLIC_DEMO=1 pnpm dev                 # demonstration build
@@ -110,7 +110,8 @@ folding it into a phone would make it a different product rather than a smaller 
 Vercel, with the project's **Root Directory set to `dashboard`** (the repository root is the Python
 project).
 
-- Environment variables: `OPENAI_API_KEY`, and `NEXT_PUBLIC_DEMO=1`.
+- Environment variables: `NEXT_PUBLIC_DEMO=1`, and a key for the assistant (`GEMINI_API_KEY` or
+  `OPENAI_API_KEY`; see below for which features each one buys).
 - Turn **Deployment Protection off**, or visitors meet a login instead of the dashboard.
 - `public/` is about 32 MB of meshes, model and WebAssembly. It is static and served from the CDN.
 
@@ -130,11 +131,11 @@ API: no key, no provider, no cost.
 
 ### The assistant costs money on a public page
 
-`/api/chat` and `/api/realtime` both reach OpenAI on our key, and `/api/realtime` mints an ephemeral
-client secret for anyone who asks for one. Both are rate limited per address in
+`/api/chat` and `/api/realtime` both reach a model provider on our key, and `/api/realtime` mints an
+ephemeral OpenAI client secret for anyone who asks for one. Both are rate limited per address in
 `dashboard/app/api/ratelimit.ts` (20/min for text, 6/min for voice sessions), which is a guard
 against a loop rather than a security boundary: the limit is per serverless instance, so the real
 ceiling is that number times however many are warm.
 
-**Set a spend limit on the OpenAI key.** That is the only thing that actually bounds the damage, and
+**Set a spend limit on whichever key you deploy with.** That is the only thing that actually bounds the damage, and
 it lives outside this repository.
