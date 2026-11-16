@@ -22,12 +22,23 @@ and it does not work, for a reason worth writing down rather than rediscovering:
 - and the return stroke raises tension, so an over-cap reading blocked it outright. The arm
   reached 32 mm out with the return permanently refused. It could not come back.
 
-So the motion here comes from `lib.kinematics.Chain.line_trajectory`, computed **once**, before
-the first command, exactly as `scripts/jog_coordinated.py` does. The camera is a supervisor
-with one job: stop everything if the force passes a ceiling. It never decides a step.
+So the motion here is a **walk between two saved poses**, computed once before the first
+command and repeated unchanged. It is the same motion `scripts/go_home.py` performs, run out
+and back over and over: on this bench the cpm start pose and the session home are 80 mm apart
+at the gripper, which is most of a finger's measured excursion (98 to 114 mm,
+`config/calibration/bench.json`). The camera is a supervisor with one job: stop everything if
+the force passes a ceiling. It never decides a step.
 
 That is also why this can run at a sensible speed. There is no reaction latency to pay for,
 because nothing is being reacted to.
+
+**The path is a joint-space interpolation, not a straight tether pull.** It bows off the
+straight line between the two poses (9.7 mm on this bench, printed every run before anything
+moves), which with a finger attached is side-load. What it buys in exchange is that both
+endpoints are poses someone placed by hand with the real rig in front of them, and that every
+waypoint is a per-joint convex combination of two in-range poses, so no joint can be
+commanded past travel that either endpoint has not already proved. `scripts/jog_coordinated.py`
+is still the way to check a genuinely straight pull.
 
 ## Where it starts, and why that is a second pose
 
@@ -70,9 +81,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib.env import env_get  # noqa: E402
-from lib.kinematics import ARM_MOTORS, level_direction  # noqa: E402
+from lib.kinematics import ARM_MOTORS  # noqa: E402
 from lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
-from session.home_pose import CPM_START_POSE_PATH  # noqa: E402
+from session.home_pose import CPM_START_POSE_PATH, NAMED_POSES  # noqa: E402
 from session.tuning import DEFAULT_TUNING_PATH, load_tuning  # noqa: E402
 
 GAUGE_CALIB = "config/scale_calib.json"
@@ -116,6 +127,33 @@ def build_pipeline(calib_path: str, outlier_persist: int = 5):
         )
     return make_pipeline(_load_calibration(calib_path),
                          filt=ReadingFilter(outlier_persist=outlier_persist))
+
+
+def pose_waypoints(start: dict[int, float], end: dict[int, float], motors: list[int],
+                   step_ticks: int) -> list[dict[int, float]]:
+    """Intermediate poses from `start` to `end`, no joint moving more than `step_ticks` at a
+    time, ending exactly on `end`.
+
+    The same shape as `session.home_pose.home_waypoints`, which is what `scripts/go_home.py`
+    walks, and deliberately so: this stroke IS that walk, repeated. It is kept here rather
+    than reused because that one rounds to whole ticks at every waypoint and keys off the
+    home pose's own joint set, while a stroke needs float precision carried along the path
+    (rounding each waypoint independently quantises the ratio between joints, which is what
+    makes a small step judder) and needs to move only the joints that actually differ.
+
+    `step_ticks` is in ticks rather than millimetres on purpose. Ticks are what the servo
+    takes, so this is the unit that decides whether a commanded step is a real motion or a
+    sub-tick twitch: measured on this bench, a 1 mm step asks the three joints for 0.84, 4.16
+    and 6.38 ticks, and rounding 0.84 to 1 is a 20% error in that joint's share of the step,
+    repeated every cycle. A step of ~20 ticks is a real move with the error down in the
+    percent range.
+    """
+    gap = max(abs(end[m] - start[m]) for m in motors)
+    steps = max(1, int(gap / step_ticks) + (1 if gap % step_ticks else 0))
+    return [
+        {m: start[m] + (end[m] - start[m]) * (i / steps) for m in start}
+        for i in range(1, steps + 1)
+    ]
 
 
 async def read_pose(client, bus_serial: str, seconds: float) -> dict[int, float]:
@@ -226,7 +264,7 @@ async def run(args) -> int:
         set_position,
         sync_write,
     )
-    from session.home_pose import home_waypoints, load_home_pose
+    from session.home_pose import NAMED_POSES, home_waypoints, load_home_pose
 
     tuning = load_tuning(getattr(args, "tuning", None))
     chain = load_chain()
@@ -249,6 +287,15 @@ async def run(args) -> int:
             "    .venv/bin/python scripts/set_home_pose.py --save --to cpm\n"
         ) from None
 
+    try:
+        dest_pose = load_home_pose(NAMED_POSES[args.to])
+    except (SystemExit, FileNotFoundError):
+        raise SystemExit(
+            f"no pose saved at {NAMED_POSES[args.to]}, so there is nowhere for the stroke to "
+            f"travel to. Capture it with:\n\n"
+            f"    .venv/bin/python scripts/set_home_pose.py --save --to {args.to}\n"
+        ) from None
+
     client = await connect(host=host)
     live = await read_pose(client, bus_serial, 5.0)
     missing = [m for m in ARM_MOTORS if m not in live]
@@ -259,59 +306,84 @@ async def run(args) -> int:
             "running and this bus connected?"
         )
 
-    # --- the line, solved once, from the START pose rather than from wherever the arm is ---
-    # Solving from the live pose would make the path depend on where the last run happened to
-    # leave the arm, which is exactly the repeatability this mode exists to have.
+    # --- the stroke, solved once, between the two named poses ---
+    # Both endpoints were placed by hand with the real rig in front of someone and saved
+    # (scripts/set_home_pose.py), so the path interpolates between two known-good poses
+    # rather than extrapolating a direction from one of them. Solved from the saved start
+    # pose and not from wherever the arm happens to be, so a repetition cannot depend on how
+    # the last run was left: that repeatability is the whole point of this mode.
     pose = {m: float(start_pose.get(m, live[m])) for m in ARM_MOTORS}
-    if args.axis:
-        direction = np.array([float(v) for v in args.axis.split(",")], dtype=float)
-        direction = direction / np.linalg.norm(direction)
-        source = "--axis, as given"
-    else:
-        direction = tether_tension_direction(chain, pose)
-        source = "the gripper's own axis at the start pose"
-    if args.level:
-        before_z = float(direction[2])
-        direction = level_direction(direction)
-        source += f", levelled (z was {before_z:+.2f})"
+    far = {m: float(dest_pose.get(m, pose[m])) for m in ARM_MOTORS}
+    # `--reach` short of 1.0 stops partway, which is how to ease into a stroke that at full
+    # reach is most of a finger's measured excursion.
+    far = {m: pose[m] + (far[m] - pose[m]) * args.reach for m in ARM_MOTORS}
 
-    travel_dir = direction if args.toward_tension else -direction
-    sense = ("TOWARD tension: the stroke stretches first, then releases"
-             if args.toward_tension else
-             "AWAY from tension: the stroke releases first, then comes back")
+    motors = sorted(m for m in ARM_MOTORS if abs(far[m] - pose[m]) >= 1.0)
+    if not motors:
+        raise SystemExit(
+            f"the two poses are the same to within a tick, so there is no stroke to run. "
+            f"Re-capture one of them, or lower --reach is not the problem: check "
+            f"{NAMED_POSES[args.to]} against {args.start_pose}."
+        )
+
+    # Reported, not used to steer: the path is a joint-space interpolation, so this says how
+    # far it bows off the straight tether line, which with a finger attached is side-load.
+    direction = tether_tension_direction(chain, pose)
+    start_tip_pos = chain.tip_position(pose)
+    far_tip = chain.tip_position(far)
+    gap_vec = far_tip - start_tip_pos
+    gap_m = float(np.linalg.norm(gap_vec))
+    unit = gap_vec / gap_m if gap_m > 1e-9 else gap_vec
+    along_tether = float(np.dot(gap_vec, direction))
+    sense = ("TOWARD tension: the stroke stretches the tether, then releases it"
+             if along_tether > 0 else
+             "AWAY from tension: the stroke releases the tether, then takes it back up")
 
     try:
         tick_ranges = load_tick_ranges(bus_serial)
     except FileNotFoundError as exc:
         tick_ranges = None
-        print(f"!! {exc}\n!! proceeding WITHOUT a joint-range check: a joint running past its "
-              "real travel mid-stroke would not be caught before it happens.\n")
+        print(f"!! {exc}\n!! proceeding WITHOUT a joint-range check.\n")
 
-    motors = chain.choose_pull_motors(pose, direction)
-    distance_m = args.distance_mm / 1000.0
-    ok, why = chain.can_pull_straight(motors, pose, travel_dir, distance_m,
-                                      tick_ranges=tick_ranges)
-    print(f"!! cpm along the tether with joints {motors}")
-    print(f"!! direction x={direction[0]:+.2f} y={direction[1]:+.2f} z={direction[2]:+.2f}, "
-          f"from {source}")
-    print(f"!! {why}")
-    if not ok:
-        raise SystemExit(
-            "this start pose cannot follow that stroke; nothing has moved. Re-place the arm "
-            "and re-save the start pose, shorten it with --distance-mm, or give the axis "
-            "explicitly with --axis."
-        )
+    if tick_ranges:
+        # A per-joint interpolation between two in-range poses is a convex combination, so it
+        # cannot leave a range either endpoint is already inside. Checking the endpoints is
+        # therefore checking the whole path, which is a stronger guarantee than the straight
+        # pull had: that one could start well conditioned and drive itself into a joint stop
+        # partway along.
+        out_of_range = [
+            m for m in motors if m in tick_ranges
+            and not (tick_ranges[m][0] <= far[m] <= tick_ranges[m][1]
+                     and tick_ranges[m][0] <= pose[m] <= tick_ranges[m][1])
+        ]
+        if out_of_range:
+            raise SystemExit(
+                f"joint(s) {out_of_range} would be commanded outside their measured travel. "
+                f"Nothing has moved. Re-capture the poses with scripts/set_home_pose.py."
+            )
 
-    steps = max(1, round(args.distance_mm / args.step_mm))
-    waypoints = chain.line_trajectory(motors, pose, travel_dir, distance_m, steps=steps)
+    waypoints = pose_waypoints(pose, far, motors, args.step_ticks)
     # Out along the waypoints, then back along the same ones in reverse, ending exactly where
-    # it began. Computed once: `--reps` repeats this list, so no repetition can drift from the
-    # line the feasibility check above already approved.
+    # it began. Computed once: `--reps` repeats this list, so no repetition can drift.
     round_trip = waypoints + list(reversed([pose] + waypoints[:-1]))
 
+    worst_bow = 0.0
+    for way in waypoints:
+        disp = chain.tip_position(way) - start_tip_pos
+        worst_bow = max(worst_bow, float(np.linalg.norm(disp - float(np.dot(disp, unit)) * unit)))
+
+    print(f"!! cpm from the cpm start pose to {args.to!r}, joints {motors}")
+    print(f"!! {gap_m * 1000:.0f} mm of tip travel, {abs(along_tether) * 1000:.0f} mm of it "
+          f"along the tether")
+    print(f"!! the path bows {worst_bow * 1000:.1f} mm off the straight line between the two "
+          "poses: it interpolates each joint, which is what scripts/go_home.py does, not a "
+          "straight tether pull. With a finger attached that is side-load.")
+
     ceiling_n = grams_force_to_newtons(args.ceiling_gf)
-    print(f"\n{args.reps} x cpm, {args.distance_mm:.0f} mm out and back")
-    print(f"  stroke   {steps} steps of {args.step_mm:.1f} mm, {args.settle:g}s between")
+    reach_note = "" if args.reach >= 1.0 else f" ({args.reach:.0%} of the way)"
+    print(f"\n{args.reps} x cpm, {gap_m * 1000:.0f} mm out and back{reach_note}")
+    print(f"  stroke   {len(waypoints)} steps of at most {args.step_ticks} ticks, "
+          f"{args.settle:g}s between")
     print(f"  sense    {sense}")
     jog_profile = (args.speed, args.accel) == (JOG_PROVEN_SPEED, JOG_PROVEN_ACCEL)
     print(f"  arm      joints {motors} on {bus_serial}, speed {args.speed}, accel "
@@ -398,11 +470,12 @@ async def run(args) -> int:
             )
         print(f"\nforce before moving: {supervisor.reading}")
 
-    start_tip = chain.tip_position(pose)
     stopped = None
     reps_done = 0
     print(f"\n{'rep':>5s}  {'force':>7s}  {'along':>8s}  {'off line':>9s}  phase")
     print("-" * 56)
+    # "off line" is distance from the straight line between the two poses, so it reports the
+    # bow this path has by construction (printed above) rather than a tracking error.
     try:
         # Walk to the start pose first, paced, so no servo is ever asked to cross a long way
         # in one jump near a hand.
@@ -429,12 +502,14 @@ async def run(args) -> int:
                 if supervisor and supervisor.stop_reason:
                     stopped = supervisor.stop_reason
                     break
-                await goto(prev, way)
+                # Only the joints the stroke actually moves: the rest are identical at
+                # every waypoint, so writing them would be a no-op delta on the bus.
+                await goto(prev, way, move_motors=motors)
                 prev = way
-                travel = chain.tip_position(way) - start_tip
-                along = float(np.dot(travel, travel_dir))
-                off = float(np.linalg.norm(travel - along * travel_dir))
-                phase = "out" if i <= steps else "back"
+                travel = chain.tip_position(way) - start_tip_pos
+                along = float(np.dot(travel, unit))
+                off = float(np.linalg.norm(travel - along * unit))
+                phase = "out" if i <= len(waypoints) else "back"
                 force = supervisor.reading if supervisor else "  --  "
                 print(f"{rep:3d}/{args.reps}  {force:>7s}  {along*1000:6.1f}mm  "
                       f"{off*1000:7.2f}mm  {phase}")
@@ -487,21 +562,25 @@ def main(argv=None) -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     p.add_argument("--reps", type=int, default=3)
-    p.add_argument("--distance-mm", type=float, default=15.0,
-                   help="how far the stroke travels before coming back. This is an open-loop "
-                        "path, so it goes exactly this far whether or not that turns out to "
-                        "be comfortable: shorten it with this flag before lengthening it. "
-                        "15 mm matches scripts/jog_coordinated.py's own default")
-    p.add_argument("--step-mm", type=float, default=1.0,
-                   help="how far each commanded step moves. Smaller is smoother and slower, "
-                        "and makes a bad step visible before it has gone far")
+    p.add_argument("--to", choices=sorted(NAMED_POSES), default="home",
+                   help="the pose the stroke travels TO before coming back. The stroke is "
+                        "the walk between two saved poses, which is the same motion "
+                        "scripts/go_home.py performs, repeated: on this bench the two are "
+                        "80 mm apart at the tip")
+    p.add_argument("--reach", type=float, default=1.0, metavar="FRACTION",
+                   help="how far toward --to to actually travel, 0 to 1. The full stroke is "
+                        "most of a finger's measured excursion (98 to 114 mm, "
+                        "config/calibration/bench.json), so ease in with something like 0.3 "
+                        "before running the whole thing on a hand")
+    p.add_argument("--step-ticks", type=int, default=20,
+                   help="largest per-joint move in one commanded step. In ticks, not "
+                        "millimetres, because ticks are what the servo takes and so are what "
+                        "decides whether a step is a real motion or a sub-tick twitch: a 1 mm "
+                        "step asks the three joints for 0.84, 4.16 and 6.38 ticks here, and "
+                        "rounding 0.84 to 1 is a 20%% error every cycle, which is what judders")
     p.add_argument("--settle", type=float, default=JOG_PROVEN_SETTLE,
-                   help="seconds between steps. With --step-mm this sets the pace; --speed "
+                   help="seconds between steps. With --step-ticks this sets the pace; --speed "
                         "sets how fast the servo chases each goal, which is a different knob")
-    p.add_argument("--toward-tension", action="store_true",
-                   help="stretch first and release second, instead of the default, which "
-                        "travels away from tension first. The default cannot tighten anything "
-                        "on a finger whatever else is wrong, which is why it is the default")
     p.add_argument("--start-pose", default=CPM_START_POSE_PATH,
                    help="the pose the stroke begins and ends at. Not the session home: that "
                         "is where the arm is parked with nothing hooked. Capture one with "
@@ -522,13 +601,6 @@ def main(argv=None) -> int:
                    help="raw ST3215 acceleration units, written once. Same reasoning as "
                         "--speed: jog_coordinated.py's proven value, not the admittance "
                         "loop's")
-    p.add_argument("--axis", default=None,
-                   help="the tether's direction as x,y,z in the base frame, pointing the way "
-                        "that INCREASES tension. Defaults to the gripper's own axis at the "
-                        "start pose")
-    p.add_argument("--level", action=argparse.BooleanOptionalAction, default=tuning.level,
-                   help="drop the z component of the tether direction and renormalise, so the "
-                        "stroke stays horizontal instead of following the gripper's tilt")
     p.add_argument("--no-camera", action="store_true",
                    help="run with no force supervision at all. For checking the path with "
                         "NOTHING ATTACHED, the same way scripts/jog_coordinated.py is used")
