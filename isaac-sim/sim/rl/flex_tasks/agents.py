@@ -57,3 +57,10 @@ class DuoPPORunnerCfg(MovePPORunnerCfg):
     max_iterations = 1500
     save_interval = 250
     experiment_name = "flex_duo"
+
+
+@configclass
+class PhysPPORunnerCfg(MovePPORunnerCfg):
+    max_iterations = 3000
+    save_interval = 100
+    experiment_name = "flex_phys"
