@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DEMO, type Hardware } from "../lib/demo";
+import { fireEmergencyStop } from "../lib/estop";
 import { useHardwareStatus } from "./HardwareProvider";
 import { INVENTORY, REALITY_LABEL, inventoryFor, type Reality } from "../lib/demoInventory";
 
@@ -54,6 +55,42 @@ function Inventory() {
   );
 }
 
+/**
+ * The one control that is always on screen.
+ *
+ * It aborts the running set through the same path the rep machine's own Stop uses. It cannot
+ * reach an arm, and the line it leaves behind says so rather than letting a visitor believe the
+ * browser is the thing holding the finger's safety.
+ */
+function StopButton() {
+  const [stopped, setStopped] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const fire = () => {
+    fireEmergencyStop("stopped from the top bar");
+    setStopped(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setStopped(false), 8000);
+  };
+  return (
+    <>
+      {stopped && (
+        <span className="t-small shrink-0" style={{ color: "var(--danger)" }}>
+          Stopped. A browser never moves an arm: on the rig the stop is the session server and the
+          force gate, which release on their own if this screen goes away.
+        </span>
+      )}
+      <button
+        className="btn btn-danger btn-sm shrink-0"
+        onClick={fire}
+        title="Abort the running set and release the camera"
+      >
+        Stop session
+      </button>
+    </>
+  );
+}
+
 function statusDot(status: Hardware[keyof Hardware]) {
   if (status === "present") return "var(--phase-extension)";
   if (status === "checking") return "var(--ink-faint)";
@@ -73,7 +110,10 @@ function BenchBar({ hw }: { hw: Hardware }) {
       <span className="muted">Bench build</span>
       {row("Gauge reader", hw.gauge, "python -m gauge_reader.server on 127.0.0.1:8766")}
       {row("WiLoR tracker", hw.wilor, "python -m hand_tracking.server on 127.0.0.1:8765")}
-      <span className="ml-auto faint">Force readings are simulated until the gauge reader is live</span>
+      <span className="ml-auto flex items-center gap-3">
+        <span className="faint">Force readings are simulated until the gauge reader is live</span>
+        <StopButton />
+      </span>
     </header>
   );
 }
@@ -96,9 +136,12 @@ export default function DemoBanner() {
           Every force number is simulated. The hand tracking is real and uses your own laptop camera.
         </span>
       </p>
-      <button className="btn btn-sm ml-auto shrink-0" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {open ? "Hide" : "What is real here?"}
-      </button>
+      <span className="ml-auto flex shrink-0 items-center gap-2">
+        <StopButton />
+        <button className="btn btn-sm" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? "Hide" : "What is real here?"}
+        </button>
+      </span>
       {open && <Inventory />}
     </header>
   );
