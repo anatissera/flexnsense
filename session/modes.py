@@ -159,8 +159,44 @@ PASSIVE = Mode(
     reset=PhasePlan(Driver.PATIENT, Law.YIELD, Target.NONE),
 )
 
+CPM = Mode(
+    name="cpm",
+    work=PhasePlan(Driver.DEVICE, Law.PULL, Target.ROM),
+    reset=PhasePlan(Driver.DEVICE, Law.PULL, Target.REP_START),
+)
+"""Continuous passive motion: the arm takes the finger out to the stretch target and brings it
+back, and the patient does nothing in either beat.
+
+The name is the one a therapist already uses for a machine that does exactly this, which is
+also what keeps it honestly distinct from `PASSIVE`. Both are passive in the sense that the
+patient is not working, but they are different exercises:
+
+    passive   the arm pulls toward extension, and the *patient* flexes back
+    cpm       the arm pulls toward extension, and the *arm* brings the finger back
+
+So `passive` still asks something of the patient once per repetition, and is the mode to
+prescribe when that is the point. `cpm` asks nothing, which makes it the mode for maintaining
+range in a hand that cannot yet contribute, and for strengthening work where the useful thing
+is many identical repetitions rather than the patient's own effort.
+
+Two consequences follow from both beats being device-driven, and they are why this mode is
+worth having as its own entry rather than as a flag on `passive`:
+
+- **The repetition is the same motion every time**, because nothing in it waits on a person.
+  The path is decided before the stroke begins, which is what lets it run faster and more
+  smoothly than a yielding arm chasing a signal (`control.loop.PullPlan`).
+- **Both beats are governed by the deadman**, not just one. `PhasePlan.device_driven` is true
+  for the work beat *and* the reset beat here, where in the other two modes exactly one beat
+  is. A lost force reading stops either half of this stroke.
+
+The force cap is a ceiling in this mode rather than the thing the exercise works against: the
+stroke ends at the position target, and the cap only ends it early, when a finger turns out to
+be stiffer than the prescription assumed. That is a clinically meaningful early stop and is
+reported as one, not treated as a failed repetition.
+"""
+
 #: Every mode a prescription may name. `session.protocol` validates against these keys.
-MODES: dict[str, Mode] = {m.name: m for m in (ACTIVE, PASSIVE)}
+MODES: dict[str, Mode] = {m.name: m for m in (ACTIVE, PASSIVE, CPM)}
 
 
 def mode_by_name(name: str) -> Mode:

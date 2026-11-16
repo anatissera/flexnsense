@@ -134,7 +134,8 @@ def _replay_in_python(scenario: dict) -> list[dict]:
                                       travel_m=inp["travel_m"], now=inp["now"],
                                       confident=inp["confident"]))
         out.append({
-            "phase": s.phase.value, "law": s.law.value, "driver": s.driver.value,
+            "phase": s.phase.value, "law": s.law.value, "target": s.target.value,
+            "driver": s.driver.value,
             "instruction": s.instruction, "rep_index": s.rep_index,
             "reps_completed": s.reps_completed, "note": s.note, "finished": s.finished,
             "attempts_abandoned": s.attempts_abandoned,

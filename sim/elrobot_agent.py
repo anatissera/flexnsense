@@ -106,6 +106,7 @@ def main(argv=None) -> int:
             "along the tether) use scripts/which_motor.py instead: no GPU, no install."
         ) from None
 
+    import tyro
     import mani_skill.examples.demo_robot as demo
 
     if args.ticks:
@@ -113,8 +114,8 @@ def main(argv=None) -> int:
         print("qpos (rad):", np.round(q, 4))
         print("Pass it as a keyframe, or set it on the articulation once the viewer is open.")
 
-    sys.argv = ["demo_robot", "-r", "elrobot_follower", "-k", args.pose]
-    demo.main()
+    demo_args = tyro.cli(demo.Args, args=["-r", "elrobot_follower", "-k", args.pose])
+    demo.main(demo_args)
     return 0
 
 

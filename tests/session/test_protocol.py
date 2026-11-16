@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from lib.units import grams_force_to_newtons
@@ -159,3 +161,49 @@ def test_a_typo_in_a_key_is_not_silently_ignored():
     with pytest.raises(ValueError, match="unknown block keys"):
         Block.from_dict({"finger": "index", "mode": "active", "reps": 10, "cap_gf": 200,
                          "hold_sec": 3})
+
+
+# ------------------------------------------------------- the committed example protocols
+PROTOCOL_DIR = Path(__file__).resolve().parents[2] / "config" / "protocols"
+
+
+def _example_protocols():
+    return sorted(PROTOCOL_DIR.glob("*.json"))
+
+
+def test_there_is_at_least_one_example_protocol():
+    """The simulation and the dashboard both need something real to load."""
+    assert _example_protocols()
+
+
+@pytest.mark.parametrize("path", _example_protocols(), ids=lambda p: p.name)
+def test_every_example_protocol_loads(path):
+    """A committed protocol that does not parse is one nobody can run the simulation on."""
+    assert len(Protocol.load(path)) >= 1
+
+
+@pytest.mark.parametrize("path", _example_protocols(), ids=lambda p: p.name)
+def test_every_example_protocol_is_clean_against_the_bench(path):
+    """Catches the quiet one: a cap edited upward until reaching it would take the finger's
+    whole excursion, so the patient could never reach it and the exercise is all run-up."""
+    bench = BenchCalibration.load(
+        Path(__file__).resolve().parents[2] / "config" / "calibration" / "bench.json"
+    )
+    assert Protocol.load(path).check_against(bench) == []
+
+
+@pytest.mark.parametrize("path", _example_protocols(), ids=lambda p: p.name)
+def test_every_example_protocol_says_it_is_an_example(path):
+    """These are made up. A file that could be mistaken for a real prescription is a
+    patient-safety problem, not a documentation one."""
+    assert "EXAMPLE" in (Protocol.load(path).name or "")
+
+
+@pytest.mark.parametrize("path", _example_protocols(), ids=lambda p: p.name)
+def test_every_example_protocol_names_its_mode_in_its_filename(path):
+    """The mode is chosen by what is being treated, so the two belong together in the name:
+    the same finger at the same cap is a different exercise under a different mode."""
+    modes = {b.mode for b in Protocol.load(path)}
+    assert any(m in path.stem for m in modes), (
+        f"{path.name} runs mode(s) {sorted(modes)}, none of which appear in its filename"
+    )

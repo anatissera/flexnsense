@@ -21,6 +21,16 @@ export const INSTRUCTIONS: Record<string, string> = {
   "passive.work": "Stay relaxed, let it stretch",
   "passive.hold": "Hold here, stay relaxed",
   "passive.reset": "Now flex your {finger} finger back to the start",
+  // cpm asks nothing of the patient in either beat. The reset row is the one that differs
+  // most from the other modes: there is no change of driver to announce, because the arm had
+  // it all along, so telling a patient to "now flex back" here would invite exactly the
+  // fighting a force cap cannot distinguish from a stiff joint.
+  "cpm.armed": "Relax your hand while the arm takes up the slack",
+  "cpm.cueing": "Relax your {finger} finger. The arm will do the work",
+  "cpm.ramp": "Stay relaxed",
+  "cpm.work": "Stay relaxed, let it stretch",
+  "cpm.hold": "Hold here, stay relaxed",
+  "cpm.reset": "Stay relaxed. The arm is bringing your finger back",
 };
 
 /** Phases whose wording does not depend on the mode. */
