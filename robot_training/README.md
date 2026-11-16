@@ -50,10 +50,10 @@ dos dedos se mueve la anilla. Elegido el 16 de noviembre de 2026 tras las prueba
 |---|---|---|
 | Índice a corazón | `move device from right index to right middle finger` | 15 |
 | Corazón a anular | `move device from right middle to right ring finger` | 15 |
-| Anular a meñique | `move device from right ring to right pinky finger` | 9 |
+| Anular a meñique | `move device from right ring to right pinky finger` | 30 |
 
 `--n-action-steps` es cuántas acciones de cada chunk se ejecutan antes de pedir otro (15 = 1.5 s,
-9 = 0.9 s). Los valores de la tabla son los que mejor han ido en las pruebas en el brazo.
+30 = 3 s). Los valores de la tabla son los que mejor han ido en las pruebas en el brazo.
 
 **Terminal 1: Station** (en la carpeta donde está el binario `station` y su `station.yaml`):
 
@@ -81,7 +81,7 @@ python -s run_local.py --checkpoint ~/ckpt/multi_marks --task "$TASK" --bus-seri
 
 # anular a meñique
 TASK="move device from right ring to right pinky finger"
-python -s run_local.py --checkpoint ~/ckpt/multi_marks --task "$TASK" --bus-serial 5B3D050113 --torque-off-on-exit --n-action-steps 9
+python -s run_local.py --checkpoint ~/ckpt/multi_marks --task "$TASK" --bus-serial 5B3D050113 --torque-off-on-exit --n-action-steps 30
 ```
 
 - `5B3D050113` es el bus del follower. `python -s` evita los paquetes de `~/.local`.
@@ -107,7 +107,9 @@ Qué hace, en orden:
 
 1. Lanza `run_local.py` en segundo plano con el modelo elegido. Tarda unos segundos en cargar el
    modelo y WiLoR; el brazo empieza a moverse cuando aparece `ENVIANDO goals` en la salida.
-2. Espera la señal de "hecho": la tecla **`d`** (sin Enter) en el terminal.
+2. Espera a que una persona diga cómo ha ido, con una tecla (sin Enter): **`d`** = hecho, la
+   anilla está en el dedo; **`f`** = fallo, nos rendimos. Las dos siguen igual, cambia el código
+   de salida.
 3. Para la policy **sin soltar el brazo** (`SIGTERM`; si en 3 s no ha salido, `SIGKILL`).
 4. Lleva el brazo a home: abre el gripper, mueve los motores 1-7, cierra el gripper.
 5. Suelta el torque en home y termina.
@@ -119,7 +121,7 @@ igual si se llama por su ruta completa.
 | Argumento | Obligatorio | Por defecto | Qué es |
 |---|---|---|---|
 | `--task "..."` | sí | | la frase de la tarea, una de las tres de la tabla de arriba |
-| `--n-action-steps N` | no | el de la tabla para esa tarea (15; 9 de anular a meñique) | acciones de cada chunk antes de re-planificar |
+| `--n-action-steps N` | no | el de la tabla para esa tarea (15; 30 de anular a meñique) | acciones de cada chunk antes de re-planificar |
 | `--checkpoint RUTA` | no | `~/ckpt/multi_marks` | carpeta del modelo |
 | `--bus-serial SERIE` | no | el de `home_pose.json` (`5B3D050113`) | bus del follower |
 | `--station HOST[:PUERTO]` | no | `localhost` | dónde está Station |
@@ -132,7 +134,8 @@ menos mover el brazo con la policy: sirve para probar la integración).
 | Cómo termina | Código de salida | Estado del brazo |
 |---|---|---|
 | se pulsó `d` y llegó a home | 0 | en home, **sin torque** |
-| se pulsó `d` pero no llegó a home (motor bloqueado, Station caído) | 1 | **con torque**, sujetando donde esté |
+| se pulsó `f` y llegó a home: la tarea **no** se hizo | 2 | en home, **sin torque** |
+| se pulsó `d` o `f` pero no llegó a home (motor bloqueado, Station caído) | 1 | **con torque**, sujetando donde esté |
 | la policy se murió sola (Station sin frames, falta una cámara); va a home igualmente | 1 | en home sin torque, o con torque donde esté si no llegó |
 | `Ctrl-C` | 130 | **con torque** donde esté; no va a home |
 
@@ -146,8 +149,8 @@ menos mover el brazo con la policy: sirve para probar la integración).
 - No pide confirmación antes de mover: está hecho para lanzarse desde un programa.
 
 **Desde un programa, sin teclado.** Si el orquestador tiene su propio botón, lanza `run_skill.py`
-como proceso hijo y le avisa de una de estas dos formas, que hacen lo mismo que la tecla `d`:
-una línea `d` por su stdin, o un `SIGTERM`.
+como proceso hijo y le avisa por su stdin con una línea `d` o `f`, que hacen lo mismo que las
+teclas. Un `SIGTERM` equivale a `d`.
 
 ```python
 import subprocess
@@ -165,6 +168,68 @@ at_home = skill.wait() == 0       # vuelve cuando el brazo está en home y sin t
 
 Si `skill.poll()` deja de ser `None` antes de pulsar el botón, la policy se murió sola: el
 código será 1 y el motivo está en su salida.
+
+### Sesión en dos máquinas: `hook_actuator.py`
+
+En la demo el orquestador (el "cerebro", [docs/two-machine-session.md](../docs/two-machine-session.md))
+corre en **otro ordenador** y habla con este por WebSocket, con los cuatro mensajes de
+`session/wire.py`. `hook_actuator.py` es el extremo de este ordenador: recibe un `hook_request`
+con un dedo, ejecuta `run_skill.py` con la tarea que toca y contesta con un `hook_report` **solo
+cuando todo ha terminado**.
+
+```bash
+python -s hook_actuator.py serve          # escucha en ws://0.0.0.0:8770/arm2
+```
+
+| `hook_request` pide | Lo que se ejecuta aquí |
+|---|---|
+| `middle` | `run_skill.py --task "move device from right index to right middle finger"` |
+| `ring` | `run_skill.py --task "move device from right middle to right ring finger"` |
+| `little` (o `pinky`) | `run_skill.py --task "move device from right ring to right pinky finger"` |
+| `index`, `thumb` | nada: no hay policy. Una persona coloca la anilla a mano y confirma |
+
+El mensaje lleva solo el dedo de destino; el de origen se deduce, porque la policy solo sabe
+pasar la anilla al dedo de al lado. El cerebro tiene que pedir los dedos en ese orden.
+
+Mientras hay una petición en marcha, **en el teclado de este ordenador**:
+
+| Tecla | Qué pasa aquí | Qué recibe el cerebro |
+|---|---|---|
+| `d` | para la policy, brazo a home, torque fuera | `hook_report` `confirmed` |
+| `f` | para la policy, brazo a home, torque fuera | `hook_report` `failed` |
+
+- **Un `confirmed` garantiza tres cosas:** una persona ha visto la anilla en el dedo pedido, la
+  policy está parada, y el brazo 2 está en home sin torque. El cerebro puede seguir sin
+  comprobar nada más.
+- Si la policy se muere sola o el brazo no llega a home, el informe es `failed`, con el motivo
+  en `detail`. Nunca hay un `confirmed` por silencio.
+- **`abort`, o 0.5 s sin `heartbeat`** (el lease caduca: se ha caído la red o el cerebro): la
+  policy se para y el brazo se queda **con torque donde esté**. No va a home solo y no contesta;
+  el cerebro ya da el movimiento por fallido. Después, `python -s go_home.py`.
+- Las opciones que `serve` no conoce se pasan a `run_skill.py` (`--dry-run` para probar la
+  integración sin que la policy mueva; la vuelta a home sí mueve).
+- Requisitos: el entorno de la Terminal 2 y Station arrancado. `fastapi`, `uvicorn` y
+  `websockets` en ese entorno.
+
+**Probar sin el otro ordenador.** `request` hace de cerebro para un movimiento, con el mismo
+`RemoteHookMover` que usará el de verdad:
+
+```bash
+python -s hook_actuator.py request index       # en otra terminal; no mueve nada, pide colocarla a mano
+python -s hook_actuator.py request middle      # lanza la policy: pulsa d o f en la terminal de serve
+```
+
+Sale con 0 si el informe es `confirmed` y con 1 si es `failed`. `Ctrl-C` manda un `abort`.
+Desde el otro ordenador: `--url ws://<ip-de-este>:8770/arm2`, y `curl http://<ip>:8770/health`
+para ver que llega y qué versión del protocolo habla.
+
+**Los relojes de las dos máquinas.** `Lease.issued_at` viaja en el reloj monótono del cerebro y
+`session.remote_arm2.ActuatorSide` lo compara con el de aquí, que no tiene nada que ver (cada
+máquina cuenta desde su arranque). Tal cual, el lease estaría siempre caducado o no caducaría
+nunca según qué máquina lleve más tiempo encendida. `hook_actuator.py` sella cada lease con el
+reloj local al recibirlo (`LocalClockLink`), que es lo que el diseño describe: "más de
+`period_s` desde la última renovación que he oído". El mensaje en el cable no cambia, y el
+cerebro no tiene que hacer nada.
 
 ### Alternativa: las dos llamadas por separado
 

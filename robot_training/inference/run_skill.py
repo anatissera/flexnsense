@@ -10,17 +10,19 @@
   3. Para la policy (SIGTERM, y SIGKILL si en 3 s no ha salido) y ejecuta go_home.py: abrir
      gripper, brazo a home, cerrar gripper, soltar torque.
 
-Teclas: `d` = parar y volver a home. Ctrl-C = parar y quedarse sujetando donde esté, sin ir a
-home (para cuando el camino a home no está libre).
+Teclas: `d` = hecho, la tarea ha salido bien: parar y volver a home. `f` = fallo, nos rendimos:
+también para y vuelve a home, pero el código de salida lo dice. Ctrl-C = parar y quedarse
+sujetando donde esté, sin ir a home (para cuando el camino a home no está libre).
 
 Si la policy se muere sola (Station sin frames, falta una cámara...) también se va a home, pero
 el código de salida es 1.
 
-Sin terminal (lanzado por otro programa): vale una línea `d` por stdin, o un SIGTERM a este
-proceso.
+Sin terminal (lanzado por otro programa): vale una línea `d` o `f` por stdin; un SIGTERM a
+este proceso equivale a `d`.
 
-Código de salida: 0 = policy parada con `d` y brazo en home sin torque; 1 = la policy falló o
-no se llegó a home (el brazo sigue con torque); 130 = Ctrl-C, el brazo sigue con torque.
+Código de salida: 0 = parada con `d` y brazo en home sin torque; 2 = parada con `f` (la tarea
+NO se hizo) y brazo en home sin torque; 1 = la policy se murió sola o no se llegó a home (el
+brazo sigue con torque); 130 = Ctrl-C, el brazo sigue con torque.
 
 Las opciones que este script no conoce se pasan tal cual a run_local.py (p. ej. --device cpu).
 """
@@ -42,11 +44,13 @@ from stop_and_home import stop
 
 HERE = Path(__file__).resolve().parent
 DONE_KEY = "d"
+FAIL_KEY = "f"
+EXIT_GAVE_UP = 2
 
 
 def default_action_steps(task: str) -> int:
     """Los valores que mejor han ido en el brazo (tabla "Modelo elegido" del README)."""
-    return 9 if "ring to right pinky" in task.lower() else 15
+    return 30 if "ring to right pinky" in task.lower() else 15
 
 
 def policy_command(args, extra: list[str], bus: str) -> list[str]:
@@ -57,7 +61,7 @@ def policy_command(args, extra: list[str], bus: str) -> list[str]:
 
 
 def wait_for_done(proc, stdin, is_tty: bool, stopped: list) -> str:
-    """Bloquea hasta que pase algo. Devuelve "done" (tecla d o SIGTERM) o "died" (la policy salió sola)."""
+    """Bloquea hasta que pase algo: "done" (tecla d o SIGTERM), "failed" (tecla f) o "died" (la policy salió sola)."""
     watch_stdin = True
     while True:
         if stopped:
@@ -72,8 +76,10 @@ def wait_for_done(proc, stdin, is_tty: bool, stopped: list) -> str:
         text = os.read(stdin.fileno(), 64).decode(errors="ignore")
         if not text and not is_tty:
             watch_stdin = False       # stdin cerrado: solo queda esperar a la policy o a un SIGTERM
-        elif DONE_KEY in text.lower():
-            return "done"
+        else:
+            for key in text.lower():      # la primera de las dos que aparezca manda
+                if key in (DONE_KEY, FAIL_KEY):
+                    return "done" if key == DONE_KEY else "failed"
 
 
 def main(argv=None) -> int:
@@ -81,7 +87,7 @@ def main(argv=None) -> int:
     p.add_argument("--task", required=True, help="la frase de la tarea (tabla del README)")
     p.add_argument("--checkpoint", default="~/ckpt/multi_marks")
     p.add_argument("--n-action-steps", type=int, default=None,
-                   help="por defecto, el de la tabla del README para esa tarea (15, o 9 de anular a meñique)")
+                   help="por defecto, el de la tabla del README para esa tarea (15, o 30 de anular a meñique)")
     add_home_args(p)
     args, extra = p.parse_known_args(argv)
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
@@ -94,7 +100,8 @@ def main(argv=None) -> int:
     signal.signal(signal.SIGTERM, lambda *_: stopped.append(1))
     cmd = policy_command(args, extra, bus)
     print(f"lanzando la policy: {' '.join(cmd)}\n"
-          f">>> pulsa '{DONE_KEY}' para parar y volver a home | Ctrl-C para parar y quedarse sujetando <<<\n", flush=True)
+          f">>> '{DONE_KEY}' = hecho, volver a home | '{FAIL_KEY}' = fallo, volver a home | "
+          f"Ctrl-C = parar y quedarse sujetando <<<\n", flush=True)
     # Sesión propia: el Ctrl-C del terminal llega solo a este proceso, que decide qué hacer con la policy.
     proc = subprocess.Popen(cmd, cwd=HERE, stdin=subprocess.DEVNULL, start_new_session=True)
 
@@ -117,15 +124,17 @@ def main(argv=None) -> int:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, saved)
 
     if why == "died":
-        print(f"\nla policy ha terminado SOLA (código {proc.returncode}): mira su salida. Vuelvo a home.")
+        print(f"\nla policy ha terminado SOLA (código {proc.returncode}): mira su salida. Vuelvo a home.", flush=True)
     else:
-        print(f"\n'{DONE_KEY}': paro la policy y vuelvo a home.")
+        print(f"\n{'hecho' if why == 'done' else 'FALLO (nos rendimos)'}: paro la policy y vuelvo a home.", flush=True)
         stop([proc.pid])
         if proc.poll() is None and not _reaped(proc):
             print("ERROR: la policy sigue viva; no muevo el brazo con dos procesos mandando goals.")
             return 1
     home = run_go_home(args)
-    return 1 if why == "died" else home
+    if why == "died" or home != 0:
+        return 1
+    return 0 if why == "done" else EXIT_GAVE_UP
 
 
 def _reaped(proc) -> bool:

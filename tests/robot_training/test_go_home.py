@@ -207,7 +207,7 @@ def launch(monkeypatch, tmp_path, policy_body, typed):
 def test_action_steps_follow_the_readme_table():
     assert run_skill.default_action_steps(TASK) == 15
     assert run_skill.default_action_steps("move device from right middle to right ring finger") == 15
-    assert run_skill.default_action_steps("move device from right ring to right pinky finger") == 9
+    assert run_skill.default_action_steps("move device from right ring to right pinky finger") == 30
 
 
 def test_policy_is_launched_unattended_and_never_told_to_drop_the_arm():
@@ -229,3 +229,8 @@ def test_done_key_stops_the_policy_and_goes_home(monkeypatch, tmp_path):
 def test_a_policy_that_dies_alone_still_goes_home_but_reports_failure(monkeypatch, tmp_path):
     code, went_home = launch(monkeypatch, tmp_path, "raise SystemExit(1)\n", b"")
     assert code == 1 and len(went_home) == 1
+
+
+def test_fail_key_also_goes_home_but_says_the_task_was_not_done(monkeypatch, tmp_path):
+    code, went_home = launch(monkeypatch, tmp_path, "import time\ntime.sleep(60)\n", b"f")
+    assert code == run_skill.EXIT_GAVE_UP == 2 and len(went_home) == 1
