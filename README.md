@@ -7,6 +7,8 @@
 **Robot-assisted finger rehabilitation after hand surgery, with a force cap the clinician sets remotely.**<br>
 By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
 
+**[Watch the presentation: flexnsense.vercel.app](https://flexnsense.vercel.app)**
+
 [![Leukerbad Robotics Hackathon 2026](https://img.shields.io/badge/Leukerbad_Robotics_Hackathon-2026-0b7285)](https://luma.com/event/evt-7RecqicPQUegOIG)
 [![Track: Elderly Care & Rehabilitation](https://img.shields.io/badge/track-Elderly_Care_%26_Rehabilitation-2f9e44)](#the-hackathon)
 [![NormaCore ElRobot](https://img.shields.io/badge/arm-NormaCore_ElRobot_7%2B1_DOF-0b7285)](./docs/elrobot.md)
@@ -44,14 +46,14 @@ By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
 
 We are **Flex'N Sense**, a team of six.
 
-| Name | Background | GitHub |
-|---|---|---|
-| Guillaume Bonifas | Robotics & MedTech, scale-up leader | [@Guitool77](https://github.com/Guitool77) |
-| Damien Frechou | Mechatronics, automation & control systems | |
-| Ana Tissera | AI Engineering, Universidad de San Andrés | [@anatissera](https://github.com/anatissera) |
-| Laurence Liang | Applied AI Engineer at Mistral. Rootly (YC S21) AI Labs, Groq, MDA Space | [@TheFloatingString](https://github.com/TheFloatingString) |
-| Javier Peres | AI Engineer | [@peresramirez](https://github.com/peresramirez) |
-| Justo Valverde | Robotics Software Engineering student, URJC | |
+| Name | Background | GitHub | LinkedIn |
+|---|---|---|---|
+| Guillaume Bonifas | Robotics & MedTech, scale-up leader | [@Guitool77](https://github.com/Guitool77) | [guillaumebonifas](https://www.linkedin.com/in/guillaumebonifas) |
+| Damien Frechou | Mechatronics, automation & control systems | | [damien-frechou](https://www.linkedin.com/in/damien-frechou) |
+| Ana Tissera | AI Engineering, Universidad de San Andrés | [@anatissera](https://github.com/anatissera) | |
+| Laurence Liang | Applied AI Engineer at Mistral. Rootly (YC S21) AI Labs, Groq, MDA Space | [@TheFloatingString](https://github.com/TheFloatingString) | [laurence-liang-innovator](https://www.linkedin.com/in/laurence-liang-innovator) |
+| Javier Peres | AI Engineer | [@peresramirez](https://github.com/peresramirez) | [peresjavier](https://www.linkedin.com/in/peresjavier) |
+| Justo Valverde | Robotics Software Engineering student, URJC | | [justodariovalverde](https://www.linkedin.com/in/justodariovalverde) |
 
 ## The problem
 
