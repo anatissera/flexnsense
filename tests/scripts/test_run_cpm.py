@@ -66,19 +66,34 @@ def build_jog_args(argv):
 
 
 # --------------------------------------------------------------------------- the CLI contract
-def test_the_default_direction_cannot_tighten_anything(run_cpm):
-    """The stroke travels away from tension first unless told otherwise. Whatever else is
-    wrong (a flipped sign, a mis-set pose), the first half of the default stroke cannot be
-    pulling harder on a finger."""
-    assert build_args(run_cpm, []).toward_tension is False
+def test_the_stroke_travels_between_the_two_named_poses(run_cpm):
+    """The bench finding this replaced a fixed 15 mm line over: the two saved poses are 80 mm
+    apart at the gripper, so a 15 mm stroke was showing under a fifth of the intended motion.
+    The destination is a pose, not a distance, so the stroke is whatever those two poses are
+    apart, and re-capturing either one changes it."""
+    args = build_args(run_cpm, [])
+    assert args.to == "home"
+    assert not hasattr(args, "distance_mm"), (
+        "the stroke is pose to pose now; a distance would be a second, disagreeing source "
+        "of truth for how far it goes"
+    )
 
 
-def test_the_distance_matches_jog_coordinated_pys_own_default(run_cpm):
-    """This is an open-loop path: it travels exactly this far whether or not that turns out
-    to be comfortable. Matching scripts/jog_coordinated.py's own default (15 mm) means the
-    first run here is exactly as cautious as the script this one's motion was modelled on."""
-    jog_defaults = build_jog_args([])
-    assert build_args(run_cpm, []).distance_mm == jog_defaults.distance_mm == 15.0
+def test_the_full_stroke_can_be_eased_into(run_cpm):
+    """At full reach the stroke is most of a finger's measured excursion, so there has to be
+    a way to run a fraction of it before running all of it on a hand."""
+    assert build_args(run_cpm, []).reach == 1.0
+    assert build_args(run_cpm, ["--reach", "0.3"]).reach == pytest.approx(0.3)
+
+
+def test_the_step_is_measured_in_ticks_not_millimetres(run_cpm):
+    """The judder found on the bench: a 1 mm step asks the three joints for 0.84, 4.16 and
+    6.38 ticks, and rounding 0.84 to 1 is a 20% error in that joint's share, every cycle.
+    Ticks are what the servo takes, so a step bounded in ticks is the one that can promise a
+    commanded step is a real move rather than a sub-tick twitch."""
+    args = build_args(run_cpm, [])
+    assert args.step_ticks >= 10
+    assert not hasattr(args, "step_mm")
 
 
 def test_it_starts_from_its_own_pose_not_the_session_home(run_cpm):
@@ -421,3 +436,94 @@ def test_run_cpm_and_go_home_agree_on_where_the_cpm_pose_lives(run_cpm):
 
     args = build_args(run_cpm, [])
     assert args.start_pose == NAMED_POSES["cpm"]
+
+
+# --------------------------------------------------- the stroke's waypoints, pose to pose
+def test_the_waypoints_land_exactly_on_the_destination(run_cpm):
+    """Not approximately: the stroke's whole claim is that it ends on a pose someone placed
+    and measured by hand, so the last waypoint has to be that pose."""
+    start = {1: 1000.0, 2: 2000.0, 3: 1500.0}
+    end = {1: 1100.0, 2: 1700.0, 3: 1500.0}
+    ways = run_cpm.pose_waypoints(start, end, [1, 2], step_ticks=20)
+    assert ways[-1] == pytest.approx(end)
+
+
+def test_no_joint_moves_more_than_the_step_in_one_go(run_cpm):
+    """The bound that keeps a servo from being told to cross a long way at once, which is
+    the one thing this arm must never do near a hand."""
+    start = {1: 1000.0, 2: 2000.0}
+    end = {1: 1000.0, 2: 1400.0}
+    ways = run_cpm.pose_waypoints(start, end, [1, 2], step_ticks=20)
+    prev = start
+    for way in ways:
+        assert max(abs(way[m] - prev[m]) for m in way) <= 20 + 1e-9
+        prev = way
+
+
+def test_a_bigger_step_means_fewer_waypoints(run_cpm):
+    start, end = {1: 0.0}, {1: 100.0}
+    assert len(run_cpm.pose_waypoints(start, end, [1], 10)) > \
+        len(run_cpm.pose_waypoints(start, end, [1], 50))
+
+
+def test_the_waypoints_keep_float_precision(run_cpm):
+    """Rounding each waypoint to whole ticks independently quantises the ratio between
+    joints, which is exactly what made a small step judder. The ratio has to survive the
+    path; the rounding happens once, at the bus."""
+    start = {1: 0.0, 2: 0.0}
+    end = {1: 100.0, 2: 33.0}
+    ways = run_cpm.pose_waypoints(start, end, [1, 2], step_ticks=20)
+    assert any(w[2] != round(w[2]) for w in ways), "a float ratio should survive"
+    for w in ways:
+        assert w[2] / w[1] == pytest.approx(33.0 / 100.0)
+
+
+def test_joints_that_do_not_differ_are_still_carried_along(run_cpm):
+    """Every waypoint is a whole pose, so a joint the stroke does not move still reports the
+    value it is meant to hold rather than dropping out of the dict."""
+    start = {1: 0.0, 2: 500.0}
+    end = {1: 100.0, 2: 500.0}
+    ways = run_cpm.pose_waypoints(start, end, [1], step_ticks=20)
+    assert all(w[2] == 500.0 for w in ways)
+
+
+def test_a_stroke_shorter_than_one_step_is_still_one_waypoint(run_cpm):
+    """Zero waypoints and "it is already there" would otherwise be the same empty list."""
+    ways = run_cpm.pose_waypoints({1: 0.0}, {1: 3.0}, [1], step_ticks=20)
+    assert len(ways) == 1
+    assert ways[0][1] == pytest.approx(3.0)
+
+
+def test_every_waypoint_stays_between_the_two_poses(run_cpm):
+    """The safety property that replaced can_pull_straight: each waypoint is a per-joint
+    convex combination of two in-range poses, so no joint can be commanded past travel that
+    either endpoint has not already proved. Checking the endpoints checks the whole path."""
+    start = {1: 1000.0, 2: 2500.0}
+    end = {1: 1400.0, 2: 1900.0}
+    for way in run_cpm.pose_waypoints(start, end, [1, 2], step_ticks=13):
+        for m in (1, 2):
+            lo, hi = sorted((start[m], end[m]))
+            assert lo - 1e-9 <= way[m] <= hi + 1e-9
+
+
+@pytest.mark.skipif(not URDF.is_file(),
+                    reason="needs the norma-core clone (hardware/elrobot/simulation)")
+def test_the_real_stroke_is_a_real_motion_not_a_sub_tick_twitch(run_cpm):
+    """Against the two poses actually saved on this bench. The first version asked the joints
+    for 0.84, 4.16 and 6.38 ticks per step; this asserts the step is now big enough that
+    rounding it at the bus is a small error rather than a dominant one."""
+    from lib.kinematics import ARM_MOTORS
+    from session.home_pose import NAMED_POSES, load_home_pose
+
+    start = {m: float(v) for m, v in load_home_pose(NAMED_POSES["cpm"]).items()}
+    end = {m: float(v) for m, v in load_home_pose(NAMED_POSES["home"]).items()}
+    start = {m: start.get(m, 0.0) for m in ARM_MOTORS}
+    end = {m: end.get(m, start[m]) for m in ARM_MOTORS}
+    motors = sorted(m for m in ARM_MOTORS if abs(end[m] - start[m]) >= 1.0)
+
+    ways = run_cpm.pose_waypoints(start, end, motors, step_ticks=20)
+    biggest = max(abs(ways[0][m] - start[m]) for m in motors)
+    assert biggest > 10, (
+        f"the leading joint only moves {biggest:.1f} ticks per step, which is the regime "
+        "where rounding at the bus dominates and the motion judders"
+    )
