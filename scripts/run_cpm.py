@@ -44,8 +44,11 @@ way the home pose was:
     .venv/bin/python scripts/set_home_pose.py --save --path config/calibration/cpm-start-pose.json
 
 This script walks the arm to that pose before it starts, in paced steps, and returns it there
-at the end. It does **not** leave the arm there: a pose that holds a finger under tension is
-not somewhere to park, so the last thing it does is release and offer to go to the real home.
+at the end, which is also where it starts from, so running it again right after needs no walk
+at all. It is a pose that holds a finger under tension, though, so it is not somewhere to
+leave the arm between sessions: that choice is on the person at the keyboard, not automatic,
+because going from here to the real parking pose with a finger still hooked would drag it
+through the arc between the two.
 
 ## Direction
 
@@ -73,6 +76,23 @@ from session.tuning import DEFAULT_TUNING_PATH, load_tuning  # noqa: E402
 
 START_POSE_PATH = "config/calibration/cpm-start-pose.json"
 GAUGE_CALIB = "config/scale_calib.json"
+
+# Bench-proven for exactly this kind of motion: an open-loop walk through a pre-planned list
+# of waypoints, each held for a settle period. These are scripts/jog_coordinated.py's own
+# defaults, and its CoordinatedAxis docstring records why: "700/50 tracked a straight line
+# with no visible wobble on this bench at a pace that kept up with a hand-paced pull."
+#
+# `config/session-tuning.json`'s coordinated_speed/coordinated_accel (900/30) are NOT this
+# number tuned differently - they are tuned for a different motion entirely:
+# `control.loop.ControlLoop`'s admittance cycle, which rewrites the goal tens of times a
+# second in small (<=4 mm) force-driven corrections. Defaulting this script to that profile
+# was the first version's mistake: with accel=30 and a short settle, the servo never finished
+# ramping up before the next 1 mm waypoint overwrote its goal, so every step looked like a
+# jerky restart rather than part of one continuous motion. A bigger pre-planned walk needs the
+# jog profile's longer settle and firmer accel instead, not the admittance loop's.
+JOG_PROVEN_SPEED = 700
+JOG_PROVEN_ACCEL = 50
+JOG_PROVEN_SETTLE = 0.3
 
 
 def build_pipeline(calib_path: str, outlier_persist: int = 5):
@@ -293,7 +313,9 @@ async def run(args) -> int:
     print(f"\n{args.reps} x cpm, {args.distance_mm:.0f} mm out and back")
     print(f"  stroke   {steps} steps of {args.step_mm:.1f} mm, {args.settle:g}s between")
     print(f"  sense    {sense}")
-    print(f"  arm      joints {motors} on {bus_serial}, speed {args.speed}, accel {args.accel}")
+    jog_profile = (args.speed, args.accel) == (JOG_PROVEN_SPEED, JOG_PROVEN_ACCEL)
+    print(f"  arm      joints {motors} on {bus_serial}, speed {args.speed}, accel "
+          f"{args.accel}{' (jog_coordinated.py profile)' if jog_profile else ''}")
     if args.no_camera:
         print("  force    NOT WATCHED (--no-camera). Run this way with nothing attached.")
     else:
@@ -446,10 +468,15 @@ async def run(args) -> int:
         print(f"peak force seen: {newtons_to_grams_force(supervisor.peak_n):.0f} gf "
               f"(ceiling {args.ceiling_gf:.0f} gf)")
     print(
-        "\nThe arm is at the CPM start pose, which holds the finger. That is NOT a parking "
-        "pose: unhook the finger, then\n"
+        "\nThe arm is at the CPM start pose, which holds the finger. That is also where this "
+        "script itself starts from, so running it again now needs no walk at all: leave the "
+        "arm here while you are still testing or exercising.\n\n"
+        "Only when you are done with cpm for this session, unhook the finger and park the "
+        "arm at the session home instead:\n"
         "    .venv/bin/python scripts/go_home.py\n"
-        "to put the arm back where it belongs between sessions."
+        "Going there with the finger still hooked would drag it through the arc between the "
+        "two poses, which is why this is a choice to make on purpose, not a step after every "
+        "run."
     )
     return 0
 
@@ -460,14 +487,15 @@ def main(argv=None) -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     p.add_argument("--reps", type=int, default=3)
-    p.add_argument("--distance-mm", type=float, default=10.0,
-                   help="how far the stroke travels before coming back. Start small: this is "
-                        "an open-loop path, so it goes exactly this far whether or not that "
-                        "turns out to be comfortable")
+    p.add_argument("--distance-mm", type=float, default=15.0,
+                   help="how far the stroke travels before coming back. This is an open-loop "
+                        "path, so it goes exactly this far whether or not that turns out to "
+                        "be comfortable: shorten it with this flag before lengthening it. "
+                        "15 mm matches scripts/jog_coordinated.py's own default")
     p.add_argument("--step-mm", type=float, default=1.0,
                    help="how far each commanded step moves. Smaller is smoother and slower, "
                         "and makes a bad step visible before it has gone far")
-    p.add_argument("--settle", type=float, default=0.12,
+    p.add_argument("--settle", type=float, default=JOG_PROVEN_SETTLE,
                    help="seconds between steps. With --step-mm this sets the pace; --speed "
                         "sets how fast the servo chases each goal, which is a different knob")
     p.add_argument("--toward-tension", action="store_true",
@@ -482,11 +510,18 @@ def main(argv=None) -> int:
                    help="how far from the start pose counts as already there")
     p.add_argument("--goto-max-step-ticks", type=int, default=80,
                    help="largest per-joint move on the way to the start pose")
-    p.add_argument("--speed", type=int, default=tuning.coordinated_speed,
+    p.add_argument("--speed", type=int, default=JOG_PROVEN_SPEED,
                    help="raw ST3215 goal-speed units, scaled per joint each step so all of "
-                        "them arrive together")
-    p.add_argument("--accel", type=int, default=tuning.coordinated_accel,
-                   help="raw ST3215 acceleration units, written once")
+                        "them arrive together. Defaults to scripts/jog_coordinated.py's own "
+                        "bench-proven value, not config/session-tuning.json's "
+                        "coordinated_speed: that number is tuned for the admittance "
+                        "controller's continuous small corrections, a different motion from "
+                        "this open-loop waypoint walk, and reusing it here made every step "
+                        "look like a jerky restart instead of part of one smooth stroke")
+    p.add_argument("--accel", type=int, default=JOG_PROVEN_ACCEL,
+                   help="raw ST3215 acceleration units, written once. Same reasoning as "
+                        "--speed: jog_coordinated.py's proven value, not the admittance "
+                        "loop's")
     p.add_argument("--axis", default=None,
                    help="the tether's direction as x,y,z in the base frame, pointing the way "
                         "that INCREASES tension. Defaults to the gripper's own axis at the "
