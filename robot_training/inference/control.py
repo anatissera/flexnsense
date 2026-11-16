@@ -14,6 +14,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
+import signal
 import sys
 import time
 from collections import deque
@@ -21,6 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
+from go_home import pidfile_path
 from station_io import (describe_bus, CameraMapper, FrameShapeError, GoalSafety, VIEWS, fetch_fresh_obs, goal_command, goal_norm_to_ticks,
                         decode_rgb, new_station_client, safe_enable_torque, send_commands, set_torque)
 
@@ -158,6 +161,20 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
     client = await new_station_client(args.station, log)
     print(f"conectado a Station {args.station} | bus {args.bus_serial} | motores {motor_ids}")
 
+    # SIGTERM = "para y SUJETA": otro proceso (stop_and_home.py) se queda con el brazo. No se
+    # suelta el torque ni con --torque-off-on-exit. Ctrl-C sigue haciendo lo de siempre.
+    handover = False
+    main_task = asyncio.current_task()
+
+    def _on_sigterm() -> None:
+        nonlocal handover
+        handover = True
+        main_task.cancel()
+
+    asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, _on_sigterm)
+    pidfile = pidfile_path(args.bus_serial)
+    pidfile.write_text(str(os.getpid()))
+
     torque_enabled_here = False
     if args.enable_torque:
         print("activando torque del follower (goal = posición actual) ...")
@@ -243,6 +260,10 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
                       f"cola {len(queue)}  {ms:.0f} ms {info} {msg}")
     except KeyboardInterrupt:
         print("\ninterrumpido.")
+    except asyncio.CancelledError:
+        if not handover:
+            raise
+        print("\nSIGTERM: paro y dejo el brazo sujetando para quien lo recoja.")
     except TimeoutError as e:        # Station ha dejado de publicar: se mira por qué ANTES de quitar el torque
         print(f"\nERROR: {e}")
         try:
@@ -259,7 +280,8 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
             _report_cameras(e, args)
         raise SystemExit(1)
     finally:
-        if torque_enabled_here and args.torque_off_on_exit:
+        pidfile.unlink(missing_ok=True)
+        if torque_enabled_here and args.torque_off_on_exit and not handover:
             try:
                 await set_torque(client, args.bus_serial, motor_ids, False)
                 print("torque del follower DESACTIVADO.")
