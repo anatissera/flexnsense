@@ -15,6 +15,7 @@ import ViewCube from "./ViewCube";
 import type { ViewApi } from "./MyoViewer";
 import type { HandFrame } from "../lib/handFrame";
 import MuscleCallout from "./MuscleCallout";
+import DemoBadge from "./DemoBadge";
 import type { MuscleAnchor } from "./MyoViewer";
 import { buildContext, MUSCLE_NAMES, muscleInfo, resolveMuscle, type SessionContext } from "../lib/chatContext";
 import { median } from "../lib/curlsim/dsp";
@@ -611,8 +612,14 @@ export default function SimApp() {
       <ViewCube api={viewApiRef} />
       </div>
       <MuscleCallout callouts={callouts} anchors={anchorsRef} study={study} week={week} onClose={closeCallout} />
-      <GuideHand subscribe={subscribeHandFrames} trackerOn={trackerOn} onTrackerChange={requestTracker} />
-      <ChatPanel context={chatContext} onTool={onTool} />
+      {/* The left column: the rep machine with the chat under it, stacked from the bottom up so
+          that collapsing the chat lowers the rep machine instead of leaving a hole, and a shorter
+          screen loses the least important thing last. The column is transparent to the mouse so
+          the 3D view behind it still drags and the explore wheel still works. */}
+      <div className="pointer-events-none absolute bottom-4 left-4 top-4 flex w-[340px] max-w-[calc(100%-2rem)] flex-col justify-end gap-4">
+        <GuideHand subscribe={subscribeHandFrames} trackerOn={trackerOn} onTrackerChange={requestTracker} />
+        <ChatPanel context={chatContext} onTool={onTool} />
+      </div>
       <aside className="panel absolute bottom-4 right-4 top-4 w-[470px] max-w-[calc(100%-2rem)] space-y-4 overflow-y-auto">
         <PatientCard
           onExport={snap && snap.reps.length > 0 && !live && !camOn ? () => {
@@ -624,7 +631,10 @@ export default function SimApp() {
           } : undefined}
         />
         <div>
-          <div className="t-title">Flexor recovery simulator</div>
+          <div className="flex items-center gap-2">
+            <span className="t-title">Flexor recovery simulator</span>
+            <DemoBadge kind="simulated" label="Synthetic patient" />
+          </div>
           <p className="t-small muted mt-1">
             Synthetic patient {study.patient.id}: the 3D hand curls the index finger (subtle flexion); every finger is simulated, force and
             displacement are analysed against the contralateral hand, and the healing course of

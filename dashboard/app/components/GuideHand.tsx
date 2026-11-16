@@ -11,6 +11,7 @@ import { blockFromGrams, type Block } from "../lib/session/protocol";
 import type { RepStep } from "../lib/session/reps";
 import { DEMO_PASSIVE_TARGET_M, RepSimulation } from "../lib/session/simulation";
 import { Bar } from "./charts";
+import DemoBadge from "./DemoBadge";
 
 // Index joint targets (rad) when flexed: MCP, PIP, DIP.
 const FLEX = [0.5, 0.55, 0.35];
@@ -379,9 +380,15 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
   const stopped = step !== null && (step.phase === "aborted" || step.phase === "set_done");
 
   return (
-    <div id="flex-guide" className="panel absolute bottom-[392px] left-4 w-[340px] max-w-[calc(100%-2rem)] space-y-2 p-3">
+    // Placed by the left column in SimApp, which stacks this above the chat. It used to sit at a
+    // hardcoded 392 px off the bottom, which is the height of an open chat panel: collapsing the
+    // chat left a hole, and a shorter screen pushed this panel off the top of the view.
+    <div id="flex-guide" className="panel pointer-events-auto w-full space-y-2 p-3">
       <div className="flex items-center justify-between">
-        <span className="t-section">Rep machine</span>
+        <span className="flex items-center gap-2">
+          <span className="t-section">Rep machine</span>
+          <DemoBadge kind="simulated" />
+        </span>
         <span className="chip">
           {waiting ? "Waiting for a hand" : step === null ? "Ready" : stopped ? "Stopped" : `Rep ${step.repIndex}/${view?.reps} · ${step.phase.replace("_", " ")}`}
         </span>
