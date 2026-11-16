@@ -1,0 +1,71 @@
+Vas a probar en el brazo real (ElRobot de NormaCore, conectado a este portátil) una policy ACT
+ya entrenada. No hay que entrenar ni modificar código: solo preparar, comprobar y ejecutar.
+
+CONTEXTO
+- Repo: leukerbad-hackathon, rama feature/robot-training, carpeta robot_training/.
+- Lee primero robot_training/README.md, en este orden:
+  1. Sección "A. Estado actual (léelo primero)": qué datos y modelos hay.
+  2. Sección 4 entera (4.0 a 4.4): cómo funciona la inferencia y sus protecciones.
+  3. Sección 6 "Problemas conocidos".
+  Lee también AGENTS.md en la raíz del repo (reglas de commits).
+- Modelo a probar: ACT entrenado con 63 episodios, estado de 8 valores (sin yemas de los dedos,
+  NO necesita WiLoR). Está en Hugging Face, repo privado:
+  JustoDario/flexnsense_act_skill1_rightindex2middle_63ep
+- Tarea: "move device from right index to right middle finger".
+- Modo: local (run_local.py), la policy corre en este portátil.
+
+PASOS
+1. Actualiza el código:
+   cd <repo> && git fetch origin && git checkout feature/robot-training && git pull
+2. Entorno. Si no existe ~/robot_env, créalo con `bash robot_training/setup_env.sh ~/robot_env`.
+   En cada terminal: `source ~/robot_env/env.sh`. Comprueba:
+   python -c "import torch; print(torch.cuda.is_available())"
+   Si da False, sigue igualmente: ACT infiere en CPU en 30-45 ms (usa POLICY_THREADS=4).
+3. Descarga el checkpoint (hace falta `hf auth login` con la cuenta JustoDario porque es privado):
+   hf download JustoDario/flexnsense_act_skill1_rightindex2middle_63ep --local-dir ~/act63_ckpt
+   Debe contener config.json, model.safetensors y los policy_preprocessor/postprocessor.
+4. Regenera el banco de cámaras con el dataset actual (83 episodios). El banco antiguo no conoce
+   el encuadre de las últimas sesiones. Si el dataset ya está descargado en este portátil, usa
+   esa ruta y sáltate la descarga (son unos 580 MB):
+   hf download JustoDario/flexnsense_skill1 --repo-type dataset --local-dir ~/data/flexnsense_skill1_raw
+   cd robot_training/inference
+   python make_camera_refs.py --src ~/data/flexnsense_skill1_raw --ref-views side,gripper,table
+5. Prueba sin robot (no necesita Station):
+   python selftest.py --ticks 60 \
+     --parquet ~/data/flexnsense_skill1_raw/data/move_device_from_right_index_to_right_middle_finger/episode_0050.parquet \
+     local --checkpoint ~/act63_ckpt
+   Tiene que acabar con "SELFTEST local: 60 sync writes". Anota los "(inferencia N ms)".
+   Si falla, para y enséñame el error completo.
+6. Comprueba Station: debe estar corriendo con el follower y las 3 cámaras, y el LEADER SIN TORQUE
+   (si no, Station no publica frames). Serial del bus del follower: 5B3D050113 (confírmalo en la
+   web de Station, puerto 8889).
+7. En seco, sin mover nada:
+   python run_local.py --checkpoint ~/act63_ckpt --bus-serial 5B3D050113 --dry-run --max-ticks 50
+   Abre camera_preview.jpg y comprueba que las tres imágenes son, de izquierda a derecha,
+   side | gripper | table. Si el script se para por las cámaras, mira 4.4 punto 2 (--camera-order).
+8. ANTES DE MOVER EL BRAZO, PÁRATE Y PREGÚNTAME. No ejecutes los pasos 9 y 10 sin mi confirmación
+   explícita en ese momento. Lee la sección 4.0: estos scripts no tienen la capa de seguridad del
+   proyecto y no se usan con la mano de un paciente.
+9. Prueba corta (3 segundos):
+   python run_local.py --checkpoint ~/act63_ckpt --bus-serial 5B3D050113 --max-ticks 30
+10. Prueba completa (Ctrl-C para parar; el brazo se queda con torque sujetando la pose):
+   python run_local.py --checkpoint ~/act63_ckpt --bus-serial 5B3D050113
+11. Al terminar, elimina este fichero del repo y de la rama:
+   git rm robot_training/prompt.txt
+   git commit -m "robot_training: remove the one-off test prompt"
+   git push origin feature/robot-training
+   Es el único commit que debes hacer. Sin líneas de atribución a herramientas de IA (AGENTS.md).
+   Hazlo también si la prueba se queda a medias, cuando yo te diga que hemos terminado.
+
+QUÉ ME TIENES QUE CONTAR AL FINAL
+- Si cada paso funcionó, con el error literal del primero que falle.
+- Latencia de inferencia (los "inferencia N ms") y si corrió en GPU o CPU.
+- Qué hizo el brazo en las pruebas 9 y 10 según lo que yo te diga que veo: si llega a la anilla,
+  si cierra el gripper, si tiembla, si completa la tarea.
+- Si hubo líneas "ABORT tick" o "limitados por velocidad" y con qué frecuencia.
+- Que has eliminado prompt.txt de la rama.
+
+NO HAGAS
+- No modifiques el código ni los límites de seguridad (--max-step-ticks, --max-delta-ticks) sin preguntarme.
+- No uses --torque-off-on-exit (el brazo cae).
+- No hagas más commits que el del paso 11.

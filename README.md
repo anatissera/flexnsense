@@ -189,7 +189,8 @@ control/          subtask 3: the admittance controller, its safety gate and a si
 session/          subtask 5b: exercise modes, the prescription, the session and rep machines, the two-arm interlock
 scripts/          robot and calibration scripts, against Station (force calibration, bench measurements)
 scripts/lerobot/  NOT our hardware: the original SO-101-via-LeRobot scripts, parked in case we ever port
-tests/            tests per package: tests/lib/, tests/gauge_reader/, tests/hand_tracking/
+robot_training/   train ACT policies on ElRobot datasets recorded with NormaCore Station, upload them, run them on the arm (robot_training/README.md)
+tests/            tests per package: tests/lib/, tests/gauge_reader/, tests/hand_tracking/, tests/robot_training/
 docs/             guides and diagrams
 ```
 
