@@ -58,6 +58,7 @@ A saved copy downloads as `index.html`. Move it into this folder, over the old o
 17. What comes next: built this weekend, then one hand clinic, then orthopedic rehabilitation for other joints (new)
 18. A future approach: two looping tiles, Isaac Sim (the bench rebuilt) and Isaac Lab (the pull policy in training). A click on a tile opens the whole clip in a pop-up at 80 % of the screen; Esc or Close shuts it. Two links at the bottom right open the policies and the dataset on Hugging Face (new)
 19. Thank you (team photo, then the card)
+20. Find it all: six link cards (the GitHub repo, the public Hugging Face models and datasets, the deck) and a QR code of the deck. A click on a card opens it in a new tab (new)
 
 To check before presenting:
 
@@ -112,3 +113,8 @@ Colours and fonts are CSS variables at the top of `index.html` (`:root`).
   - The Skip button (top right of the slide) or the S key shows every moment at once, and next then goes straight to the next slide. A circle already on the line can be clicked to open its moment again: it closes by itself after `HOLD`, or earlier on a click or on next.
   - The times and several captions are placeholders until the team fills them in.
 - **Portraits**: `assets/people/`, flags: `assets/flags/`.
+
+## Browsers
+
+The deck is checked in Chrome and in WebKit, the engine of Safari (every slide screenshotted in both and compared, 16 Nov 2026). Firefox could not be run on the test machine, so check it by hand before presenting from Firefox.
+The QR code on the last slide (`assets/brand/qr.svg`) encodes `https://flexnsense.vercel.app`; make a new one if the address changes.
