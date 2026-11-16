@@ -312,11 +312,28 @@ body.film{background:#000}                 /* no light border around the film if
 .skip{position:absolute;right:120px;top:54px;z-index:30;padding:9px 20px 8px;border:2px solid var(--line);border-radius:999px;background:var(--paper);color:var(--ink-2);font:700 20px var(--f-data);letter-spacing:.16em;text-transform:uppercase;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .4s ease,color .2s,border-color .2s}
 .skip.on{opacity:1;pointer-events:auto}
 
+/* === FIND IT ALL (last slide: the links, and a QR code of the deck) ======== */
+.lk .head{width:1680px}
+.lk .grid{position:absolute;left:120px;top:330px;width:1180px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-auto-rows:172px;gap:26px}
+.lk a{display:flex;align-items:center;padding:0 30px;border:2px solid var(--line);border-radius:24px;background:var(--card);color:var(--ink);text-decoration:none;cursor:pointer;transition:border-color .25s,transform .25s var(--ease),box-shadow .25s}
+.lk a:hover{border-color:var(--ink);transform:translateY(-4px);box-shadow:0 18px 40px rgba(14,20,31,.10)}
+.lk a .ic{flex:none;width:68px;height:68px;margin-right:26px;display:flex;align-items:center;justify-content:center}
+.lk a .ic svg,.lk a .ic img{width:100%;height:100%;display:block}
+.lk a .tx{min-width:0}
+.lk a small{display:block;font:700 19px var(--f-data);letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+.lk a b{display:block;font-size:31px;letter-spacing:-.015em;line-height:1.15;margin-top:5px}
+.lk a span{display:block;font-size:20px;font-weight:500;color:var(--ink-2);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lk .qr{position:absolute;left:1340px;top:330px;width:460px;height:568px;flex-direction:column;justify-content:center;padding:0;text-align:center}
+.lk .qr img{width:330px;height:330px;display:block}
+.lk .qr small{margin-top:26px}
+.lk .qr b{font-size:30px;line-height:1.2}
 /* === BUTTONS ON A SLIDE, AND THE POP-UP THEY OPEN ======================== */
 .acts{position:absolute;right:120px;top:54px;z-index:30;display:flex;gap:14px}
 .pill{padding:12px 26px 11px;border:2px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper);font:700 20px var(--f-data);letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
 .pill.ghost{background:var(--paper);color:var(--ink)}
 .pill:focus{outline:none}
+a.pill{text-decoration:none;display:inline-flex;align-items:center}
+.pill.live i{width:11px;height:11px;border-radius:50%;background:var(--green);margin-right:12px;flex:none}
 .modal{position:absolute;inset:0;z-index:80;display:none;align-items:center;justify-content:center;background:rgba(7,11,18,.88)}
 .modal.on{display:flex}
 .sheet{display:none;flex-direction:column;align-items:center}
@@ -641,6 +658,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
   <div class="acts" data-a="fade" style="--d:600ms">
     <button class="pill" type="button" tabindex="-1" data-open="demo">Replay the demo</button>
     <button class="pill ghost" type="button" tabindex="-1" data-open="report">Medical report</button>
+    <a class="pill ghost live" tabindex="-1" href="https://flexnsense-dashboard.vercel.app/" target="_blank" rel="noopener"><i></i>Live dashboard</a>
   </div>
   <div class="shot" data-a="up" style="--d:220ms"><video data-auto muted loop playsinline preload="auto" poster="assets/dash/run.jpg" src="assets/dash/run.mp4"></video></div>
   <svg class="lines" viewBox="0 0 1920 1080" aria-hidden="true">
@@ -719,35 +737,6 @@ body.editing [contenteditable]:focus{outline-style:solid}
   </div>
 </section>
 
-<section class="slide s9" data-name="Team" data-enter="team">
-  <div class="head">
-    <div class="kicker" data-a="up">The team</div>
-    <h2 data-a="up" style="--d:100ms">One international team.</h2>
-  </div>
-  <div class="flags" id="flags">
-    <div class="flag" style="--d:300ms;--w:0s"><div class="cloth"><img src="assets/flags/fr.svg" alt="France"></div></div>
-    <div class="flag" style="--d:390ms;--w:.25s"><div class="cloth"><img src="assets/flags/ar.png" alt="Argentina"></div></div>
-    <div class="flag" style="--d:480ms;--w:.5s"><div class="cloth"><img src="assets/flags/ca.png" alt="Canada"></div></div>
-    <div class="flag" style="--d:570ms;--w:.75s"><div class="cloth"><img src="assets/flags/es.svg" alt="Spain"></div></div>
-    <div class="flag" style="--d:660ms;--w:1s"><div class="cloth"><img src="assets/flags/us.svg" alt="United States"></div></div>
-    <div class="flag" style="--d:750ms;--w:1.25s"><div class="cloth"><img src="assets/flags/pe.svg" alt="Peru"></div></div>
-    <div class="flag" style="--d:840ms;--w:1.5s"><div class="cloth"><img src="assets/flags/qc.svg" alt="Quebec"></div></div>
-    <div class="flag" style="--d:930ms;--w:1.75s"><div class="cloth"><img src="assets/flags/eu.svg" alt="European Union"></div></div>
-    <div class="flag" style="--d:1020ms;--w:2s"><div class="cloth"><img src="assets/flags/cn.svg" alt="China"></div></div>
-    <div class="flag" style="--d:1110ms;--w:2.25s"><div class="cloth"><img src="assets/flags/ve.svg" alt="Venezuela"></div></div>
-    <div class="flag" style="--d:1200ms;--w:2.5s"><div class="cloth"><img src="assets/flags/gp.svg" alt="Guadeloupe"></div></div>
-    <div class="flag" style="--d:1290ms;--w:2.75s"><div class="cloth"><img src="assets/flags/sc.svg" alt="Scotland"></div></div>
-  </div>
-  <div class="people" id="people">
-    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/guillaume.jpg" alt=""></div></div><b>Guillaume Bonifas</b><span>Robotics &amp; MedTech<br>Scale-up leader</span></div>
-    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/damien.jpg" alt=""></div></div><b>Damien Frechou</b><span>Mechatronics, automation &amp; control systems</span></div>
-    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/ana.jpg" alt=""></div></div><b>Ana Tissera</b><span>AI Engineering<br>Universidad de San Andrés</span></div>
-    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/laurence.jpg" alt=""></div></div><b>Laurence Liang</b><span>Applied AI Engineer<br>Mistral</span></div>
-    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/javier.jpg" alt=""></div></div><b>Javier Peres</b><span>AI Engineer</span></div>
-    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/justo.jpg" alt=""></div></div><b>Justo Valverde</b><span>Robotics Software Engineering student, URJC</span></div>
-  </div>
-</section>
-
 <section class="slide nx" data-name="What comes next">
   <div class="head">
     <div class="kicker" data-a="up">What comes next</div>
@@ -779,6 +768,35 @@ body.editing [contenteditable]:focus{outline-style:solid}
   <div class="hf" data-a="up" style="--d:520ms"><img src="assets/brand/hf-logo.svg" alt="">On Hugging Face: <a href="https://huggingface.co/peresjav/flexnsense-sim-policies" target="_blank" rel="noopener">the policies</a> · <a href="https://huggingface.co/datasets/peresjav/lerobot-2026" target="_blank" rel="noopener">the dataset</a></div>
 </section>
 
+<section class="slide s9" data-name="Team" data-enter="team">
+  <div class="head">
+    <div class="kicker" data-a="up">The team</div>
+    <h2 data-a="up" style="--d:100ms">One international team.</h2>
+  </div>
+  <div class="flags" id="flags">
+    <div class="flag" style="--d:300ms;--w:0s"><div class="cloth"><img src="assets/flags/fr.svg" alt="France"></div></div>
+    <div class="flag" style="--d:390ms;--w:.25s"><div class="cloth"><img src="assets/flags/ar.png" alt="Argentina"></div></div>
+    <div class="flag" style="--d:480ms;--w:.5s"><div class="cloth"><img src="assets/flags/ca.png" alt="Canada"></div></div>
+    <div class="flag" style="--d:570ms;--w:.75s"><div class="cloth"><img src="assets/flags/es.svg" alt="Spain"></div></div>
+    <div class="flag" style="--d:660ms;--w:1s"><div class="cloth"><img src="assets/flags/us.svg" alt="United States"></div></div>
+    <div class="flag" style="--d:750ms;--w:1.25s"><div class="cloth"><img src="assets/flags/pe.svg" alt="Peru"></div></div>
+    <div class="flag" style="--d:840ms;--w:1.5s"><div class="cloth"><img src="assets/flags/qc.svg" alt="Quebec"></div></div>
+    <div class="flag" style="--d:930ms;--w:1.75s"><div class="cloth"><img src="assets/flags/eu.svg" alt="European Union"></div></div>
+    <div class="flag" style="--d:1020ms;--w:2s"><div class="cloth"><img src="assets/flags/cn.svg" alt="China"></div></div>
+    <div class="flag" style="--d:1110ms;--w:2.25s"><div class="cloth"><img src="assets/flags/ve.svg" alt="Venezuela"></div></div>
+    <div class="flag" style="--d:1200ms;--w:2.5s"><div class="cloth"><img src="assets/flags/gp.svg" alt="Guadeloupe"></div></div>
+    <div class="flag" style="--d:1290ms;--w:2.75s"><div class="cloth"><img src="assets/flags/sc.svg" alt="Scotland"></div></div>
+  </div>
+  <div class="people" id="people">
+    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/guillaume.jpg" alt=""></div></div><b>Guillaume Bonifas</b><span>Robotics &amp; MedTech<br>Scale-up leader</span></div>
+    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/damien.jpg" alt=""></div></div><b>Damien Frechou</b><span>Mechatronics, automation &amp; control systems</span></div>
+    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/ana.jpg" alt=""></div></div><b>Ana Tissera</b><span>AI Engineering<br>Universidad de San Andrés</span></div>
+    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/laurence.jpg" alt=""></div></div><b>Laurence Liang</b><span>Applied AI Engineer<br>Mistral</span></div>
+    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/javier.jpg" alt=""></div></div><b>Javier Peres</b><span>AI Engineer</span></div>
+    <div class="person"><div class="avatar"><svg viewBox="0 0 224 224"><circle cx="112" cy="112" r="108"/></svg><div class="ph"><img src="assets/people/justo.jpg" alt=""></div></div><b>Justo Valverde</b><span>Robotics Software Engineering student, URJC</span></div>
+  </div>
+</section>
+
 <section class="slide s11" data-name="Thank you" data-foot="none" data-enter="finale">
   <!-- First the team photo. Pressing next opens an iris onto the thank-you card. -->
   <div class="kb team"><img src="assets/timeline/team.jpg" alt="The Flex'N Sense team at their bench in Leukerbad"></div>
@@ -793,6 +811,23 @@ body.editing [contenteditable]:focus{outline-style:solid}
     </div>
   </div>
   <i class="ring"></i>
+</section>
+
+<section class="slide lk" data-name="Find it all">
+  <div class="head">
+    <div class="kicker" data-a="up">Find it all</div>
+    <h2 data-a="up" style="--d:100ms">Everything we built is online.</h2>
+  </div>
+  <!-- Each card is a link. A click opens it in a new tab and does not move the deck. -->
+  <div class="grid">
+    <a data-a="up" style="--d:220ms" href="https://github.com/anatissera/leukerbad-hackathon" target="_blank" rel="noopener"><i class="ic"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg></i><div class="tx"><small>GitHub</small><b>The code</b><span>anatissera/leukerbad-hackathon</span></div></a>
+    <a data-a="up" style="--d:300ms" href="https://huggingface.co/peresjav/flexnsense-sim-policies" target="_blank" rel="noopener"><i class="ic"><img src="assets/brand/hf-logo.svg" alt=""></i><div class="tx"><small>Hugging Face · models</small><b>Policies from simulation</b><span>peresjav/flexnsense-sim-policies</span></div></a>
+    <a data-a="up" style="--d:380ms" href="https://huggingface.co/datasets/JustoDario/flexnsense_skill1" target="_blank" rel="noopener"><i class="ic"><img src="assets/brand/hf-logo.svg" alt=""></i><div class="tx"><small>Hugging Face · dataset</small><b>226 real-arm episodes</b><span>JustoDario/flexnsense_skill1</span></div></a>
+    <a data-a="up" style="--d:460ms" href="https://huggingface.co/datasets/peresjav/lerobot-2026" target="_blank" rel="noopener"><i class="ic"><img src="assets/brand/hf-logo.svg" alt=""></i><div class="tx"><small>Hugging Face · dataset</small><b>Simulation episodes</b><span>peresjav/lerobot-2026</span></div></a>
+    <a data-a="up" style="--d:540ms" href="https://huggingface.co/JustoDario/flexnsense_act_skill1_rightindex2middle" target="_blank" rel="noopener"><i class="ic"><img src="assets/brand/hf-logo.svg" alt=""></i><div class="tx"><small>Hugging Face · model</small><b>ACT policy, second arm</b><span>JustoDario/flexnsense_act_skill1_rightindex2middle</span></div></a>
+    <a data-a="up" style="--d:620ms" href="https://flexnsense.vercel.app" target="_blank" rel="noopener"><i class="ic"><svg viewBox="0 0 64 64"><use href="#mark"/></svg></i><div class="tx"><small>This deck</small><b>flexnsense.vercel.app</b><span>Open it on any laptop or phone</span></div></a>
+  </div>
+  <a class="qr" data-a="up" style="--d:700ms" href="https://flexnsense-dashboard.vercel.app/" target="_blank" rel="noopener"><img src="assets/brand/qr.svg" alt="QR code of flexnsense-dashboard.vercel.app"><small>Scan to try the live dashboard</small><b>flexnsense-dashboard<wbr>.vercel.app</b></a>
 </section>
 
 <!-- Pop-ups opened by the buttons on the dashboard slide and the tiles on the simulation slide. Esc, Close or a click outside closes them. -->
@@ -1116,6 +1151,10 @@ body.editing [contenteditable]:focus{outline-style:solid}
     return () => { stepper = null; s.classList.remove('swap'); };
   }
   /* === SLIDE 1: the intro film. First press plays it, its end moves the deck on. === */
+  /* full screen, with the older Safari names as a fallback */
+  const isFull = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+  function goFull() { const el = document.documentElement, f = el.requestFullscreen || el.webkitRequestFullscreen; if (!f) return; try { const r = f.call(el); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
+  function leaveFull() { const f = document.exitFullscreen || document.webkitExitFullscreen; if (f) try { f.call(document); } catch (e) {} }
   function startIntro(s) {
     const v = s.querySelector('video');
     let started = false;
@@ -1130,7 +1169,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
       if (started) return false;                    // a second press skips the film
       started = true; s.classList.add('playing');
       // the same press takes the deck full screen, so the film fills the display; it stays full screen for the slides after
-      if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+      if (!isFull()) goFull();
       v.play().catch(() => { started = false; s.classList.remove('playing'); });
       return true;
     } };
@@ -1220,7 +1259,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
     else if (k === 'r' || k === 'R') go(cur, true);
     else if (k === 'e' || k === 'E') setEditing(true);
     else if (k === 'c' || k === 'C') { document.querySelector('.intro').classList.toggle('nosubs'); }
-    else if (k === 'f' || k === 'F') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+    else if (k === 'f' || k === 'F') { isFull() ? leaveFull() : goFull(); }
     else if (reelApi && ['1', '2', '3'].includes(k)) reelApi.open(+k - 1);
     else if (reelApi && (k === 'p' || k === 'P')) reelApi.toggle();
     else if ((k === 's' || k === 'S') && stepper && stepper.skip) stepper.skip();
