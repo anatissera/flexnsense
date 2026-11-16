@@ -92,11 +92,84 @@ python -s run_local.py --checkpoint ~/ckpt/multi_marks --task "$TASK" --bus-seri
 - `Ctrl-C` para parar. Con `--torque-off-on-exit` el brazo se suelta al salir: **cae**, sujétalo.
 - No hay capa de seguridad del proyecto (sección 4.0): no usar con la mano de un paciente.
 
-### Desde el orquestador: lanzar la policy y, al pulsar el botón, parar y volver a home
+### Para el orquestador: `run_skill.py`, una llamada por tarea
 
 La policy **no termina sola**: no sabe cuándo ha acabado la tarea. Quien la da por terminada es
-una persona que mira el brazo y pulsa un botón, tanto si ha salido bien como si es mejor
-rendirse. El orquestador hace dos llamadas, y las dos se ejecutan con el entorno de la Terminal 2
+una persona que mira el brazo, tanto si ha salido bien como si es mejor rendirse.
+`run_skill.py` envuelve todo eso en **un solo proceso que sí termina**, con un código de salida.
+Es la forma recomendada de llamar a esta skill; probado en el brazo el 16 de noviembre de 2026.
+
+```bash
+python -s run_skill.py --task "move device from right index to right middle finger"
+```
+
+Qué hace, en orden:
+
+1. Lanza `run_local.py` en segundo plano con el modelo elegido. Tarda unos segundos en cargar el
+   modelo y WiLoR; el brazo empieza a moverse cuando aparece `ENVIANDO goals` en la salida.
+2. Espera la señal de "hecho": la tecla **`d`** (sin Enter) en el terminal.
+3. Para la policy **sin soltar el brazo** (`SIGTERM`; si en 3 s no ha salido, `SIGKILL`).
+4. Lleva el brazo a home: abre el gripper, mueve los motores 1-7, cierra el gripper.
+5. Suelta el torque en home y termina.
+
+**Requisitos de la llamada:** el entorno de la Terminal 2 (`conda activate lerobot`, `NORMA_CORE`,
+`WILOR_ROOT`) y Station arrancado con el follower y las 3 cámaras. El directorio de trabajo da
+igual si se llama por su ruta completa.
+
+| Argumento | Obligatorio | Por defecto | Qué es |
+|---|---|---|---|
+| `--task "..."` | sí | | la frase de la tarea, una de las tres de la tabla de arriba |
+| `--n-action-steps N` | no | el de la tabla para esa tarea (15; 9 de anular a meñique) | acciones de cada chunk antes de re-planificar |
+| `--checkpoint RUTA` | no | `~/ckpt/multi_marks` | carpeta del modelo |
+| `--bus-serial SERIE` | no | el de `home_pose.json` (`5B3D050113`) | bus del follower |
+| `--station HOST[:PUERTO]` | no | `localhost` | dónde está Station |
+| `--max-step-ticks N` | no | 40 | velocidad de la vuelta a home, en ticks por 0.1 s |
+| `--keep-torque` | no | | no soltar el torque al llegar a home |
+
+Cualquier otra opción se pasa tal cual a `run_local.py` (por ejemplo `--dry-run`, que hace todo
+menos mover el brazo con la policy: sirve para probar la integración).
+
+| Cómo termina | Código de salida | Estado del brazo |
+|---|---|---|
+| se pulsó `d` y llegó a home | 0 | en home, **sin torque** |
+| se pulsó `d` pero no llegó a home (motor bloqueado, Station caído) | 1 | **con torque**, sujetando donde esté |
+| la policy se murió sola (Station sin frames, falta una cámara); va a home igualmente | 1 | en home sin torque, o con torque donde esté si no llegó |
+| `Ctrl-C` | 130 | **con torque** donde esté; no va a home |
+
+- **El brazo no cae en ninguna salida.** El torque solo se suelta en home, que es una pose de
+  reposo. `Ctrl-C` es la parada para cuando el camino a home no está libre; después,
+  `python -s go_home.py` cuando lo esté.
+- El camino a home es recto en articulaciones, sin planificar colisiones: la mano fuera antes
+  de pulsar `d`.
+- Con salida 0 el follower queda sin torque, así que Station puede dar frames a la policy de
+  otro brazo (con `st3215-bus: auto` solo publica si exactamente un bus tiene torque).
+- No pide confirmación antes de mover: está hecho para lanzarse desde un programa.
+
+**Desde un programa, sin teclado.** Si el orquestador tiene su propio botón, lanza `run_skill.py`
+como proceso hijo y le avisa de una de estas dos formas, que hacen lo mismo que la tecla `d`:
+una línea `d` por su stdin, o un `SIGTERM`.
+
+```python
+import subprocess
+
+skill = subprocess.Popen(
+    ["python", "-s", "robot_training/inference/run_skill.py", "--task", TASK],
+    stdin=subprocess.PIPE, text=True)
+
+wait_for_button()                 # la persona confirma: ha acabado, o nos rendimos
+
+skill.stdin.write("d\n")          # o: skill.terminate()
+skill.stdin.flush()
+at_home = skill.wait() == 0       # vuelve cuando el brazo está en home y sin torque
+```
+
+Si `skill.poll()` deja de ser `None` antes de pulsar el botón, la policy se murió sola: el
+código será 1 y el motivo está en su salida.
+
+### Alternativa: las dos llamadas por separado
+
+Lo mismo que hace `run_skill.py`, por si el orquestador prefiere tener él el proceso de la
+policy. Son dos llamadas, y las dos se ejecutan con el entorno de la Terminal 2
 (`conda activate lerobot`, `NORMA_CORE`, `WILOR_ROOT`) y **con `robot_training/inference` como
 directorio de trabajo** (los scripts usan imports planos).
 
@@ -160,8 +233,8 @@ Qué hace `stop_and_home.py`, y qué tiene que saber el orquestador:
   Tarda unos segundos, según lo lejos que esté el brazo.
 - Al acabar con 0 el follower queda sin torque, así que Station puede dar frames a la policy
   de otro brazo (con `st3215-bus: auto` solo publica si exactamente un bus tiene torque).
-- `gripper_open` en `home_pose.json` es el tick del motor 8 con el gripper abierto. Mientras sea
-  `null` el gripper **no se abre** antes de mover el brazo: mídelo en la web de Station y escríbelo.
+- `gripper_open` en `home_pose.json` es el tick del motor 8 con el gripper abierto (2800, medido
+  en la web de Station). Con `null` el gripper no se abriría antes de mover el brazo.
 - El camino a home es recto en articulaciones, sin planificar colisiones: la mano fuera antes
   de pulsar.
 - Con salida 1 el brazo sigue con torque donde se quedó: hay que mirarlo antes de volver a

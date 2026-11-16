@@ -180,3 +180,52 @@ def test_stop_ends_the_policy_and_a_zombie_counts_as_stopped(fake_policy):
     stop_and_home.stop([proc.pid], wait_s=5.0)      # not reaped yet: still a zombie of this test
     assert not stop_and_home._alive(proc.pid)
     assert proc.wait(timeout=5) == -15              # SIGTERM was enough
+
+
+# ── run_skill.py: launch the policy, wait for the done key, go home ──
+
+import run_skill  # noqa: E402
+
+TASK = "move device from right index to right middle finger"
+
+
+def launch(monkeypatch, tmp_path, policy_body, typed):
+    """run_skill.main with a stand-in policy, `typed` arriving on stdin, and go_home recorded."""
+    (tmp_path / "run_local.py").write_text(policy_body)
+    monkeypatch.setattr(run_skill, "HERE", tmp_path)
+    monkeypatch.setenv("NORMA_CORE", "unused")
+    went_home = []
+    monkeypatch.setattr(run_skill, "run_go_home", lambda args: went_home.append(args) or 0)
+    r, w = os.pipe()
+    os.write(w, typed)
+    monkeypatch.setattr(sys, "stdin", os.fdopen(r))
+    code = run_skill.main(["--task", TASK])
+    os.close(w)
+    return code, went_home
+
+
+def test_action_steps_follow_the_readme_table():
+    assert run_skill.default_action_steps(TASK) == 15
+    assert run_skill.default_action_steps("move device from right middle to right ring finger") == 15
+    assert run_skill.default_action_steps("move device from right ring to right pinky finger") == 9
+
+
+def test_policy_is_launched_unattended_and_never_told_to_drop_the_arm():
+    p = argparse.ArgumentParser()
+    p.add_argument("--task"), p.add_argument("--checkpoint"), p.add_argument("--n-action-steps", type=int)
+    p.add_argument("--station", default="localhost")
+    cmd = run_skill.policy_command(p.parse_args(["--task", TASK, "--checkpoint", "ckpt"]), ["--device", "cpu"], "BUS")
+    assert "--yes" in cmd and "--torque-off-on-exit" not in cmd
+    assert cmd[cmd.index("--n-action-steps") + 1] == "15" and cmd[-2:] == ["--device", "cpu"]
+
+
+def test_done_key_stops_the_policy_and_goes_home(monkeypatch, tmp_path):
+    marker = tmp_path / "started"
+    body = f"import time, pathlib\npathlib.Path({str(marker)!r}).write_text('x')\ntime.sleep(60)\n"
+    code, went_home = launch(monkeypatch, tmp_path, body, b"xd")
+    assert code == 0 and len(went_home) == 1
+
+
+def test_a_policy_that_dies_alone_still_goes_home_but_reports_failure(monkeypatch, tmp_path):
+    code, went_home = launch(monkeypatch, tmp_path, "raise SystemExit(1)\n", b"")
+    assert code == 1 and len(went_home) == 1
