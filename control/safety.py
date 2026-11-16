@@ -38,11 +38,26 @@ class Decision:
 class SafetyLimits:
     """Everything that can stop the arm. Units are newtons, seconds and metres (AGENTS.md)."""
 
-    f_threshold_n: float      # the clinician's cap; above this the arm yields
+    f_threshold_n: float      # the clinician's cap; the plateau the exercise holds at
     f_max_n: float            # hard ceiling; above this it releases, no grace
     max_age_s: float = 0.1    # a reading older than this is stale, not a reading
     max_dropouts: int = 2     # consecutive frames without a reading before releasing
     max_travel_m: float = 0.05  # total displacement from the session start
+    #: How far below `f_threshold_n` the arm starts yielding, so it is already moving by the
+    #: time the reading reaches the cap rather than starting from a standstill there. Zero
+    #: (the default) is the literal cap, exactly as before this field existed: no motion
+    #: until the reading is actually over it.
+    #:
+    #: Why this needs to exist at all: the loop from camera frame to commanded motion has real
+    #: latency (grab, detect, decide, write to the servo), and the admittance law's own
+    #: velocity is zero right at the cap by construction (`yield_velocity`'s overshoot is zero
+    #: there). A finger that keeps closing in that gap can push the reading well past the cap
+    #: before the arm has any speed at all, which on this bench showed up as reaching the
+    #: ceiling almost immediately after the cap in a fast rep. Starting the ramp a margin
+    #: early means there is already nonzero velocity by the time the cap is reached, at the
+    #: cost of yielding a little below the nominal cap, which is a session-level,
+    #: clinician-level tradeoff, hence a field here and not a hardcoded constant.
+    anticipation_n: float = 0.0
 
     def __post_init__(self) -> None:
         if not 0 < self.f_threshold_n < self.f_max_n:
@@ -55,6 +70,19 @@ class SafetyLimits:
             raise ValueError(f"max_dropouts cannot be negative, got {self.max_dropouts}")
         if self.max_travel_m <= 0:
             raise ValueError(f"max_travel_m must be positive, got {self.max_travel_m}")
+        if not 0 <= self.anticipation_n < self.f_threshold_n:
+            raise ValueError(
+                f"need 0 <= anticipation_n ({self.anticipation_n}) < f_threshold_n "
+                f"({self.f_threshold_n}): it is a margin below the cap, not a new cap"
+            )
+
+    @property
+    def yield_from_n(self) -> float:
+        """The force above which the arm actually starts to yield: the cap, moved earlier by
+        `anticipation_n`. What `SafetyGate.check` and `ControlLoop` both act on; `f_threshold_n`
+        stays the number everything else (the printed cap, the exercise's target plateau) is
+        described in terms of."""
+        return self.f_threshold_n - self.anticipation_n
 
 
 class SafetyGate:
@@ -118,12 +146,11 @@ class SafetyGate:
                 f"force {force_n:.2f} N over hard ceiling {self.limits.f_max_n:.2f} N", force_n
             )
 
-        if force_n > self.limits.f_threshold_n:
-            return Decision(
-                Action.YIELD,
-                f"force {force_n:.2f} N over cap {self.limits.f_threshold_n:.2f} N",
-                force_n,
-            )
+        if force_n > self.limits.yield_from_n:
+            note = (f"over cap {self.limits.f_threshold_n:.2f} N" if self.limits.anticipation_n == 0
+                   else f"over yield start {self.limits.yield_from_n:.2f} N, anticipating "
+                        f"cap {self.limits.f_threshold_n:.2f} N")
+            return Decision(Action.YIELD, f"force {force_n:.2f} N {note}", force_n)
 
         return Decision(Action.HOLD, f"force {force_n:.2f} N under cap", force_n)
 

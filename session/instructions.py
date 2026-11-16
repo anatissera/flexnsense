@@ -41,6 +41,16 @@ INSTRUCTIONS: dict[tuple[str, Phase], str] = {
     ("passive", Phase.WORK): "Stay relaxed, let it stretch",
     ("passive", Phase.HOLD): "Hold here, stay relaxed",
     ("passive", Phase.RESET): "Now flex your {finger} finger back to the start",
+    # cpm asks nothing of the patient in either beat, so every row says so. The RESET row is
+    # the one that differs most from the other modes: there is no change of driver to announce
+    # here, because the arm had it all along, and telling a patient to "now flex back" in this
+    # mode would be asking for exactly the fighting the cap cannot distinguish from stiffness.
+    ("cpm", Phase.ARMED): "Relax your hand while the arm takes up the slack",
+    ("cpm", Phase.CUEING): "Relax your {finger} finger. The arm will do the work",
+    ("cpm", Phase.RAMP): "Stay relaxed",
+    ("cpm", Phase.WORK): "Stay relaxed, let it stretch",
+    ("cpm", Phase.HOLD): "Hold here, stay relaxed",
+    ("cpm", Phase.RESET): "Stay relaxed. The arm is bringing your finger back",
 }
 
 #: Phases whose wording does not depend on the mode.

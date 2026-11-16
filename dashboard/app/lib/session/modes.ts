@@ -1,13 +1,20 @@
 /**
- * The two exercise modes, as data rather than as branches.
+ * The exercise modes, as data rather than as branches.
  *
- * Mirror of `session/modes.py`, which is the tested side. Both modes are the same two-beat
- * repetition and differ only in who is the source of motion in each beat:
+ * Mirror of `session/modes.py`, which is the tested side. Every mode is the same two-beat
+ * repetition and they differ only in who is the source of motion in each beat:
  *
  *   active    work: the patient flexes, the arm yields at constant force
  *             reset: the arm walks back to where the rep began, patient relaxed
  *   passive   work: the arm pulls the finger toward extension at constant force
  *             reset: the patient flexes back, the arm releases while they do
+ *   cpm       work: the arm pulls the finger toward extension at constant force
+ *             reset: the arm brings it back too; the patient is passive throughout
+ *
+ * `cpm` is the one where the driver does NOT flip within a repetition, which is the whole
+ * point of it: a rep that waits on nobody is the same motion every time, so it can run faster
+ * and more smoothly. For the UI the consequence is that the guide hand is a preview in both
+ * beats and never a demand.
  *
  * The `Driver`, `Law`, `Phase` and `ExerciseMode` types are the ones `sessionSnapshot.ts`
  * already declares, so a machine here and a snapshot streamed from Python share one vocabulary.
@@ -54,8 +61,24 @@ export const PASSIVE: Mode = {
   reset: { driver: "patient", law: "yield", target: "none" },
 };
 
+/**
+ * Continuous passive motion: the arm takes the finger out and brings it back, and the patient
+ * does nothing in either beat. Shares its work beat with `passive` and differs in the reset,
+ * where `passive` asks the patient to flex back and this does not. Both beats are
+ * `deviceDriven`, so the deadman governs both halves of the stroke.
+ */
+export const CPM: Mode = {
+  name: "cpm",
+  work: { driver: "device", law: "pull", target: "rom" },
+  reset: { driver: "device", law: "pull", target: "rep_start" },
+};
+
 /** Every mode a prescription may name. */
-export const MODES: Record<ExerciseMode, Mode> = { active: ACTIVE, passive: PASSIVE };
+export const MODES: Record<ExerciseMode, Mode> = {
+  active: ACTIVE,
+  passive: PASSIVE,
+  cpm: CPM,
+};
 
 export function modeByName(name: string): Mode {
   if (name in MODES) return MODES[name as ExerciseMode];

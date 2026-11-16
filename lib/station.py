@@ -44,7 +44,12 @@ _CURRENT_ADDR = 0x45       # 2 bytes, milliamps directly (Station already decode
 # RAM registers for writing, confirmed from NormaCore's own examples (state.py / st3215.py in
 # st3215-remote-teleop-py and so101-autocalibration-py), not guessed.
 RAM_TORQUE_ENABLE = 0x28   # 1 byte, 0 or 1
+RAM_ACC = 0x29             # 1 byte, acceleration; so101-autocalibration-py's CALIBRATION_ACCEL
+                           # (50) is the only value this codebase has run on real hardware
 RAM_GOAL_POSITION = 0x2A   # 2 bytes
+RAM_GOAL_SPEED = 0x2E      # 2 bytes, raw ST3215 speed units (not m/s or ticks/s); NormaCore's
+                           # own autocalibration script runs motors 1-5 at 365 and motor 6 at
+                           # 730, which is the only point on this scale confirmed on hardware
 
 _MAX_ANGLE_STEP = 4095
 _SIGN_BIT_MASK = 0x8000
@@ -196,6 +201,29 @@ async def sync_write(client, bus_serial: str, address: int, values: dict[int, by
         type=drivers.StationCommandType.STC_ST3215_COMMAND, body=cmd.encode()
     )
     await send_commands(client, [driver_cmd])
+
+
+def scaled_speeds(deltas: dict[int, float], base_speed: int, min_speed: int = 30) -> dict[int, int]:
+    """Per-motor ST3215 goal speed so every joint finishes a coordinated step at the same time.
+
+    `deltas` is how many ticks each joint has to travel for the upcoming step. Writing every
+    joint the *same* raw speed ignores that a straight pull does not ask the same number of
+    ticks of each joint: whichever one has to travel furthest at a shared speed is still
+    moving after the others have stopped, which bends the tip off the line *during* the step,
+    not just between waypoints. Scaling each joint's speed by its share of the largest delta
+    in this batch makes them land together instead. Found on the bench running
+    `scripts/jog_coordinated.py`, and the reason `ControlLoop._command_coordinated` uses this
+    too: the effect is identical whichever caller is behind the sync_write.
+
+    `min_speed` floors anything that would round near zero. Partly because a near-stationary
+    joint still needs a speed value it is safe to write, and partly because 0 is ambiguous on
+    this servo family (some firmware revisions read it as "no limit", i.e. fastest) rather than
+    "as slow as possible" - a floor avoids depending on which behaviour this bench's servos have.
+    """
+    biggest = max((abs(v) for v in deltas.values()), default=0.0)
+    if biggest < 1e-9:
+        return dict.fromkeys(deltas, min_speed)
+    return {m: max(min_speed, round(base_speed * abs(v) / biggest)) for m, v in deltas.items()}
 
 
 async def set_torque(client, bus_serial: str, motor_ids: list[int], enable: bool) -> None:

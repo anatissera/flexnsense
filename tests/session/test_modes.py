@@ -25,15 +25,61 @@ def test_the_two_modes_mirror_each_other():
     assert ACTIVE.reset.law is PASSIVE.work.law is Law.PULL
 
 
-def test_the_driver_flips_within_a_rep_in_both_modes():
+def test_the_driver_flips_within_a_rep_wherever_the_patient_contributes():
+    """It flips in `active` and `passive`, and deliberately does not in `cpm`.
+
+    This used to assert the flip for every mode, which held while there were only two and was
+    a statement about those two rather than an invariant. `cpm` has the arm driving both
+    beats, which is the entire point of it: a repetition that waits on nobody is the same
+    motion every time. The flip is a property of a mode where the patient contributes, so
+    that is what this now says.
+    """
     for mode in MODES.values():
-        assert mode.work.driver is not mode.reset.driver, mode.name
+        if Driver.PATIENT in (mode.work.driver, mode.reset.driver):
+            assert mode.work.driver is not mode.reset.driver, mode.name
+        else:
+            assert mode is MODES["cpm"], (
+                f"{mode.name} has the device driving both beats. That is allowed, but it is a "
+                "mode where a lost reading stops either half of the stroke, so it has to be "
+                "a deliberate entry here rather than a new one arriving unnoticed"
+            )
 
 
 @pytest.mark.parametrize("mode", MODES.values(), ids=lambda m: m.name)
-def test_exactly_one_phase_per_mode_is_device_driven(mode):
-    """A rep has one beat where the arm is the source of motion, never two and never none."""
-    assert sum(p.device_driven for p in (mode.work, mode.reset)) == 1
+def test_at_least_one_beat_per_mode_is_device_driven(mode):
+    """There is always a beat the arm is the source of motion in: a mode where the patient
+    did everything would not need this machine. `cpm` has two, which is why this is a lower
+    bound and not an equality (it was an equality while only `active` and `passive` existed)."""
+    assert sum(p.device_driven for p in (mode.work, mode.reset)) >= 1
+
+
+@pytest.mark.parametrize("mode", MODES.values(), ids=lambda m: m.name)
+def test_no_beat_is_driven_by_nobody(mode):
+    """The one that would be a real bug: a beat with no source of motion is a phase that can
+    never end, which at the bedside is an arm holding tension until a watchdog fires."""
+    for plan in (mode.work, mode.reset):
+        assert plan.driver in (Driver.PATIENT, Driver.DEVICE), mode.name
+
+
+def test_cpm_has_the_arm_doing_both_halves_of_the_stroke():
+    """The mode's defining property, pinned: out to the target and back, patient passive
+    throughout. Distinct from `passive`, where the patient flexes back."""
+    cpm = MODES["cpm"]
+    assert cpm.work.driver is Driver.DEVICE and cpm.reset.driver is Driver.DEVICE
+    assert cpm.work.law is Law.PULL and cpm.reset.law is Law.PULL
+    assert cpm.work.target is Target.ROM
+    assert cpm.reset.target is Target.REP_START
+    assert cpm.work.device_driven and cpm.reset.device_driven, (
+        "both beats must be device_driven, so the deadman governs both halves"
+    )
+
+
+def test_cpm_and_passive_are_not_the_same_exercise():
+    """Both leave the patient passive during the stretch, and they differ in who brings the
+    finger back. Conflating them would mean prescribing one and running the other."""
+    assert MODES["cpm"].work == PASSIVE.work
+    assert MODES["cpm"].reset != PASSIVE.reset
+    assert PASSIVE.reset.driver is Driver.PATIENT
 
 
 def test_only_a_pulling_mode_needs_a_rom_target():

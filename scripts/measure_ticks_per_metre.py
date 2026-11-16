@@ -183,10 +183,16 @@ async def run(args) -> int:
             print("  skipped")
             continue
 
-        await set_position(client, bus_serial, args.motor, target)
         crashed = False
         exceeded_ceiling = False
         try:
+            # set_position is inside the try on purpose, not before it: it timed out once in
+            # practice (ErrRequestTimeout from Station's own client, after 30s with no ack),
+            # and when that line was outside this block the exception skipped the finally
+            # below entirely, so the one thing standing between "arm possibly mid-move, nobody
+            # watching" and a safe state never ran. Whether the command actually reached the
+            # servo or not, commanding the known baseline again is always safe.
+            await set_position(client, bus_serial, args.motor, target)
             print(f"  waiting {args.settle:.1f}s to settle ...")
             state = await read_settled_state(client, bus_serial, args.motor, args.settle)
             achieved_position = state.position if state is not None else target

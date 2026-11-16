@@ -1,0 +1,36 @@
+{
+  "profile": "bench-2026-11-16",
+  "note": "First flag set that completed a whole set end to end on the real arm: 3 of 3 active-mode reps on the index finger, 0 abandoned, returned home. Several values are not preferences, they each pay for a specific observed failure; session/tuning.py says which. Change one at a time and re-run a full set. Measured against follower 5B8E114979 at the home pose in config/calibration/home-pose.json.",
+
+  "damping_n_s_per_m": 10.0,
+  "v_max_mm_s": 35.0,
+  "deadband_n": 0.05,
+  "max_step_mm": 4.0,
+  "max_travel_mm": 80.0,
+
+  "recover_gain": 1.0,
+  "recover_retrace_mm_s": 25.0,
+  "recover_floor_gf": null,
+
+  "pull_mm_s": 20.0,
+  "pull_max_step_mm": 4.0,
+  "arm_mm_s": 8.0,
+
+  "outlier_persist": 5,
+
+  "coordinated": true,
+  "level": true,
+  "coordinated_speed": 900,
+  "coordinated_accel": 30,
+
+  "safety": {
+    "ceiling_gf": 590.0,
+    "anticipation_gf": 5.0,
+    "max_dropouts": 45,
+    "max_age_s": 0.5,
+    "yield_check": false,
+    "yield_check_window_s": 0.5,
+    "blind_grace_s": 0.3,
+    "slack_blind_grace_s": 3.0
+  }
+}

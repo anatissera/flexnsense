@@ -54,6 +54,88 @@ def test_open_video_missing_file(tmp_path):
         camera.open_source(video=tmp_path / "nope.mp4")
 
 
+def _no_v4l2_env(monkeypatch):
+    for key in ("CAMERA_V4L2_EXPOSURE", "CAMERA_V4L2_AUTO_WB", "CAMERA_V4L2_FOCUS", "CAMERA_V4L2_ROI_AUTO"):
+        monkeypatch.delenv(key, raising=False)
+
+
+def test_apply_v4l2_controls_noop_off_linux(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    _no_v4l2_env(monkeypatch)
+    monkeypatch.setattr(camera.sys, "platform", "darwin")
+    monkeypatch.setenv("CAMERA_V4L2_EXPOSURE", "1100")
+    assert camera.apply_v4l2_controls(0) == []
+
+
+def test_apply_v4l2_controls_noop_for_a_named_camera(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    _no_v4l2_env(monkeypatch)
+    monkeypatch.setattr(camera.sys, "platform", "linux")
+    monkeypatch.setenv("CAMERA_V4L2_EXPOSURE", "1100")
+    assert camera.apply_v4l2_controls("iphone") == []
+
+
+def test_apply_v4l2_controls_noop_with_nothing_set(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    _no_v4l2_env(monkeypatch)
+    monkeypatch.setattr(camera.sys, "platform", "linux")
+    assert camera.apply_v4l2_controls(0) == []
+
+
+def test_apply_v4l2_controls_reports_missing_v4l2_ctl(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    _no_v4l2_env(monkeypatch)
+    monkeypatch.setattr(camera.sys, "platform", "linux")
+    monkeypatch.setenv("CAMERA_V4L2_EXPOSURE", "1100")
+    monkeypatch.setattr(camera.shutil, "which", lambda _: None)
+    report = camera.apply_v4l2_controls(0)
+    assert len(report) == 1 and "not installed" in report[0]
+
+
+def test_apply_v4l2_controls_focus_locks_and_disables_autofocus(monkeypatch, tmp_path):
+    """CAMERA_V4L2_FOCUS both turns continuous autofocus off and sets a fixed focus value - the
+    autofocus hunting is what reads as the camera "destabilising" the picture on its own."""
+    monkeypatch.chdir(tmp_path)
+    _no_v4l2_env(monkeypatch)
+    monkeypatch.setattr(camera.sys, "platform", "linux")
+    monkeypatch.setenv("CAMERA_V4L2_FOCUS", "240")
+    monkeypatch.setattr(camera.shutil, "which", lambda _: "/usr/bin/v4l2-ctl")
+    calls = []
+    monkeypatch.setattr(camera.subprocess, "run",
+                         lambda args, **kw: calls.append(args) or camera.subprocess.CompletedProcess(args, 0, "", ""))
+    report = camera.apply_v4l2_controls(0)
+    assert calls[0][:3] == ["v4l2-ctl", "-d", "/dev/video0"]
+    assert "-c" in calls[0] and "focus_automatic_continuous=0" in calls[0]
+    assert "focus_absolute=240" in calls[0]
+    assert "focus=240 (autofocus off)" in report[0]
+
+
+def test_apply_v4l2_controls_roi_auto_off(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    _no_v4l2_env(monkeypatch)
+    monkeypatch.setattr(camera.sys, "platform", "linux")
+    monkeypatch.setenv("CAMERA_V4L2_ROI_AUTO", "0")
+    monkeypatch.setattr(camera.shutil, "which", lambda _: "/usr/bin/v4l2-ctl")
+    calls = []
+    monkeypatch.setattr(camera.subprocess, "run",
+                         lambda args, **kw: calls.append(args) or camera.subprocess.CompletedProcess(args, 0, "", ""))
+    report = camera.apply_v4l2_controls(0)
+    assert "region_of_interest_auto_ctrls=0" in calls[0]
+    assert "roi_auto=off" in report[0]
+
+
+def test_apply_v4l2_controls_reports_an_unsupported_control(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    _no_v4l2_env(monkeypatch)
+    monkeypatch.setattr(camera.sys, "platform", "linux")
+    monkeypatch.setenv("CAMERA_V4L2_FOCUS", "240")
+    monkeypatch.setattr(camera.shutil, "which", lambda _: "/usr/bin/v4l2-ctl")
+    monkeypatch.setattr(camera.subprocess, "run",
+                         lambda args, **kw: camera.subprocess.CompletedProcess(args, 1, "", "control not supported"))
+    report = camera.apply_v4l2_controls(0)
+    assert "control not supported" in report[0]
+
+
 def test_list_cameras_uses_opencv_order(monkeypatch):
     # OpenCV numbers cameras sorted by unique ID, not in the order the system lists them
     import json

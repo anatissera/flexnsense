@@ -1,0 +1,48 @@
+{
+  "name": "EXAMPLE, not a prescription: active mode, flexor tendon repair of the hand, week 5",
+  "ceiling_gf": 250,
+  "blocks": [
+    {
+      "finger": "index",
+      "mode": "active",
+      "reps": 5,
+      "cap_gf": 120,
+      "hold_s": 3.0
+    },
+    {
+      "finger": "index",
+      "mode": "active",
+      "reps": 5,
+      "cap_gf": 150,
+      "hold_s": 3.0
+    },
+    {
+      "finger": "middle",
+      "mode": "active",
+      "reps": 5,
+      "cap_gf": 120,
+      "hold_s": 3.0
+    },
+    {
+      "finger": "middle",
+      "mode": "active",
+      "reps": 5,
+      "cap_gf": 150,
+      "hold_s": 3.0
+    },
+    {
+      "finger": "ring",
+      "mode": "active",
+      "reps": 4,
+      "cap_gf": 100,
+      "hold_s": 2.0
+    },
+    {
+      "finger": "little",
+      "mode": "active",
+      "reps": 4,
+      "cap_gf": 100,
+      "hold_s": 2.0
+    }
+  ]
+}
