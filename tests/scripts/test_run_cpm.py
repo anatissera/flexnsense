@@ -527,3 +527,18 @@ def test_the_real_stroke_is_a_real_motion_not_a_sub_tick_twitch(run_cpm):
         f"the leading joint only moves {biggest:.1f} ticks per step, which is the regime "
         "where rounding at the bus dominates and the motion judders"
     )
+
+
+# ------------------------------------------------ measuring what settle should actually be
+def test_there_is_a_way_to_measure_a_step_rather_than_guess_settle(run_cpm):
+    """lib/station.py records that RAM_GOAL_SPEED's unit is unknown, with one confirmed point
+    on the whole scale. So how long a 20-tick step takes at speed 700 cannot be derived from
+    anything in this repo, and a --settle picked without measuring is a guess that shows up
+    as either dead time (judder) or goals landing before the last one finished (raggedness)."""
+    assert build_args(run_cpm, ["--measure-step"]).measure_step is True
+    assert build_args(run_cpm, []).measure_step is False
+
+
+def test_measuring_is_not_the_default(run_cpm):
+    """It moves the arm, so it has to be asked for."""
+    assert build_args(run_cpm, []).measure_step is False
