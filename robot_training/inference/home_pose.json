@@ -1,0 +1,7 @@
+{
+  "bus_serial": "5B3D050113",
+  "ticks": {"1": 2129, "2": 1034, "3": 1818, "4": 3168, "5": 1888, "6": 2512, "7": 3079, "8": 1298},
+  "gripper_open": null,
+  "source": "leido de la web de Station con el brazo colocado a mano en home, 2026-11-16",
+  "note": "gripper_open: tick del motor 8 con el gripper abierto, medido en la web de Station. Con null, go_home.py no abre el gripper antes de mover el brazo."
+}
