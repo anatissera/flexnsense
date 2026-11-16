@@ -54,6 +54,17 @@ def build_args(run_cpm, argv):
     return captured["args"]
 
 
+def build_jog_args(argv):
+    """scripts/jog_coordinated.py's own parser, so a test can compare against its real
+    defaults rather than a second copy of 700/50 that could drift from the original."""
+    spec = importlib.util.spec_from_file_location(
+        "jog_coordinated", REPO / "scripts" / "jog_coordinated.py"
+    )
+    jog = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(jog)
+    return build_args(jog, argv)
+
+
 # --------------------------------------------------------------------------- the CLI contract
 def test_the_default_direction_cannot_tighten_anything(run_cpm):
     """The stroke travels away from tension first unless told otherwise. Whatever else is
@@ -62,10 +73,12 @@ def test_the_default_direction_cannot_tighten_anything(run_cpm):
     assert build_args(run_cpm, []).toward_tension is False
 
 
-def test_the_distance_default_is_small(run_cpm):
+def test_the_distance_matches_jog_coordinated_pys_own_default(run_cpm):
     """This is an open-loop path: it travels exactly this far whether or not that turns out
-    to be comfortable, so the default has to be a distance worth discovering that with."""
-    assert build_args(run_cpm, []).distance_mm <= 12.0
+    to be comfortable. Matching scripts/jog_coordinated.py's own default (15 mm) means the
+    first run here is exactly as cautious as the script this one's motion was modelled on."""
+    jog_defaults = build_jog_args([])
+    assert build_args(run_cpm, []).distance_mm == jog_defaults.distance_mm == 15.0
 
 
 def test_it_starts_from_its_own_pose_not_the_session_home(run_cpm):
@@ -82,15 +95,46 @@ def test_the_camera_can_be_turned_off_entirely_for_a_dry_path_check(run_cpm):
     assert build_args(run_cpm, ["--no-camera"]).no_camera is True
 
 
-def test_the_ceiling_and_the_speeds_come_from_the_tuning_profile(run_cpm):
+def test_the_ceiling_comes_from_the_tuning_profile(run_cpm):
     from session.tuning import load_tuning
 
     t = load_tuning()
     args = build_args(run_cpm, [])
     assert args.ceiling_gf == t.safety.ceiling_gf
-    assert args.speed == t.coordinated_speed
-    assert args.accel == t.coordinated_accel
     assert args.outlier_persist == t.outlier_persist
+
+
+def test_speed_and_accel_come_from_jog_coordinated_not_the_tuning_profile(run_cpm):
+    """The bug the first bench run found: defaulting to config/session-tuning.json's
+    coordinated_speed/accel (900/30) borrows a profile tuned for the admittance loop's
+    continuous small corrections, not for this open-loop waypoint walk. With a low accel and
+    a short settle, the servo never finished ramping up before the next 1 mm waypoint
+    overwrote its goal, so every step looked like a jerky restart. scripts/jog_coordinated.py
+    tunes exactly this kind of motion and found 700/50 smooth; this has to use that, not the
+    other script's number, on purpose."""
+    from session.tuning import load_tuning
+
+    t = load_tuning()
+    args = build_args(run_cpm, [])
+    assert (args.speed, args.accel) == (run_cpm.JOG_PROVEN_SPEED, run_cpm.JOG_PROVEN_ACCEL)
+    assert (args.speed, args.accel) != (t.coordinated_speed, t.coordinated_accel)
+
+
+def test_the_proven_profile_matches_jog_coordinated_py_exactly(run_cpm):
+    """Not a coincidence this test can check: both should read as the same two numbers,
+    because scripts/jog_coordinated.py is where 700/50 was found to be smooth, and the whole
+    point of borrowing it is to get that same proven motion here."""
+    jog_defaults = build_jog_args([])
+    assert run_cpm.JOG_PROVEN_SPEED == jog_defaults.speed
+    assert run_cpm.JOG_PROVEN_ACCEL == jog_defaults.accel
+
+
+def test_the_settle_is_also_the_proven_one_not_a_shorter_invented_one(run_cpm):
+    """A settle shorter than jog_coordinated.py's proven 0.3s was the other half of the same
+    bug: it cut each step off before the servo's own ramp (governed by --accel) had time to
+    do anything, which reads as clunky regardless of how high --speed is set."""
+    args = build_args(run_cpm, [])
+    assert args.settle == pytest.approx(0.3)
 
 
 def test_there_is_no_cap_flag_only_a_ceiling(run_cpm):
