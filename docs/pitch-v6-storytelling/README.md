@@ -54,9 +54,9 @@ A saved copy downloads as `index.html`. Move it into this folder, over the old o
 
 14. How we got here (the zig-zag timeline, one moment per press)
 15. Our goals at Track 4 (Elderly Care & Rehabilitation, Rehab coach): three numbered goals that match the track's expectations. Give a robot arm the capacity to sense force with a low-tech proprioceptive ruler, use a standard tool from the physiotherapist's lab, prove that a robot arm can be used safely with patients (new)
-16. The team
-17. What comes next: built this weekend, then one hand clinic, then orthopedic rehabilitation for other joints (new)
-18. A future approach: two looping tiles, Isaac Sim (the bench rebuilt) and Isaac Lab (the pull policy in training). A click on a tile opens the whole clip in a pop-up at 80 % of the screen; Esc or Close shuts it. Two links at the bottom right open the policies and the dataset on Hugging Face (new)
+16. What comes next: built this weekend, then one hand clinic, then orthopedic rehabilitation for other joints (new)
+17. A future approach: two looping tiles, Isaac Sim (the bench rebuilt) and Isaac Lab (the pull policy in training). A click on a tile opens the whole clip in a pop-up at 80 % of the screen; Esc or Close shuts it. Two links at the bottom right open the policies and the dataset on Hugging Face (new)
+18. The team
 19. Thank you (team photo, then the card)
 20. Find it all: six link cards (the GitHub repo, the public Hugging Face models and datasets, the deck) and a QR code of the live dashboard, https://flexnsense-dashboard.vercel.app/. A click on a card opens it in a new tab (new)
 
@@ -64,10 +64,10 @@ To check before presenting:
 
 - Slides 3 and 4 use images generated with FLUX (Black Forest Labs), in `assets/story/`. Each slide says so on screen. Jordan is not a real patient.
 - Slide 9 ("Who gains"): the "Rehab AI assistant" disc shows a picture of a small white robot supplied by the team (`assets/story/little-robot.jpg`), not the team's arm. Its source and licence are not known: check them before the deck is published anywhere. It is not labelled on screen, so say aloud that it is a concept: our real arm is on slides 8, 10 and 11.
-- Slide 17 uses a concept image supplied by the team (`assets/story/next.jpg`), labelled "Concept image": the robot in it is not something we built.
+- Slide 16 uses a concept image supplied by the team (`assets/story/next.jpg`), labelled "Concept image": the robot in it is not something we built.
 - The wording follows the team's review of 15 Nov: the patient had planned orthopedic surgery (not an injury), the opening is about a village far from the specialist (not about the spa), and the plan stays on the hand first because hand surgery is its own field, with the rest of orthopedic rehabilitation after.
 - The dashboard recording on slide 12 still shows the app's own patient card ("Flexor tendon repair"), which the app sets, not the deck.
-- Slide 17 lists what is built and what comes next. These lines are a first draft: correct them to what is true on Monday (press E to edit). The failures are told on the timeline, slide 14.
+- Slide 16 lists what is built and what comes next. These lines are a first draft: correct them to what is true on Monday (press E to edit). The failures are told on the timeline, slide 14.
 
 Every animation is CSS or JavaScript in `index.html`. The only pre-recorded motion is the video clips: three from the bench, two screen recordings of the dashboard, and the 3-second clips of the timeline.
 
@@ -99,7 +99,7 @@ Colours and fonts are CSS variables at the top of `index.html` (`:root`).
   - `assets/dash/assistant-demo.mp4` (1600×994, 56 s, with sound): a screen recording of the dashboard's voice assistant made at the bench on 15 Nov 2026, cut from 2 min 18 s to four exchanges: which muscle is most at risk, which dashboard section shows its metrics, a better view of the muscle, and how to export for the physician. The chatter before, two failed camera angles and the Spanish test at the end are cut. The patient data in it is simulated.
   - `assets/dash/report.html`: the page behind the dashboard's "Export Medical Report" button, saved as it came out on 15 Nov 2026 after one simulated index curl (patient P1, week 24, 4 repetitions). To get there without a camera the simulated run controls were switched on locally (`SHOW_SIM_RUN_CONTROLS` in `dashboard/app/components/SimApp.tsx`); that change was not kept. Every number in it is simulated, and the report says so itself.
 - **Intro film** (slide 1): `assets/video/intro.mp4` (1920×1080, 25 s, with sound, 10 MB). It opens on a pile of pictures and clips from the hackathon thrown onto the screen over deep drums, with one larger clip in the middle (people dancing in VR headsets, then the mixed-reality view they saw), switches off to black, then shows the valley, a village, the team and two generated scenes under soft music, with no voice: the presenter speaks over it. Two of its shots are generated clips (a robot walking with villagers, an old man and a robot in a village clinic) and carry no label, so say aloud that they are imagined scenes if asked. The drums and the music were generated with ElevenLabs. To change the film, replace the file: the deck moves on when whatever is there ends.
-- **Simulation videos** (slide 18, shown as a future approach), both from the team's internal simulation notes of 15 Nov 2026, re-encoded smaller, no audio:
+- **Simulation videos** (slide 17, shown as a future approach), both from the team's internal simulation notes of 15 Nov 2026, re-encoded smaller, no audio:
   - `assets/video/sim-isaac-sim.mp4` (1920×658, 12.5 s): three views of the simulated bench with the physical grip. The motion is scripted. The tile shows only the bench view.
   - `assets/video/sim-isaac-lab.mp4` (1280×830, 42 s): both arms in training on shared tables, from 1 table to 1,024 (the training used 4,096 tables). One arm limits the force, the other moves the scale. The tile shows the picture without its header. Two seconds of it (64 tables) are the last moment of the timeline, `assets/timeline/sim.mp4`.
   - Nothing here has run on the real arm, and the slide says so. `sim-real-grip.mp4` is the earlier clip and is no longer used.
