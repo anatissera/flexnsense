@@ -10,7 +10,9 @@ dataset NormaCore (Parquet) ──┤        [--hand dataset: + yemas de los ded
    inspect_normacore.py       └─► normalize_cameras.py ─► un Parquet ─────► train_smolvla.sh ──────────────────┘   (local o remoto)
 ```
 
-**Si eres un agente o llegas nuevo: lee primero la sección [A. Estado actual](#a-estado-actual-léelo-primero).**
+**Para lanzar el modelo que usamos, ve a [Modelo elegido: cómo lanzarlo](#modelo-elegido-cómo-lanzarlo).**
+
+**Si eres un agente o llegas nuevo: lee después la sección [A. Estado actual](#a-estado-actual-léelo-primero).**
 Resume qué datos y modelos existen, qué está probado y qué falta.
 
 **Por qué hace falta esto:** el ElRobot tiene 7 joints + gripper (8 servos Feetech ST3215, IDs 1..8).
@@ -37,13 +39,86 @@ Station directamente.
 
 ---
 
+## Modelo elegido: cómo lanzarlo
+
+**El modelo que usamos es el ACT multitarea, variante `marks`**: repo de Hugging Face
+`JustoDario/flexnsense_act_multitask_fingertips_marks` (privado), checkpoint del paso 90 000
+(revisión `825196ab`). Un solo modelo hace las tres tareas; la frase de `--task` elige entre qué
+dos dedos se mueve la anilla. Elegido el 16 de noviembre de 2026 tras las pruebas en el brazo.
+
+| Tarea | `--task` | `--n-action-steps` |
+|---|---|---|
+| Índice a corazón | `move device from right index to right middle finger` | 15 |
+| Corazón a anular | `move device from right middle to right ring finger` | 9 |
+| Anular a meñique | `move device from right ring to right pinky finger` | 9 |
+
+`--n-action-steps` es cuántas acciones de cada chunk se ejecutan antes de pedir otro (15 = 1.5 s,
+9 = 0.9 s). Los valores de la tabla son los que mejor han ido en las pruebas en el brazo.
+
+**Terminal 1: Station** (en la carpeta donde está el binario `station` y su `station.yaml`):
+
+```bash
+./camera_setup.sh     # solo con Station parado; repetir si se desenchufan cámaras o se reinicia el PC
+./station --web 127.0.0.1:8889 --tcp 127.0.0.1:8888 --max-queue-disk-size 3G
+```
+
+En `http://127.0.0.1:8889` tienen que verse el follower y las 3 cámaras. El leader, sin torque.
+
+**Terminal 2: la policy** (en `robot_training/inference` de este repo):
+
+```bash
+conda activate lerobot                    # el entorno con LeRobot y WiLoR
+export NORMA_CORE=/ruta/a/norma-core
+export WILOR_ROOT=/ruta/a/WiLoR           # checkout de WiLoR con sus pesos
+
+# índice a corazón
+TASK="move device from right index to right middle finger"
+python -s run_local.py --checkpoint ~/ckpt/multi_marks --task "$TASK" --bus-serial 5B3D050113 --torque-off-on-exit --n-action-steps 15
+
+# corazón a anular
+TASK="move device from right middle to right ring finger"
+python -s run_local.py --checkpoint ~/ckpt/multi_marks --task "$TASK" --bus-serial 5B3D050113 --torque-off-on-exit --n-action-steps 9
+
+# anular a meñique
+TASK="move device from right ring to right pinky finger"
+python -s run_local.py --checkpoint ~/ckpt/multi_marks --task "$TASK" --bus-serial 5B3D050113 --torque-off-on-exit --n-action-steps 9
+```
+
+- `5B3D050113` es el bus del follower. `python -s` evita los paquetes de `~/.local`.
+- El script pregunta `¿Empezar a mover el brazo? [s/N]`. Antes de contestar mira
+  `camera_preview.jpg`: tiene que ser `side | gripper | table`. Las yemas se buscan en `side`.
+- Al arrancar tiene que imprimir `dedo origen: ..., dedo destino: ...; yemas dibujadas en la
+  imagen side`. Sin `--task`, o con una frase mal escrita, usa índice a corazón sin dar error.
+- `Ctrl-C` para parar. Con `--torque-off-on-exit` el brazo se suelta al salir: **cae**, sujétalo.
+- No hay capa de seguridad del proyecto (sección 4.0): no usar con la mano de un paciente.
+
+**Una vez por máquina** (detalle en la sección [4.6](#46-act-multitarea-en-el-portátil-paso-a-paso)):
+
+```bash
+hf download JustoDario/flexnsense_act_multitask_fingertips_marks --revision 825196ab --local-dir ~/ckpt/multi_marks
+ls ~/ckpt/multi_marks/hand.json           # tiene que existir: es lo que marca la variante marks
+hf download JustoDario/flexnsense_skill1 --repo-type dataset --local-dir ~/data/flexnsense_skill1_raw
+python make_camera_refs.py --src ~/data/flexnsense_skill1_raw --ref-views side,gripper,table
+```
+
+`--revision` fija el checkpoint probado. El repo puede recibir pasos posteriores del mismo
+entrenamiento (llega a 100 000); sin `--revision` se descarga el último, que no está probado en el brazo.
+
+**Si el script muere con `sin frames nuevos en inference/normvla`:** un servo ha entrado en
+protección por sobrecarga y Station deja de publicar frames. El script imprime el estado de cada
+servo y los últimos ticks enviados antes de salir. Ver la protección de motor bloqueado en la
+sección 4.4 y la sección 6.
+
+---
+
 ## A. Estado actual (léelo primero)
 
 Actualizado el 16 de noviembre de 2026. Hay tres tareas con la misma forma, sobre una mano derecha:
 llevar una anilla **del índice al corazón**, **del corazón al anular** y **del anular al meñique**
 ("move device from right index to right middle finger", etc.). Los modelos actuales son dos ACT
-multitarea que hacen las tres: para lanzarlos en el portátil del robot, ve a la sección
-[4.6](#46-act-multitarea-en-el-portátil-paso-a-paso).
+multitarea que hacen las tres. El elegido es la variante `marks`: los comandos para lanzarlo están
+en [Modelo elegido: cómo lanzarlo](#modelo-elegido-cómo-lanzarlo), y el montaje completo del
+portátil en la sección [4.6](#46-act-multitarea-en-el-portátil-paso-a-paso).
 
 ### A.1 Datos
 
@@ -98,15 +173,15 @@ Cosas del dataset que rompen el entrenamiento si se ignoran:
 | ACT, chunk 30, **con yemas** | 83 ep, estado 13 | 30 000 | HF `JustoDario/flexnsense_act_skill1_rightindex2middle_83ep_hand` (privado) | No |
 | ACT multitarea, yemas origen/destino | 166 ep (índice a corazón y corazón a anular) | 40 000 | solo local: `act_flexnsense_multi_166ep_hand_c30` | No |
 | **ACT multitarea, 3 tareas, variante `state`** | 214 ep (226 menos 12 de validación), estado 13 | 60 000 de 100 000 | HF `JustoDario/flexnsense_act_multitask_fingertips_state` (privado) | No |
-| **ACT multitarea, 3 tareas, variante `marks`** | lo mismo, con las yemas dibujadas en la imagen `side` | 50 000 de 100 000; el resto, en marcha | HF `JustoDario/flexnsense_act_multitask_fingertips_marks` (privado) | No |
+| **ACT multitarea, 3 tareas, variante `marks`** | lo mismo, con las yemas dibujadas en la imagen `side` | 90 000 de 100 000 (revisión `825196ab`) | HF `JustoDario/flexnsense_act_multitask_fingertips_marks` (privado) | **Sí: es el modelo elegido** |
 
-Los dos ACT multitarea son los modelos a probar ahora (sección 4.6). Son la misma receta (chunk 30,
+Los dos ACT multitarea son los modelos actuales (sección 4.6); el elegido es `marks`. Son la misma receta (chunk 30,
 batch 32, mismas 214 demos) y solo cambian en cómo reciben las yemas del dedo origen y destino:
 `state` las recibe como 5 números en el estado; `marks`, además, dibujadas en la imagen `side`.
 El entrenamiento nocturno de los dos se cortó a mitad (los PCs del aula se reinician a las 06:00),
 así que lo subido son checkpoints intermedios validados. El paso exacto de cada repo está en su
-model card (`README.md` del repo); el de `marks` se sustituye por el mejor checkpoint cuando
-termine la reanudación a 100 000.
+model card (`README.md` del repo). El de `marks` se reanudó y el repo va recibiendo pasos
+posteriores: el probado en el brazo es el de 90 000 (revisión `825196ab`).
 
 Error medio en los 12 episodios de validación (`eval_holdout.py`, ticks frente a los goals del
 operador, bucle abierto; menor es mejor):
@@ -155,13 +230,13 @@ Orden recomendado siempre: `selftest.py` → `--dry-run` → `--max-ticks 30` �
 0. Hay prompts de un solo uso en la carpeta: `prompt.txt` (ACT de 63 episodios) y `prompt2.txt`
    (ACT con yemas) para el agente del portátil del robot, y `prompt3.txt`, el del entrenamiento
    nocturno del 16 de noviembre, que ya no aplica. Se borran de la rama cuando dejen de hacer falta.
-1. **Probar en el brazo los dos ACT multitarea** (sección 4.6) y compararlos entre sí y con los
-   anteriores: 10 intentos por policy y por tarea desde las mismas posiciones, contando éxitos. La
+1. **Medir el modelo elegido** (`marks`, ver "Modelo elegido"): 10 intentos por tarea desde las
+   mismas posiciones, contando éxitos. Se eligió probándolo en el brazo, sin ese recuento. La
    loss, `eval_holdout.py` y `selftest.py` no predicen el comportamiento real (son bucle abierto).
-2. **Verificar WiLoR en inferencia**: `inference/check_hand.py` en el portátil, sobre un episodio
-   antiguo (p.ej. el 10) y uno nuevo (el 70). `hand_source.py` no se ha ejecutado nunca con WiLoR.
-3. **Subir a la rama `data_collection` el código que escribe las columnas `hand_*`**, para igualar
-   su configuración de WiLoR con la de `hand_source.py` si `check_hand.py` no da OK.
+2. Hecho: WiLoR en inferencia verificado con `inference/check_hand.py` en el portátil (episodio 32
+   de corazón a anular: diferencia 0.0 con las columnas grabadas).
+3. Hecho: el código que escribe las columnas `hand_*` está en la rama `data_collection`
+   (`data_collection/hand_keypoints.py`), con PR abierto a `main`.
 4. **Regenerar `inference/camera_refs.npz` en el portátil con los 226 episodios**
    (`make_camera_refs.py`, paso 4 de la sección 4.6): un banco antiguo solo conoce el encuadre de
    las primeras sesiones. No está en git, hay que generarlo en cada máquina.
@@ -656,10 +731,11 @@ En cada frame nuevo de Station (10 Hz, el ritmo del dataset):
      real, ese tick no se envía; tras `--max-aborts 5` seguidos, se para. El gripper queda fuera:
      al apretar un objeto su goal va muy por delante de la posición (hasta ~1000 ticks en las demos).
    - Motor bloqueado (`--stall-lead-limit 55`, `--gripper-current-limit 100`): si un motor lleva
-     1.2 s parado con el goal a más de 55 ticks, el goal se retiene a 45 ticks de la posición hasta
-     que la policy pida ir hacia el otro lado o el motor vuelva a moverse. Sin esto el servo entra
-     en protección por sobrecarga (estado `0x20`) y Station deja de publicar frames. Probado en el
-     brazo con el gripper, que se para al abrir contra la anilla.
+     0.8 s parado (menos de 15 ticks de avance) con el goal a más de 55 ticks, el goal se retiene
+     a 45 ticks de la posición actual, siguiéndola si algo empuja el motor hacia atrás. Se libera
+     cuando la policy pide ir hacia el otro lado o el motor avanza más de 30 ticks. Sin esto el
+     servo entra en protección por sobrecarga (estado `0x20`) y Station deja de publicar frames.
+     Le pasaba al gripper al abrir contra la anilla, que es elástica y lo empuja de vuelta.
 6. Envía un sync write al registro GOAL_POSITION (`0x2A`) del bus del follower.
 
 Arranque y parada:
@@ -872,8 +948,8 @@ de tarea, solo `--task`.
 - WiLoR añade unos 90 ms a cada petición de chunk (RTX 3050), una cada 1.5 s. Para el temporal
   ensembling empieza por `--replan-every 5`, no por 1 (sección 3e).
 - La policy y WiLoR comparten la GPU del portátil: WiLoR ocupa unos 1.7 GB, además de la policy.
-- Ninguna de las dos variantes se ha probado en el brazo. La validación las deja empatadas
-  (tabla de A.2), así que prueba las dos con las mismas posiciones de partida.
+- La validación deja las dos variantes empatadas (tabla de A.2). En el brazo se ha elegido
+  `marks`: ver [Modelo elegido: cómo lanzarlo](#modelo-elegido-cómo-lanzarlo).
 - Vale todo lo de la sección 4.0: no hay capa de seguridad, no usar con la mano de un paciente.
 
 ---
@@ -896,14 +972,15 @@ El resumen de datos y modelos está en la sección [A](#a-estado-actual-léelo-p
 
 **Probado en el brazo real**
 - El ACT de 43 episodios, en el portátil del robot: se mueve, pero no cierra bien el gripper y tiembla.
+- El ACT multitarea `marks` (paso 90 000), en el portátil del robot (RTX 3050 Ti), con WiLoR en
+  vivo en el mismo proceso que la policy: es el modelo elegido. Sin recuento de éxitos por tarea.
+- `check_hand.py` con WiLoR en el portátil: diferencia 0.0 con las columnas `hand_*` del dataset.
 
 **No implementado**
 - La capa de seguridad del proyecto (ver 4.0). No usar con un paciente.
 
 **No probado**
-- En el brazo: SmolVLA, Diffusion, ACT de 63 episodios, ACT con yemas y los dos ACT multitarea.
-- La fuente WiLoR de inferencia (`hand_source.py`, sección 3d): escrita contra
-  `hand_tracking/wilor_source.py` pero sin ejecutar; en la máquina de entrenamiento no hay WiLoR.
+- En el brazo: SmolVLA, Diffusion y el ACT de 63 episodios.
 - `--hand mediapipe` de punta a punta dentro del entorno de LeRobot (MediaPipe se probó en un venv aparte).
 - El reconocimiento de cámaras con otra iluminación o con las cámaras movidas.
 - La sección 4.5 en un portátil con RTX 3050: los comandos son los probados aquí, las latencias no.
