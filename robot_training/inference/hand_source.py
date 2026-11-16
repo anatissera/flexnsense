@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))        # robot_training/ -> hand_features
-from hand_features import INDEX_TIP, MIDDLE_TIP, HandTips  # noqa: E402
+from hand_features import TIP_LANDMARKS, HandTips  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]                        # raíz del repo -> hand_tracking/
 
@@ -49,7 +49,7 @@ class WilorTips:
             return None
         hand = next((f for f in frames if f.handedness == "right"), frames[0])
         lm = hand.landmarks
-        return np.array([lm[INDEX_TIP][0], lm[INDEX_TIP][1], lm[MIDDLE_TIP][0], lm[MIDDLE_TIP][1]], dtype=np.float32)
+        return np.array([c for i in TIP_LANDMARKS for c in (lm[i][0], lm[i][1])], dtype=np.float32)   # 5 yemas
 
 
 def make_hand_source(kind: str, wilor_root: str | None = None):

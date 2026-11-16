@@ -36,13 +36,13 @@ def main():
         found += tips is not None
         recorded += bool(t["hand_detected"][i])
         if tips is not None and t["hand_detected"][i]:
-            err.append(np.abs(tips - np.array(t["hand_fingertips_2d"][i][2:6], np.float32)))
+            err.append(np.abs(tips - np.array(t["hand_fingertips_2d"][i], np.float32)))
     print(f"{n} frames | mano detectada: {a.hand_source} {found}/{n}, dataset {recorded}/{n}")
     if not err:
         raise SystemExit("ningún frame con mano en ambos: no se puede comparar")
     err = np.array(err)
     med = np.median(err, 0)
-    print("diferencia |fuente - dataset| (índice x, y, corazón x, y), en fracción de imagen:")
+    print("diferencia |fuente - dataset| (x, y de pulgar, índice, corazón, anular, meñique), en fracción de imagen:")
     print("  mediana", med.round(4).tolist(), "| p95", np.percentile(err, 95, axis=0).round(4).tolist())
     print("OK: es la misma fuente que el dataset" if med.max() < 0.005 else
           "AVISO: NO coincide con el dataset (otra fuente u otra configuración)")

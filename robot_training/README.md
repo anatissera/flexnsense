@@ -27,6 +27,7 @@ Station directamente.
 | `train_diffusion.sh` | Entrena Diffusion Policy (sección 3c) |
 | `hand_features.py` + `inference/hand_source.py` | Yemas de los dedos como entrada de la policy (sección 3d) |
 | `inference/check_hand.py` | Comprueba que la fuente de yemas de inferencia coincide con el dataset |
+| `eval_holdout.py` | Error de cada checkpoint en episodios apartados del entrenamiento (sección 3e) |
 | `normalize_cameras.py` + `train_smolvla.sh` | Fine-tune de SmolVLA con la receta de NormaCore (sección 3b) |
 | `upload_model.py` | Sube un checkpoint a Hugging Face con su model card |
 | `inference/run_local.py` | Inferencia con la policy en la misma máquina que el robot |
@@ -50,6 +51,7 @@ right middle finger"** (el brazo lleva una anilla del dedo índice al corazón d
 | LeRobotDataset, 43 ep | local: `JustoDario/flexnsense_skill1_lerobot` | estado de 8; el del primer ACT |
 | LeRobotDataset, 63 ep | local: `JustoDario/flexnsense_skill1_63ep_lerobot` | estado de 8 |
 | LeRobotDataset, 83 ep + yemas | local: `JustoDario/flexnsense_skill1_83ep_hand_lerobot` | estado de 13 (`--hand dataset`) |
+| Otras tareas en el mismo dataset | `data/move_device_from_right_middle_to_right_ring_finger`, `..._ring_to_right_pinky_finger` | misma estructura; en la del meñique la mano se detecta bastante menos (ver 3e) |
 | Parquet canónico, 43 ep | local: `flexnsense_skill1_canon.parquet` | entrada de SmolVLA |
 
 Los LeRobotDataset no están en el Hub: se regeneran con `convert_normacore.py` en ~3 min (sección 1.3).
@@ -84,6 +86,9 @@ Cosas del dataset que rompen el entrenamiento si se ignoran:
 | Diffusion Policy, horizon 16 | 43 ep, estado 8 | 20 000 de 30 000 (pausado) | solo local | No |
 | ACT, chunk 30 | 63 ep, estado 8 | 30 000 | HF `JustoDario/flexnsense_act_skill1_rightindex2middle_63ep` (privado) | No |
 | ACT, chunk 30, **con yemas** | 83 ep, estado 13 | 30 000 | HF `JustoDario/flexnsense_act_skill1_rightindex2middle_83ep_hand` (privado) | No |
+| ACT multitarea, yemas origen/destino | 166 ep (índice a corazón y corazón a anular) | 40 000 | solo local: `act_flexnsense_multi_166ep_hand_c30` | No |
+| ACT multitarea, 3 tareas, variante `state` | todos menos 12 de validación | 100 000 | HF `JustoDario/flexnsense_act_multitask_fingertips_state` (privado), si el entrenamiento nocturno terminó | No |
+| ACT multitarea, 3 tareas, variante `marks` | lo mismo, con las yemas dibujadas en la imagen | 100 000 | HF `JustoDario/flexnsense_act_multitask_fingertips_marks` (privado), si terminó | No |
 
 En la máquina de entrenamiento (RTX PRO 4000 Blackwell, 24 GB) todo cuelga de `/opt/data/justo`:
 `env.sh` (entorno de LeRobot), `checkpoints/<RUN>/`, `logs/<RUN>.log`, `datasets/flexnsense_skill1_raw`
@@ -461,6 +466,45 @@ python run_local.py --checkpoint <pretrained_model> --bus-serial <SERIAL_FOLLOWE
   de WiLoR de `hand_source.py` no es la del script de data collection y hay que igualarla.
 
 ---
+
+## 3e. Un solo ACT para varias tareas dedo a dedo
+
+El dataset tiene tres tareas con la misma forma: índice a corazón, corazón a anular y anular a
+meñique. ACT no entiende lenguaje, pero no hace falta: las 5 entradas de la mano son siempre
+"yema del dedo origen, yema del dedo destino, mano detectada", y los dos dedos salen de la frase
+de la tarea de cada episodio (`hand_features.task_fingers`). Para la policy las tres tareas son
+la misma, y los episodios de una ayudan a las otras.
+
+- **Conversión:** `convert_normacore.py --hand dataset` sobre la carpeta con todas las tareas.
+  No hay que indicar nada: cada episodio usa los dedos de su frase.
+- **Inferencia:** hay que pasar la frase, que es la que elige los dedos:
+  `--task "move device from right middle to right ring finger"`. Sin `--task` se usa índice a
+  corazón, y por eso el modelo de 83 episodios sigue funcionando igual que antes.
+- **Variante con marcas (`--hand-marks`):** además de los números, se dibujan dos anillos en la
+  imagen `side`, verde en el origen y magenta en el destino. Hay que entrenar con `HAND_MARKS=1`
+  para que cada checkpoint lleve `hand.json`; la inferencia lo lee y dibuja las mismas marcas
+  sin ninguna opción extra.
+- **Validación:** `EPISODES="[...]"` en `train_act.sh` entrena solo con esos episodios, y
+  `eval_holdout.py` mide cada checkpoint en los que se apartaron (error medio en ticks frente a
+  los goals del operador, por tarea). Sirve para ver si converge y elegir checkpoint.
+- **Temporal ensembling:** es solo de inferencia. `--replan-every N` pide un chunk cada N ticks
+  y promedia los chunks que se solapan (`--ensemble-coeff 0.01`, como el ACT original). Con
+  yemas, cada petición ejecuta WiLoR (unos 90 ms), así que N = 1 no cabe en 100 ms en una RTX
+  3050: empieza por `--replan-every 5`. No está probado en el brazo.
+
+```bash
+python convert_normacore.py --src ~/data/flexnsense_skill1 --repo-id <user>/<nombre>_lerobot --hand dataset [--hand-marks]
+DATASET=<user>/<nombre>_lerobot RUN=<run> EPISODES="[0,1,2,...]" HAND_MARKS=1 STEPS=100000 SAVE_FREQ=10000 bash train_act.sh
+python eval_holdout.py --src ~/data/flexnsense_skill1 --holdout holdout.json --run outputs/train/<run>
+```
+
+Avisos:
+
+- En los episodios de anular a meñique la mano se detecta en torno al 74 % de los frames (99 %
+  en las otras dos tareas); se pierde sobre todo a mitad del episodio. En esos frames la policy
+  recibe la última posición conocida con `hand.detected = 0`, y las marcas se quedan donde estaban.
+- No edites `train_act.sh` mientras hay un entrenamiento lanzado con él: bash lee el script
+  según lo ejecuta y el final (la subida) falla. Los checkpoints no se pierden.
 
 ## 4. Inferencia en el brazo
 

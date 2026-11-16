@@ -25,11 +25,11 @@ from station_io import (CameraMapper, FrameShapeError, GoalSafety, VIEWS, fetch_
                         decode_rgb, new_station_client, safe_enable_torque, send_commands, set_torque)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))      # robot_training/ -> hand_features
-from hand_features import HAND_DIM, HAND_VIEW, HandFill  # noqa: E402
+from hand_features import FINGERS, HAND_DIM, HAND_VIEW, HandFill, mark_jpeg, pick_tips, task_fingers  # noqa: E402
 
 HAND_SOURCE_OVERRIDE = None   # selftest.py pone aquí una fuente que devuelve las columnas grabadas
 
-TASK = ""   # ACT ignora la frase; las policies con lenguaje (SmolVLA) la necesitan: --task
+TASK = ""   # SmolVLA la necesita; con yemas de los dedos decide dedo origen y destino (vacía: índice -> corazón)
 FOLLOWER_SERIAL = "5B3D050113"
 
 
@@ -55,6 +55,12 @@ def add_robot_args(p: argparse.ArgumentParser) -> None:
     h.add_argument("--hand-source", choices=["wilor", "mediapipe"], default="wilor",
                    help="la misma fuente que en el dataset: wilor (--hand dataset) o mediapipe (--hand mediapipe)")
     h.add_argument("--wilor-root", default=None, help="checkout de WiLoR (por defecto $WILOR_ROOT)")
+    e = p.add_argument_group("temporal ensembling (solo inferencia, no cambia el entrenamiento)")
+    e.add_argument("--replan-every", type=int, default=0,
+                   help="pedir un chunk nuevo cada N ticks y promediar los chunks que se solapan (ACT temporal "
+                        "ensembling). 0 = desactivado: se ejecutan n_action_steps y se vuelve a pedir")
+    e.add_argument("--ensemble-coeff", type=float, default=0.01,
+                   help="peso exp(-coeff * i) del chunk i (0 = el más antiguo); 0.01 es el valor del ACT original")
     s = p.add_argument_group("seguridad (ticks)")
     s.add_argument("--max-step-ticks", type=int, default=150, help="máx. cambio del goal por tick (brazo)")
     s.add_argument("--gripper-max-step-ticks", type=int, default=400, help="máx. cambio del goal por tick (gripper)")
@@ -111,16 +117,24 @@ def _hand_adder(args):
         source = make_hand_source(args.hand_source, args.wilor_root)
         print(f"yemas de los dedos: {args.hand_source} sobre la cámara '{HAND_VIEW}'")
     fill, last = HandFill(), [None]
+    name = {v: k for k, v in reversed(FINGERS.items())}
+    src, dst = (name[i] for i in task_fingers(args.task))
+    marks = getattr(args, "hand_marks", False)
+    print(f"dedo origen: {src}, dedo destino: {dst} (de --task {args.task!r})"
+          f"{'; yemas dibujadas en la imagen ' + HAND_VIEW if marks else ''}")
 
     def add(state, jpeg_by_view):
         t0 = time.perf_counter()
-        tips = source(decode_rgb(jpeg_by_view[HAND_VIEW]))
+        tips = pick_tips(source(decode_rgb(jpeg_by_view[HAND_VIEW])), args.task)
         last[0] = (tips, (time.perf_counter() - t0) * 1000)
-        return np.concatenate([np.asarray(state, np.float32), fill.step(tips)])
+        vec = fill.step(tips)
+        if marks and fill.seen:       # igual que convert_normacore.py --hand-marks
+            jpeg_by_view[HAND_VIEW] = mark_jpeg(jpeg_by_view[HAND_VIEW], vec)
+        return np.concatenate([np.asarray(state, np.float32), vec])
 
     def info():
         tips, ms = last[0]
-        where = "SIN MANO" if tips is None else f"índice ({tips[0]:.2f}, {tips[1]:.2f}) corazón ({tips[2]:.2f}, {tips[3]:.2f})"
+        where = "SIN MANO" if tips is None else f"{src} ({tips[0]:.2f}, {tips[1]:.2f}) {dst} ({tips[2]:.2f}, {tips[3]:.2f})"
         return f" [mano {ms:.0f} ms: {where}]"
 
     add.info = info
@@ -162,6 +176,7 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
         queue: deque = deque()
         tick, aborts, last_id = 0, 0, obs.frame_id
         prev = None      # (state, jpeg_by_view) del tick anterior
+        plans: list = []  # temporal ensembling: (tick en que se pidió, chunk entero)
         add_hand = _hand_adder(args)
         mode = "DRY-RUN (no se envía nada)" if args.dry_run else "ENVIANDO goals"
         print(f"\n{mode}. Ctrl-C para parar.\n")
@@ -171,7 +186,7 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
             tick += 1
             t0 = time.perf_counter()
             info = ""
-            if not queue:
+            if (tick - 1) % args.replan_every == 0 if args.replan_every else not queue:
                 jpegs = cams.by_view(obs.jpegs)
                 if add_hand:        # 8 joints -> 13: las yemas del frame anterior primero, por el relleno causal
                     prev = (add_hand(*prev), prev[1]) if prev is not None else None
@@ -180,9 +195,19 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
                     state, hand_info = obs.state, ""
                 chunk, n_steps, info = await get_chunk(state, jpegs, args.task, prev)
                 info += hand_info
-                queue.extend(np.asarray(chunk)[:n_steps])
+                if args.replan_every:
+                    plans.append((tick, np.asarray(chunk)))
+                else:
+                    queue.extend(np.asarray(chunk)[:n_steps])
             prev = (obs.state, cams.by_view(obs.jpegs))
-            target = goal_norm_to_ticks(queue.popleft(), obs.ranges)
+            if args.replan_every:      # media ponderada de lo que cada chunk vivo predijo para este tick
+                plans = [(born, c) for born, c in plans if tick - born < len(c)]
+                acts = np.stack([c[tick - born] for born, c in plans])
+                w = np.exp(-args.ensemble_coeff * np.arange(len(acts)))
+                action = (acts * w[:, None]).sum(0) / w.sum()
+            else:
+                action = queue.popleft()
+            target = goal_norm_to_ticks(action, obs.ranges)
             goal, msg = safety.apply(target, obs.positions)
             ms = (time.perf_counter() - t0) * 1000
             if goal is None:

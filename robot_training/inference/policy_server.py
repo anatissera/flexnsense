@@ -53,7 +53,7 @@ def main() -> None:
             try:
                 await send_msg(writer, {"type": "hello", "chunk_size": runner.chunk_size,
                                         "n_action_steps": runner.n_action_steps, "views": list(VIEWS),
-                                        "n_obs_steps": runner.n_obs_steps, "state_dim": runner.state_dim,
+                                        "n_obs_steps": runner.n_obs_steps, "state_dim": runner.state_dim, "hand_marks": runner.hand_marks,
                                         "policy": runner.cfg.type, "device": runner.device,
                                         "auth_required": bool(args.token)})
                 if args.token:

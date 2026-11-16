@@ -91,11 +91,11 @@ def main():
         recorded = {}
         for i in range(fake.n):
             rgb = station_io.decode_rgb(fake.t["images"][i][fake.t["hand_camera"][i]]["jpeg"])
-            recorded[rgb.tobytes()] = (np.array(fake.t["hand_fingertips_2d"][i][2:6], np.float32)
+            recorded[rgb.tobytes()] = (np.array(fake.t["hand_fingertips_2d"][i], np.float32)
                                        if fake.t["hand_detected"][i] else None)
         control.HAND_SOURCE_OVERRIDE = lambda rgb: recorded[rgb.tobytes()]
 
-    sys.argv = [sys.argv[0], "--yes", "--max-ticks", str(a.ticks)]
+    sys.argv = [sys.argv[0], "--yes", "--max-ticks", str(a.ticks), "--task", fake.t["task"][0]]
     sys.argv += (["--hand-source", a.hand_source] if a.hand_source else []) + (["--wilor-root", a.wilor_root] if a.wilor_root else [])
     if a.mode == "local":
         import run_local
