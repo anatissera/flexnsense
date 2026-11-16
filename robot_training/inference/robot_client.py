@@ -41,6 +41,7 @@ def main() -> None:
               f"ejecuta {hello['n_action_steps']} | vistas {hello['views']}")
         if hello.get("auth_required"):
             await send_msg(writer, {"type": "auth", "token": args.token or ""})
+        args.hand_marks = bool(hello.get("hand_marks", False))
         args.hand_dim = int(hello.get("state_dim", 8)) - 8     # 5 si la policy usa las yemas de los dedos
         seq = 0
 

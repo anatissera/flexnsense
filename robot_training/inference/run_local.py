@@ -29,6 +29,7 @@ def main() -> None:
     runner = load_runner(args.checkpoint, device=args.device, n_action_steps=args.n_action_steps)
     print(f"policy {runner.cfg.type} en {runner.device} | chunk {runner.chunk_size} | ejecuta {runner.n_action_steps}")
 
+    args.hand_marks = runner.hand_marks
     args.hand_dim = runner.state_dim - 8      # 5 si la policy se entrenó con las yemas de los dedos
 
     async def get_chunk(state, jpeg_by_view, task, prev=None):

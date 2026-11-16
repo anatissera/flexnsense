@@ -21,10 +21,14 @@ import numpy as np
 import torch
 
 import json
+import sys
 import os
 from types import SimpleNamespace
 
 from station_io import VIEWS, decode_rgb
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))      # robot_training/ -> hand_features
+from hand_features import checkpoint_uses_marks  # noqa: E402
 
 
 def _pick_device(device: str | None) -> str:
@@ -38,6 +42,7 @@ def _pick_device(device: str | None) -> str:
 
 class _JpegMixin:
     n_obs_steps = 1   # >1: la policy necesita también la observación del tick anterior (`prev`)
+    hand_marks = False
     state_dim = 8     # 13 = 8 joints + 5 de las yemas de los dedos (hand_features.py); las añade control.py
 
     def predict_from_jpegs(self, state: np.ndarray, jpeg_by_view: dict[str, bytes], task: str = "",
@@ -84,6 +89,7 @@ class PolicyRunner(_JpegMixin):
         self.chunk_size = int(getattr(cfg, "chunk_size", self.n_action_steps))
         self.n_obs_steps = int(getattr(cfg, "n_obs_steps", 1))
         self.state_dim = int(cfg.input_features["observation.state"].shape[0])
+        self.hand_marks = checkpoint_uses_marks(path)     # entrenada con las yemas dibujadas en la imagen side
 
     def _batch(self, state: np.ndarray, rgb_by_view: dict[str, np.ndarray], task: str) -> dict:
         obs = {"observation.state": torch.from_numpy(np.asarray(state, dtype=np.float32))}

@@ -11,6 +11,8 @@
 #   RUN            nombre del run = carpeta de checkpoints y del log                    [obligatoria]
 #   HF_REPO        repo de modelo en HF donde subir el último checkpoint (vacío = no subir)
 #   TASK           frase de la tarea, solo para la model card
+#   EPISODES       lista de episodios a usar, p.ej. "[0,1,2,5]" (por defecto todos); el resto sirve de validación
+#   HAND_MARKS=1   el dataset se convirtió con --hand-marks: deja hand.json en cada checkpoint
 #   STEPS=30000  BATCH=32  CHUNK=30  N_ACTION_STEPS=15  SAVE_FREQ=5000  NUM_WORKERS=8
 #   OUT_ROOT=./outputs/train   LOG_DIR=./outputs/logs
 #   ENV_SH         script a "source" antes de empezar (activar venv, HF_HOME, ...)
@@ -35,6 +37,7 @@ else
   # En LeRobot 0.7.x el logging es Trackio (no wandb); aquí va desactivado, el log queda en $LOG.
   lerobot-train \
     --dataset.repo_id="$DATASET" \
+    ${EPISODES:+--dataset.episodes="$EPISODES"} \
     --dataset.image_transforms.enable=true \
     --policy.type=act \
     --policy.chunk_size="${CHUNK:-30}" \
@@ -52,6 +55,9 @@ else
     2>&1 | grep --line-buffered -v '^Svt' | tee "$LOG"
 fi
 
+if [[ "${HAND_MARKS:-0}" == "1" ]]; then
+  for d in "$OUT"/checkpoints/*/pretrained_model; do [[ -L "$(dirname "$d")" ]] || echo '{"marks": true}' > "$d/hand.json"; done
+fi
 echo; echo "checkpoints: $OUT/checkpoints/<step>/pretrained_model   (último: $OUT/checkpoints/last/pretrained_model)"
 # ── Subida a Hugging Face (solo si el entrenamiento terminó sin error: set -e + pipefail) ──
 if [[ -n "${HF_REPO:-}" ]]; then

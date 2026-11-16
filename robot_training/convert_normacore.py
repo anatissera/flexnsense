@@ -15,8 +15,9 @@ Qué hace (decisiones verificadas con el dataset flexnsense_skill1, 43 episodios
     episodio de referencia (--ref-episode, --ref-views) y cada slot de cada episodio se asigna
     a una vista por similitud de imagen. Si un episodio es ambiguo, el script aborta.
 
-  * --hand: añade a observation.state las yemas del índice y del corazón en la cámara `side`
-    (5 valores, ver hand_features.py). `dataset` usa las columnas hand_* que graba el script de
+  * --hand: añade a observation.state las yemas del dedo origen y del dedo destino en la cámara
+    `side` (5 valores, ver hand_features.py). Los dedos salen de la frase de cada episodio, así
+    que se pueden mezclar tareas (índice -> corazón, corazón -> anular) en un mismo dataset. `dataset` usa las columnas hand_* que graba el script de
     data collection (WiLoR); `mediapipe` las recalcula aquí con MediaPipe. En inferencia hay que
     usar la misma fuente (--hand-source).
 
@@ -35,7 +36,7 @@ import numpy as np
 import pyarrow.parquet as pq
 from PIL import Image
 
-from hand_features import HAND_NAMES, HAND_VIEW, HandFill
+from hand_features import HAND_NAMES, HAND_VIEW, HandFill, draw_marks, pick_tips, task_fingers
 
 N_JOINTS = 8
 DEFAULT_VIEWS = ("side", "gripper", "table")
@@ -89,6 +90,9 @@ def main():
     ap.add_argument("--hand", choices=["none", "dataset", "mediapipe"], default="none",
                     help="añadir las yemas de los dedos a observation.state: columnas hand_* del dataset "
                          "(WiLoR) o recalculadas con MediaPipe")
+    ap.add_argument("--hand-marks", action="store_true",
+                    help="con --hand: dibujar además las yemas origen y destino sobre la imagen side "
+                         "(entrenar con HAND_MARKS=1 para que el checkpoint lo recuerde)")
     ap.add_argument("--robot-type", default="elrobot")
     ap.add_argument("--overwrite", action="store_true")
     args = ap.parse_args()
@@ -106,6 +110,8 @@ def main():
         w, h = im.size
 
     use_hand = args.hand != "none"
+    if args.hand_marks and not use_hand:
+        raise SystemExit("--hand-marks necesita --hand dataset o --hand mediapipe")
     if use_hand and HAND_VIEW not in views:
         raise SystemExit(f"--hand necesita la vista '{HAND_VIEW}' en --ref-views")
     state_names = MOTOR_NAMES + (HAND_NAMES if use_hand else [])
@@ -167,26 +173,34 @@ def main():
                     Image.open(io.BytesIO(t["images"][i][s]["jpeg"])).convert("RGB"))
             if use_hand:
                 if args.hand == "dataset":       # hand_fingertips_2d = pulgar, índice, corazón, anular, meñique (x, y)
-                    tips = np.array(t["hand_fingertips_2d"][i][2:6], np.float32) if t["hand_detected"][i] else None
+                    tips = t["hand_fingertips_2d"][i] if t["hand_detected"][i] else None
                 else:
                     tips = hand_tips(frame[f"observation.images.{HAND_VIEW}"])
+                tips = pick_tips(tips, t["task"][i])
                 hand_frames += 1
                 hand_found += tips is not None
-                state = np.concatenate([state, fill.step(tips)])
+                vec = fill.step(tips)
+                state = np.concatenate([state, vec])
+                if args.hand_marks and fill.seen:
+                    key = f"observation.images.{HAND_VIEW}"
+                    frame[key] = draw_marks(frame[key], vec)
             frame["observation.state"] = state
             ds.add_frame(frame)
         ds.save_episode()
         total += n
         total_gaps += gaps
         tasks |= set(t["task"])
-        print(f"{Path(f).stem}: {n} frames, images[] = {[views[v] for v in perm]} (margen {margin:.2f}), huecos {gaps}")
+        fingers = f", dedos {task_fingers(t['task'][0])}" if use_hand else ""
+        print(f"{Path(f).parent.name[-28:]}/{Path(f).stem}: {n} frames, images[] = {[views[v] for v in perm]} "
+              f"(margen {margin:.2f}), huecos {gaps}{fingers}")
 
     ds.finalize()
     print(f"\nOK -> {root}\n  {len(files)} episodios, {total} frames, {args.fps} fps, {total_gaps} huecos colapsados")
     print(f"  tasks: {sorted(tasks)}\n  cámaras: {[f'observation.images.{v}' for v in views]}")
     if use_hand:
         print(f"  mano ({args.hand}): detectada en {hand_found}/{hand_frames} frames ({100 * hand_found / hand_frames:.1f} %); "
-              f"observation.state = {len(state_names)} valores. En inferencia: --hand-source "
+              f"observation.state = {len(state_names)} valores"
+              f"{', marcas en la imagen ' + HAND_VIEW if args.hand_marks else ''}. En inferencia: --hand-source "
               f"{'wilor' if args.hand == 'dataset' else 'mediapipe'}")
 
 
