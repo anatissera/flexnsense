@@ -90,24 +90,31 @@ class MessageKind(Enum):
 
 @dataclass(frozen=True)
 class Lease:
-    """Permission for the far arm to move, valid until `expires_at`.
+    """Permission for the far arm to move, good for `period_s` after it is **received**.
 
-    `expires_at` is on the **brain's** clock and is compared against the actuator's own, which
-    is a deliberate simplification rather than an oversight: the two clocks are not
-    synchronised, so what the actuator actually enforces is "it has been more than
-    `period_s` since I last heard a renewal". `period_s` travels with the lease so the actuator
-    can do that without being configured to match the brain, and the brain can shorten the
-    period for a stroke it wants held on a tighter rein without redeploying anything.
+    The one thing this type must not do is compare the two machines' clocks. `issued_at` is
+    the brain's `time.monotonic()`, and two monotonic clocks have no common origin: one counts
+    from its own boot and the other from its. Comparing them does not ask "has the lease
+    expired", it asks "which machine booted first", and the answer is constant for a whole
+    session. That was a real bug here, found by running the protocol against the actuator: in
+    one direction every lease looked fresh for ever, which is precisely the flag-not-a-lease
+    failure this design exists to prevent, and in the other the arm refused to move at all.
 
-    Monotonic seconds, both ends, never wall clock: a session that straddles a clock
+    So expiry is measured by the receiver, against its own clock, from when the message
+    arrived: `expires_once_received_at(received_at)`. `issued_at` is only an identifier and a
+    log line, never a deadline, and `period_s` travels with the lease so the actuator enforces
+    the brain's chosen period without being configured to match it.
+
+    Monotonic seconds at each end, never wall clock: a session that straddles a clock
     adjustment must not become a session where a lease never expires.
     """
 
     #: Identifies the move this lease authorises, so a renewal cannot revive a finished one.
     move_id: int
-    #: The brain's monotonic clock when this lease was issued.
+    #: The brain's monotonic clock when this lease was issued. **Not comparable with the
+    #: actuator's clock**, and never used as a deadline; see the class docstring.
     issued_at: float
-    #: How long a lease is good for without renewal.
+    #: How long a lease is good for, counted from when the receiver got it.
     period_s: float
 
     def __post_init__(self) -> None:
@@ -122,15 +129,30 @@ class Lease:
 
     @property
     def expires_at(self) -> float:
+        """When this lease expires **on the clock that issued it**.
+
+        Only meaningful to the brain, for its own bookkeeping. The actuator must not use it:
+        see `expires_once_received_at`.
+        """
         return self.issued_at + self.period_s
 
-    def fresh_at(self, now: float) -> bool:
+    def expires_once_received_at(self, received_at: float) -> float:
+        """When this lease expires, on the clock of whoever received it at `received_at`."""
+        return received_at + self.period_s
+
+    def fresh_at(self, now: float, received_at: float | None = None) -> bool:
         """Whether this lease still authorises motion at `now`.
+
+        `received_at` is `now` on the **receiver's** clock when this lease arrived, and is what
+        a receiver on another machine must pass: without it this compares the issuer's clock
+        with the caller's, which across two machines is not a comparison at all (see the class
+        docstring). It defaults to `issued_at` so the issuer can ask about its own lease.
 
         Expiry is exclusive: a lease is dead *at* its deadline, not after it. One cycle of
         doubt resolves toward stopping.
         """
-        return now < self.expires_at
+        start = self.issued_at if received_at is None else received_at
+        return now < start + self.period_s
 
     def renewed(self, now: float) -> "Lease":
         """A new lease for the same move, issued now.
