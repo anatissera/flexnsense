@@ -5,12 +5,18 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { gramsForceToNewtons, newtonsToGramsForce } from "../lib/units";
-import type { ExerciseMode } from "../lib/session/modes";
+import { modeByName, needsRomTarget, type ExerciseMode } from "../lib/session/modes";
 import type { HandFrame } from "../lib/handFrame";
 import { blockFromGrams, type Block } from "../lib/session/protocol";
-import type { RepStep } from "../lib/session/reps";
+import type { SessionFinger } from "../lib/session/fingers";
+import { DEMO } from "../lib/demo";
+import { liveView, type LiveStep } from "../lib/liveView";
+import { useSessionSnapshot } from "../lib/useSessionSnapshot";
 import { DEMO_PASSIVE_TARGET_M, RepSimulation } from "../lib/session/simulation";
 import { Bar } from "./charts";
+import DemoBadge from "./DemoBadge";
+import { onEmergencyStop } from "../lib/estop";
+import { Hint } from "./Hints";
 
 // Index joint targets (rad) when flexed: MCP, PIP, DIP.
 const FLEX = [0.5, 0.55, 0.35];
@@ -21,16 +27,32 @@ const GREY = new THREE.Color(0xc9ccd2);
 const BLUE = new THREE.Color(0x3b82f6);
 const AMBER = new THREE.Color(0xf59e0b);
 const MODEL_URL = "/models/hand/right.glb"; // WebXR generic hand, MIT (immersive-web/webxr-input-profiles)
+/**
+ * The bone prefix for each prescribed finger. The model follows the WebXR hand-input naming, in
+ * which the little finger is "pinky", the one vocabulary difference `session/fingers.py` exists
+ * to reconcile. The thumb has one phalanx fewer and a different axis, so it is not posed here;
+ * neither prescription in the demo asks for it, and a wrong thumb is worse than no thumb.
+ */
+const BONE_PREFIX: Partial<Record<SessionFinger, string>> = {
+  index: "index-finger",
+  middle: "middle-finger",
+  ring: "ring-finger",
+  little: "pinky-finger",
+};
+export const POSEABLE = Object.keys(BONE_PREFIX) as SessionFinger[];
 // In this glb the finger bones are siblings under one Armature (not a parent/child chain),
 // so the chain is posed by hand. Fingers point -Y, the palm faces -X, so flexion is a
 // rotation about world -Z
 // (the model is turned palm-up in the scene, which keeps that axis).
-const INDEX_BONES = [
-  "index-finger-phalanx-proximal",
-  "index-finger-phalanx-intermediate",
-  "index-finger-phalanx-distal",
-  "index-finger-tip",
-];
+const boneNames = (finger: SessionFinger) => {
+  const prefix = BONE_PREFIX[finger] ?? BONE_PREFIX.index!;
+  return [
+    `${prefix}-phalanx-proximal`,
+    `${prefix}-phalanx-intermediate`,
+    `${prefix}-phalanx-distal`,
+    `${prefix}-tip`,
+  ];
+};
 const FLEX_AXIS = new THREE.Vector3(0, 0, -1);
 
 /** 0 = no tint, 1 = demand (the patient moves), 2 = preview (the arm moves). */
@@ -44,11 +66,15 @@ const RUNNING = new Set(["armed", "cueing", "ramp", "work", "hold", "reset"]);
  *
  * Active: flex gently while told to flex, hold, then relax while the arm brings the finger back.
  * Passive: stay relaxed while the arm moves the finger, then flex gently when told to flex back.
+ * Cpm: the same poses as passive, because the finger travels the same path. What differs is who
+ * is moving it on the way back, and that is already in the tint: `step.driver` is `device` in
+ * both beats, so the hand is amber throughout and never asks the patient for anything.
  */
 const GENTLE_FLEX = 0.55;
 const GUIDE_FLEX: Record<ExerciseMode, Partial<Record<string, number | null>>> = {
   active: { cueing: GENTLE_FLEX, ramp: GENTLE_FLEX, work: GENTLE_FLEX, hold: null },
   passive: { hold: null, reset: GENTLE_FLEX },
+  cpm: { hold: null, reset: GENTLE_FLEX },
 };
 /** Time constant of the hand's approach to its target. Long, so the movement is slow and gentle. */
 const FLEX_TAU_S = 0.7;
@@ -68,7 +94,17 @@ function speak(text: string) {
   }
 }
 
-type View = { step: RepStep; forceN: number | null; travelMm: number; capN: number; reps: number };
+/**
+ * What the panel renders, from either source: the browser's own simulation (a `RepStep`) or a
+ * real session (a `LiveStep`, converted in `lib/liveView.ts`). The fields are the ones the
+ * panel reads; `law` and `target` are on a RepStep and deliberately not here, because nothing
+ * below renders them and a snapshot does not carry them.
+ */
+type View = { step: LiveStep; forceN: number | null; travelMm: number; capN: number; reps: number };
+
+/** The presets, plus whatever is selected now, so a prescribed value is never silently dropped. */
+const withValue = (presets: number[], value: number) =>
+  [...new Set([...presets, value])].sort((a, b) => a - b);
 
 /**
  * The rep machine, shown as a hand, a cue and a voice.
@@ -83,13 +119,25 @@ type View = { step: RepStep; forceN: number | null; travelMm: number; capN: numb
  * Nothing here is measured and nothing here can move an arm. The machine that decides when a real
  * arm pulls a real finger is the Python one, behind the safety gate.
  */
-export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
+export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onForce, prescribed }: {
   /** The tracker's HandFrame stream. A frame arrives only when a hand is found. */
   subscribe: (fn: (frame: HandFrame) => void) => () => void;
   /** Whether the webcam hand tracker is running. */
   trackerOn: boolean;
   /** Ask for the webcam hand tracker to be switched on or off. */
   onTrackerChange: (on: boolean) => void;
+  /**
+   * The simulated force, every frame of a running set, and null when the set ends or a dropout is
+   * being simulated. It is what the demo build shows in place of a gauge reading, so the number
+   * the patient panel shows and the number this machine is deciding on are the same number.
+   */
+  onForce?: (forceN: number | null) => void;
+  /**
+   * A block loaded from the clinician's plan, with the label to show for where it came from.
+   * Setting it fills the controls below: the panel stays the one place a set is configured, so
+   * there is never a prescription on screen that differs from what Start would actually run.
+   */
+  prescribed?: { block: Block; label: string } | null;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const flexRef = useRef(0);
@@ -106,12 +154,50 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
   const [mode, setMode] = useState<ExerciseMode>("active");
   const [reps, setReps] = useState(3);
   const [capGf, setCapGf] = useState(200);
+  // Which finger the set is for. It decides what the patient is told and which finger the guide
+  // hand poses, so a prescription for the middle finger does not animate the index.
+  const [finger, setFinger] = useState<SessionFinger>("index");
+  const [romTargetM, setRomTargetM] = useState<number | null>(null);
+  // Short by default so a visitor sees a whole repetition quickly. A prescription overrides it:
+  // a 3 s hold is where a repaired tendon actually glides, and shortening it is a different exercise.
+  const [holdS, setHoldS] = useState(1.0);
+  /** The block this came from, when a clinician's plan put it here rather than the selects. */
+  const [fromPlan, setFromPlan] = useState<string | null>(null);
   const [dropout, setDropout] = useState(false);
   const dropoutRef = useRef(false);
   const [view, setView] = useState<View | null>(null);
+  // A real session on this machine, if one is running. Never probed in the demonstration
+  // build: there is no bench to reach and the page already says so, so asking loopback would
+  // only produce a connection error to explain.
+  const session = useSessionSnapshot(!DEMO);
+  const live = liveView(session.snapshot);
+  // The live session wins whenever there is one. The simulation is what this panel shows when
+  // nothing is attached, and the two must never be mixed: a screen that blended a measured
+  // force with a simulated rep count would be unanswerable about which part was real.
+  const shown = live ?? view;
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { voiceRef.current = voice; }, [voice]);
   useEffect(() => { dropoutRef.current = dropout; }, [dropout]);
+  const onForceRef = useRef(onForce);
+  useEffect(() => { onForceRef.current = onForce; });
+
+  // A block arriving from the plan fills the controls. It does not start anything: a prescription
+  // is still something a person presses Start on, with the patient's hand in front of them.
+  // Adjusted during render rather than in an effect, so the panel never paints one set of numbers
+  // and then replaces them: what is on screen is always what Start would run.
+  const [lastLoaded, setLastLoaded] = useState(prescribed);
+  if (prescribed && prescribed !== lastLoaded) {
+    const b = prescribed.block;
+    setLastLoaded(prescribed);
+    setFinger(b.finger);
+    setMode(b.mode);
+    setReps(b.reps);
+    setCapGf(Math.round(newtonsToGramsForce(b.capN)));
+    setHoldS(b.holdS);
+    setRomTargetM(b.romTargetM);
+    setFromPlan(prescribed.label);
+    setError(null);
+  }
   const said = useRef("");
   const say = useCallback((key: string, text: string) => {
     if (said.current === key) return;
@@ -170,21 +256,22 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
 
       // Per-vertex weight on the index finger bones, so only that finger is tinted.
       const names = mesh.skeleton.bones.map((b) => b.name);
-      const isIdx = names.map((n) => n.startsWith("index-finger"));
+      const prefix = BONE_PREFIX[finger] ?? BONE_PREFIX.index!;
+      const isSel = names.map((n) => n.startsWith(prefix));
       const geo = mesh.geometry;
       const si = geo.getAttribute("skinIndex");
       const sw = geo.getAttribute("skinWeight");
       weights = new Float32Array(si.count);
       for (let v = 0; v < si.count; v++) {
         let t = 0;
-        for (let k = 0; k < 4; k++) if (isIdx[si.getComponent(v, k)]) t += sw.getComponent(v, k);
+        for (let k = 0; k < 4; k++) if (isSel[si.getComponent(v, k)]) t += sw.getComponent(v, k);
         weights[v] = Math.min(1, t);
       }
       colorAttr = new THREE.BufferAttribute(new Float32Array(si.count * 3), 3);
       geo.setAttribute("color", colorAttr);
       mesh.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0 });
 
-      bones = INDEX_BONES.map((n) => root.getObjectByName(n) as THREE.Bone);
+      bones = boneNames(finger).map((n) => root.getObjectByName(n) as THREE.Bone);
       restPos = bones.map((b) => b.getWorldPosition(new THREE.Vector3()));
       restQuat = bones.map((b) => b.getWorldQuaternion(new THREE.Quaternion()));
       const parent = bones[0].parent as THREE.Object3D;
@@ -255,18 +342,33 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, []);
+    // Rebuilt when the prescribed finger changes, which is rare (loading a block, or starting a
+    // set) and cheap: the model is already in the browser's cache, so this is a parse, not a fetch.
+  }, [finger]);
 
   /** Switch the camera off again. Start is the only control that turns it on, so Stop and the end of a set turn it off. */
   const releaseCamera = useCallback(() => { onTrackerChange(false); }, [onTrackerChange]);
+
+  /**
+   * Any hand edit to the controls drops the claim that this set is the prescribed one. The panel
+   * may differ from the plan, which is a clinician's call to make, but it must not say otherwise.
+   */
+  const edit = (change: () => void) => {
+    setFromPlan(null);
+    change();
+  };
 
   const start = () => {
     setError(null);
     try {
       // Built now so a bad prescription is reported before the camera is touched.
       pendingBlock.current = blockFromGrams({
-        finger: "index", mode, reps, capGf, holdS: 1.0,
-        romTargetM: mode === "passive" ? DEMO_PASSIVE_TARGET_M : null,
+        finger, mode, reps, capGf, holdS,
+        // Every mode whose arm pulls toward a stretch needs the distance, and the ones that never
+        // pull must not carry it. Asking the mode table keeps a third mode from needing a branch here.
+        romTargetM: needsRomTarget(modeByName(mode))
+          ? (romTargetM ?? DEMO_PASSIVE_TARGET_M)
+          : null,
       });
       new RepSimulation(pendingBlock.current, 0); // validates the block against the machine's own checks
     } catch (e) {
@@ -288,6 +390,7 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
     window.speechSynthesis?.cancel();
     flexRef.current = 0;
     colorRef.current = 0;
+    onForceRef.current?.(null);
     if (waitingRef.current) {
       // Cancelled before a hand was ever seen: there is no set to abandon.
       waitingRef.current = false;
@@ -302,6 +405,12 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
     setPlaying(false);
     releaseCamera();
   };
+
+  // The stop in the top bar lands here, on the same abandon() path as this panel's own Stop. One
+  // way to stop a set means one way a stopped set is recorded, whichever control was pressed.
+  const stopRef = useRef(stop);
+  useEffect(() => { stopRef.current = stop; });
+  useEffect(() => onEmergencyStop(() => stopRef.current()), []);
 
   // The first tracked hand starts the sequence. The tracker only reports frames in which it found a hand.
   useEffect(() => {
@@ -341,6 +450,7 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
       const now = performance.now();
       const r = sim.tick(now / 1000, dropoutRef.current);
       const { step } = r;
+      onForceRef.current?.(r.forceN);
       // Ease toward the pose the cue asks for. Null means hold the current target.
       const asked = GUIDE_FLEX[sim.machine.block.mode][step.phase];
       if (step.finished) flexTarget = 0;
@@ -360,6 +470,7 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
       if (step.finished) {
         setPlaying(false);
         releaseCamera();
+        onForceRef.current?.(null); // the set is over: no source, so no reading
         return;
       }
       raf = requestAnimationFrame(loop);
@@ -368,16 +479,24 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
     return () => cancelAnimationFrame(raf);
   }, [playing, say, releaseCamera]);
 
-  const step = view?.step ?? null;
+  const step = shown?.step ?? null;
   const patientMoves = step !== null && RUNNING.has(step.phase) && step.driver === "patient";
   const stopped = step !== null && (step.phase === "aborted" || step.phase === "set_done");
 
   return (
-    <div id="flex-guide" className="panel absolute bottom-[392px] left-4 w-[340px] max-w-[calc(100%-2rem)] space-y-2 p-3">
+    // Placed by the left column in SimApp, which stacks this above the chat. It used to sit at a
+    // hardcoded 392 px off the bottom, which is the height of an open chat panel: collapsing the
+    // chat left a hole, and a shorter screen pushed this panel off the top of the view.
+    <div id="flex-guide" className="panel pointer-events-auto mt-auto w-full shrink-0 space-y-2 p-3">
       <div className="flex items-center justify-between">
-        <span className="t-section">Rep machine</span>
+        <span className="flex items-center gap-2">
+          <span className="t-section">Rep machine</span>
+          {/* Says which source is on screen. A panel that looked the same either way would
+              make "is this a real session?" a question nobody could answer by looking. */}
+          {live ? <span className="chip">live session</span> : <DemoBadge kind="simulated" />}
+        </span>
         <span className="chip">
-          {waiting ? "Waiting for a hand" : step === null ? "Ready" : stopped ? "Stopped" : `Rep ${step.repIndex}/${view?.reps} · ${step.phase.replace("_", " ")}`}
+          {waiting ? "Waiting for a hand" : step === null ? "Ready" : stopped ? "Stopped" : `Rep ${step.repIndex}/${shown?.reps} · ${step.phase.replace("_", " ")}`}
         </span>
       </div>
       <div ref={mountRef} className="h-[150px] w-full overflow-hidden rounded-md" />
@@ -392,43 +511,70 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
         )}
         <span className="t-body font-semibold">{waiting ? "Show your hand to the camera" : step === null ? "Ready when you are" : step.instruction}</span>
       </div>
-      {step !== null && view && (
+      {step !== null && shown && (
         <div className="space-y-1">
           <div className="flex justify-between t-small num">
             <span className="muted">Force</span>
             <span>
-              {view.forceN === null ? "no reading" : `${view.forceN.toFixed(2)} N (${newtonsToGramsForce(view.forceN).toFixed(0)} gf)`}
-              {" "}of cap {view.capN.toFixed(2)} N
+              {shown.forceN === null ? "no reading" : `${shown.forceN.toFixed(2)} N (${newtonsToGramsForce(shown.forceN).toFixed(0)} gf)`}
+              {" "}of cap {shown.capN.toFixed(2)} N
             </span>
           </div>
-          <Bar value={view.forceN === null ? 0 : view.forceN / view.capN} color={view.forceN === null ? "var(--danger)" : "#4df5e8"} />
+          <Bar value={shown.forceN === null ? 0 : shown.forceN / shown.capN} color={shown.forceN === null ? "var(--danger)" : "#4df5e8"} />
           <div className="flex justify-between t-small num">
             <span className="muted">Travel · reps counted</span>
-            <span>{view.travelMm.toFixed(0)} mm · {step.repsCompleted} of {view.reps} ({step.attemptsAbandoned} abandoned)</span>
+            <span>{shown.travelMm.toFixed(0)} mm · {step.repsCompleted} of {shown.reps} ({step.attemptsAbandoned} abandoned)</span>
           </div>
           <p className="t-small faint">{step.note}</p>
           {stopped && (
             <p className="t-small" style={{ color: step.phase === "aborted" ? "var(--danger)" : "var(--ink)" }}>
               {step.phase === "aborted"
                 ? `Stopped: ${step.note}`
-                : `Set finished: ${step.repsCompleted} of ${view.reps} counted, ${step.attemptsAbandoned} abandoned.`}
+                : `Set finished: ${step.repsCompleted} of ${shown.reps} counted, ${step.attemptsAbandoned} abandoned.`}
             </p>
           )}
         </div>
       )}
       {error && <p className="t-small" style={{ color: "var(--danger)" }}>{error}</p>}
+      {/* Only the states a person can act on. "absent" is the normal case with no bench
+          attached and is left to the simulated badge above, which already says what this is. */}
+      {!DEMO && (session.status === "mismatch" || session.status === "disconnected") && (
+        <p className="t-small" style={{ color: "var(--danger)" }}>{session.detail}</p>
+      )}
+      {fromPlan && (
+        <p className="t-small" style={{ color: "var(--phase-flexion)" }}>
+          Loaded from the plan: {fromPlan}. Changing anything below makes it your own setting.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
-        <select className="btn btn-sm" value={mode} disabled={playing || waiting} onChange={(e) => setMode(e.target.value as ExerciseMode)}>
+        <select className="btn btn-sm" value={finger} disabled={playing || waiting} onChange={(e) => edit(() => setFinger(e.target.value as SessionFinger))}>
+          {POSEABLE.map((f) => (
+            <option key={f} value={f} className="text-black capitalize">{f} finger</option>
+          ))}
+        </select>
+        <select className="btn btn-sm" value={mode} disabled={playing || waiting} onChange={(e) => edit(() => setMode(e.target.value as ExerciseMode))}>
           <option value="active" className="text-black">Active (you flex)</option>
-          <option value="passive" className="text-black">Passive (arm pulls)</option>
+          <option value="passive" className="text-black">Passive (arm pulls, you flex back)</option>
+          <option value="cpm" className="text-black">CPM (arm does both)</option>
         </select>
-        <select className="btn btn-sm" value={reps} disabled={playing || waiting} onChange={(e) => setReps(+e.target.value)}>
-          {[1, 3, 5].map((n) => <option key={n} value={n} className="text-black">{n} reps</option>)}
+        <select className="btn btn-sm" value={reps} disabled={playing || waiting} onChange={(e) => edit(() => setReps(+e.target.value))}>
+          {/* A prescribed count that is not one of the presets has to be selectable, or the panel
+              would quietly run a different number of repetitions than the plan asked for. */}
+          {withValue([1, 3, 5, 10], reps).map((n) => <option key={n} value={n} className="text-black">{n} reps</option>)}
         </select>
-        <select className="btn btn-sm" value={capGf} disabled={playing || waiting} onChange={(e) => setCapGf(+e.target.value)}>
-          {[100, 200, 300].map((g) => <option key={g} value={g} className="text-black">cap {gramsForceToNewtons(g).toFixed(2)} N ({g} gf)</option>)}
+        <select className="btn btn-sm" value={capGf} disabled={playing || waiting} onChange={(e) => edit(() => setCapGf(+e.target.value))}>
+          {withValue([100, 150, 200, 300], capGf).map((g) => (
+            <option key={g} value={g} className="text-black">cap {gramsForceToNewtons(g).toFixed(2)} N ({g} gf)</option>
+          ))}
         </select>
       </div>
+      {/* True in both builds, so it does not claim anything about what is attached: the panel is a
+          rehearsal of the machine either way, and the real session runs in Python. */}
+      <Hint kind="demo">
+        This set is simulated end to end, here in the browser. What is real: the state machine deciding
+        the phases, the cues and the counting, and your own finger in front of the camera. What is not:
+        the force, and the arm it is deciding about. Nothing on this page can move an arm.
+      </Hint>
       <div className="flex gap-2">
         {playing || waiting ? (
           <button className="btn btn-danger flex-1" onClick={stop}>
@@ -454,6 +600,11 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange }: {
         <input type="checkbox" checked={dropout} onChange={(e) => setDropout(e.target.checked)} />
         Simulate a lost force reading (try it while the arm is pulling)
       </label>
+      <Hint>
+        Tick this mid-repetition. The set stops: with no force reading the arm may not pull, and the
+        last value is never held. It is the rule the whole safety design rests on, and it is worth
+        seeing happen.
+      </Hint>
       <p className="t-small faint">
         Start opens the webcam, with the model chosen in the right panel, and begins once a hand is detected. The force and arm are simulated (no gauge or arm is attached), so the numbers are not measurements.
       </p>
