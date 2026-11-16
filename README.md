@@ -7,7 +7,7 @@
 **Robot-assisted finger rehabilitation after hand surgery, with a force cap the clinician sets remotely.**<br>
 By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
 
-**[Watch the presentation: flexnsense.vercel.app](https://flexnsense.vercel.app)**
+**[Watch the presentation: flexnsense.vercel.app](https://flexnsense.vercel.app)** - a walkthrough of the project with a 3D MyoHand simulation, built into the dashboard.
 
 [![Leukerbad Robotics Hackathon 2026](https://img.shields.io/badge/Leukerbad_Robotics_Hackathon-2026-0b7285)](https://luma.com/event/evt-7RecqicPQUegOIG)
 [![Track: Elderly Care & Rehabilitation](https://img.shields.io/badge/track-Elderly_Care_%26_Rehabilitation-2f9e44)](#the-hackathon)
