@@ -22,6 +22,8 @@ import pyarrow.parquet as pq
 TASK_TEXT = {
     "pull": "hold the spring scale and give way when the finger pulls harder than 200 grams",
     "move": "move the spring scale's loop from one finger to the next finger",
+    "team_pull": "hold the spring scale and give way when the finger pulls harder than 200 grams, while the other arm moves the scale between fingers",
+    "team_move": "after the pull ends, take the spring scale, lift its loop over the finger, put it on the other finger and go back to rest",
 }
 TICKS_PER_RAD = 4096 / (2 * math.pi)
 
