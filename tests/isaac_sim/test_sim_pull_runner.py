@@ -129,3 +129,16 @@ def test_camera_force_reports_a_missing_calibration_at_once(tmp_path):
 
     with pytest.raises(RuntimeError, match="no calibration"):  # in the caller's thread, with the real message
         CameraForce(0, calib=str(tmp_path / "missing.json"))
+
+
+def test_a_team_policy_gets_the_five_session_flags(tmp_path):
+    (tmp_path / "flex_sim.json").write_text(json.dumps({**META, "obs_dim": 34}))
+    session = FakeSession([0, 0, 0, 0, 0])
+    runner = SimPullRunner(tmp_path, lambda: 0.5, session=session)
+    state, _ = start_state()
+    runner.predict_from_jpegs(state, {}, "")
+    runner.phase, runner.held = 1, True
+    runner.predict_from_jpegs(state, {}, "")
+    assert session.seen[0].shape == (1, 34)
+    assert session.seen[0][0, 29:].tolist() == [1.0, 0.0, 0.0, 0.0, 1.0]  # a pull, not held, marker seen
+    assert session.seen[1][0, 29:].tolist() == [0.0, 1.0, 0.0, 1.0, 1.0]  # the move, held

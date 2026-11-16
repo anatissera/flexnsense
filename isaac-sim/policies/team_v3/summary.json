@@ -1,0 +1,23 @@
+{
+  "tables": 1024,
+  "place_tolerance_m": 0.008,
+  "share_loop_placed": 0.998,
+  "share_placed_when_loop_started_on_a_finger": 0.9966,
+  "share_placed_when_loop_started_on_the_table": 1.0,
+  "share_dropped": 0.0,
+  "share_hit_a_finger": 0.0,
+  "share_too_late": 0.0,
+  "seconds_from_end_of_pull_to_placed_mean": 3.4875,
+  "seconds_to_placed_slowest": 8.1,
+  "highest_lift_m_mean": 0.0634,
+  "move_arm_fastest_gripper_speed_m_per_s_mean": 0.6817,
+  "move_arm_fastest_gripper_speed_m_per_s_worst": 4.118,
+  "move_arm_away_from_rest_at_end_rad_mean": 0.1204,
+  "limit_N": 1.96,
+  "first_pull_peak_N_mean": 1.6136,
+  "first_pull_peak_N_worst": 2.961,
+  "second_pull_peak_N_mean": 1.5788,
+  "second_pull_peak_N_worst": 3.875,
+  "share_of_tables_with_a_pull_over_110pct_limit": 0.0918,
+  "seconds_above_110pct_limit_mean": 0.0366
+}
