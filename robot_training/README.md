@@ -49,7 +49,7 @@ dos dedos se mueve la anilla. Elegido el 16 de noviembre de 2026 tras las prueba
 | Tarea | `--task` | `--n-action-steps` |
 |---|---|---|
 | Índice a corazón | `move device from right index to right middle finger` | 15 |
-| Corazón a anular | `move device from right middle to right ring finger` | 9 |
+| Corazón a anular | `move device from right middle to right ring finger` | 15 |
 | Anular a meñique | `move device from right ring to right pinky finger` | 9 |
 
 `--n-action-steps` es cuántas acciones de cada chunk se ejecutan antes de pedir otro (15 = 1.5 s,
@@ -77,7 +77,7 @@ python -s run_local.py --checkpoint ~/ckpt/multi_marks --task "$TASK" --bus-seri
 
 # corazón a anular
 TASK="move device from right middle to right ring finger"
-python -s run_local.py --checkpoint ~/ckpt/multi_marks --task "$TASK" --bus-serial 5B3D050113 --torque-off-on-exit --n-action-steps 9
+python -s run_local.py --checkpoint ~/ckpt/multi_marks --task "$TASK" --bus-serial 5B3D050113 --torque-off-on-exit --n-action-steps 15
 
 # anular a meñique
 TASK="move device from right ring to right pinky finger"
@@ -91,6 +91,84 @@ python -s run_local.py --checkpoint ~/ckpt/multi_marks --task "$TASK" --bus-seri
   imagen side`. Sin `--task`, o con una frase mal escrita, usa índice a corazón sin dar error.
 - `Ctrl-C` para parar. Con `--torque-off-on-exit` el brazo se suelta al salir: **cae**, sujétalo.
 - No hay capa de seguridad del proyecto (sección 4.0): no usar con la mano de un paciente.
+
+### Desde el orquestador: lanzar la policy y, al pulsar el botón, parar y volver a home
+
+La policy **no termina sola**: no sabe cuándo ha acabado la tarea. Quien la da por terminada es
+una persona que mira el brazo y pulsa un botón, tanto si ha salido bien como si es mejor
+rendirse. El orquestador hace dos llamadas, y las dos se ejecutan con el entorno de la Terminal 2
+(`conda activate lerobot`, `NORMA_CORE`, `WILOR_ROOT`) y **con `robot_training/inference` como
+directorio de trabajo** (los scripts usan imports planos).
+
+**1. Lanzar la policy** como proceso hijo, sin esperar a que termine:
+
+```bash
+python -s run_local.py --checkpoint ~/ckpt/multi_marks --task "$TASK" \
+    --bus-serial 5B3D050113 --n-action-steps 15 --torque-off-on-exit --yes
+```
+
+- `--task` y `--n-action-steps`: los de la tabla de arriba, según la tarea.
+- `--yes` es obligatorio desde un programa: sin él el script espera un `[s/N]` por stdin.
+- Tarda unos segundos en cargar el modelo y WiLoR. El brazo empieza a moverse cuando imprime
+  `ENVIANDO goals. Ctrl-C para parar.` en stdout.
+- Si el proceso termina **por sí solo**, es un fallo, sea cual sea su código de salida (Station
+  dejó de dar frames, falta una cámara, demasiados aborts seguidos). El motivo está en su stdout.
+  En ese caso, con `--torque-off-on-exit` el brazo ya se ha soltado.
+
+**2. Al pulsar el botón**, ejecutar y esperar a que termine:
+
+```bash
+python -s stop_and_home.py --bus-serial 5B3D050113
+```
+
+| Código de salida | Significado | Estado del brazo |
+|---|---|---|
+| 0 | policy parada y brazo en home | en home, **sin torque** |
+| 1 | no llegó a home (motor bloqueado, Station caído) o la policy no se dejó parar | **con torque**, sujetando donde esté |
+
+El mismo ejemplo en Python:
+
+```python
+import subprocess
+
+INFERENCE = "robot_training/inference"       # cwd de las dos llamadas
+BUS = "5B3D050113"
+
+policy = subprocess.Popen(
+    ["python", "-s", "run_local.py", "--checkpoint", CKPT, "--task", TASK, "--bus-serial", BUS,
+     "--n-action-steps", "15", "--torque-off-on-exit", "--yes"], cwd=INFERENCE)
+
+wait_for_button()                            # la persona confirma: ha acabado, o nos rendimos
+
+done = subprocess.run(["python", "-s", "stop_and_home.py", "--bus-serial", BUS], cwd=INFERENCE)
+policy.wait()                                # ya está parada; esto solo recoge el proceso
+at_home = done.returncode == 0
+```
+
+Qué hace `stop_and_home.py`, y qué tiene que saber el orquestador:
+
+- **No hace falta parar la policy antes**: lo hace él. Le manda `SIGTERM`, que la hace salir
+  **sujetando** el brazo aunque se lanzara con `--torque-off-on-exit`. Si en 3 s no ha salido,
+  `SIGKILL`, que tampoco suelta el torque. Encuentra el proceso por el pidfile que la policy deja
+  en `/tmp/run_local-<bus>.pid`.
+- **Nunca parar la policy con `SIGINT` / `Ctrl-C`** si lleva `--torque-off-on-exit`: esa es la
+  salida que suelta el torque, y el brazo cae. `SIGTERM` (`policy.terminate()`) sí es seguro.
+- Si no hay ninguna policy corriendo (ya había muerto), va directo a home. Se puede pulsar el
+  botón siempre.
+- Después abre el gripper, lleva los motores 1-7 a home, cierra el gripper y suelta el torque.
+  La pose está en `home_pose.json` (ticks leídos de la web de Station con el brazo en home).
+  Tarda unos segundos, según lo lejos que esté el brazo.
+- Al acabar con 0 el follower queda sin torque, así que Station puede dar frames a la policy
+  de otro brazo (con `st3215-bus: auto` solo publica si exactamente un bus tiene torque).
+- `gripper_open` en `home_pose.json` es el tick del motor 8 con el gripper abierto. Mientras sea
+  `null` el gripper **no se abre** antes de mover el brazo: mídelo en la web de Station y escríbelo.
+- El camino a home es recto en articulaciones, sin planificar colisiones: la mano fuera antes
+  de pulsar.
+- Con salida 1 el brazo sigue con torque donde se quedó: hay que mirarlo antes de volver a
+  pulsar. Volver a ejecutar `stop_and_home.py` lo reintenta.
+
+A mano: `python -s go_home.py --check` dice a cuánto está de home sin mover nada, y
+`python -s go_home.py` va a home sin parar ninguna policy.
 
 **Una vez por máquina** (detalle en la sección [4.6](#46-act-multitarea-en-el-portátil-paso-a-paso)):
 
