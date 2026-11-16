@@ -946,3 +946,110 @@ def test_the_pull_defaults_come_from_the_tuning_profile(run_session):
     assert args.pull_mm_s == t.pull_mm_s
     assert args.pull_max_step_mm == t.pull_max_step_mm
     assert args.arm_mm_s == t.arm_mm_s
+
+
+# ------------------------------------------------------- loading a clinician's protocol
+# The prescription half of the split: `config/protocols/` is what a clinician authored,
+# `config/session-tuning.json` is what the rig needs. This is the path from the first one
+# into a session.
+
+REPO = Path(__file__).resolve().parents[2]
+ACTIVE_PROTOCOL = str(REPO / "config" / "protocols" / "tendon-repair-active.json")
+CPM_PROTOCOL = str(REPO / "config" / "protocols" / "age-related-weakness-cpm.json")
+
+
+def block_from(run_session, argv, capsys=None):
+    args = build_args(run_session, ["--no-coordinated", "--motor", "4", *argv])
+    return run_session.block_for(args)
+
+
+def test_without_a_protocol_the_flags_still_build_the_block(run_session, capsys):
+    """The path every bench session has used so far must keep working untouched."""
+    block = block_from(run_session, ["--finger", "ring", "--cap-gf", "120", "--reps", "7"])
+    capsys.readouterr()
+    assert (block.finger, block.reps) == ("ring", 7)
+    assert block.cap_gf == pytest.approx(120, abs=0.5)
+
+
+def test_a_protocol_file_supplies_the_whole_prescription(run_session, capsys):
+    block = block_from(run_session, ["--protocol", ACTIVE_PROTOCOL])
+    capsys.readouterr()
+    assert block.finger == "index"
+    assert block.mode == "active"
+    assert block.cap_gf == pytest.approx(120, abs=0.5)
+
+
+def test_a_protocol_beats_the_flags_for_what_was_prescribed(run_session, capsys):
+    """The file is what a clinician authored and a flag is what someone typed at a prompt."""
+    block = block_from(run_session, ["--protocol", ACTIVE_PROTOCOL,
+                                     "--finger", "little", "--cap-gf", "400"])
+    capsys.readouterr()
+    assert block.finger == "index", "the protocol's finger, not the flag's"
+    assert block.cap_gf == pytest.approx(120, abs=0.5), "the cap is never taken from a flag here"
+
+
+def test_the_cap_cannot_be_raised_by_a_flag_while_claiming_to_run_a_protocol(run_session, capsys):
+    """A cap is the number the whole prescription is built around. Changing it by flag while
+    the log says 'ran tendon-repair-active' is how the log stops meaning anything."""
+    block = block_from(run_session, ["--protocol", ACTIVE_PROTOCOL, "--cap-gf", "590"])
+    capsys.readouterr()
+    assert block.cap_gf < 200
+
+
+def test_a_block_can_be_picked_out_of_a_protocol(run_session, capsys):
+    """This script runs one block; sequencing a whole protocol across fingers needs arm 2."""
+    block = block_from(run_session, ["--protocol", ACTIVE_PROTOCOL, "--protocol-block", "4"])
+    capsys.readouterr()
+    assert block.finger == "ring"
+
+
+def test_a_block_that_does_not_exist_is_refused_with_the_ones_that_do(run_session):
+    """An index typo should print the menu, not a traceback."""
+    with pytest.raises(SystemExit, match="does not exist"):
+        block_from(run_session, ["--protocol", ACTIVE_PROTOCOL, "--protocol-block", "99"])
+
+
+def test_reps_can_be_shortened_for_one_run(run_session, capsys):
+    """The one thing a person reasonably changes at the bench without editing a prescription."""
+    block = block_from(run_session, ["--protocol", ACTIVE_PROTOCOL, "--reps", "2"])
+    capsys.readouterr()
+    assert block.reps == 2
+
+
+def test_an_override_is_announced_rather_than_silent(run_session, capsys):
+    """A session that quietly ran something other than what the file says is the thing worth
+    preventing: the banner and the log have to disagree with the file out loud."""
+    block_from(run_session, ["--protocol", ACTIVE_PROTOCOL, "--reps", "2"])
+    printed = capsys.readouterr().out
+    assert "overriding reps" in printed
+    assert "5 -> 2" in printed
+
+
+def test_not_overriding_announces_nothing(run_session, capsys):
+    block_from(run_session, ["--protocol", ACTIVE_PROTOCOL])
+    assert "overriding" not in capsys.readouterr().out
+
+
+def test_the_protocol_name_is_printed_so_the_log_says_what_ran(run_session, capsys):
+    block_from(run_session, ["--protocol", ACTIVE_PROTOCOL])
+    printed = capsys.readouterr().out
+    assert "EXAMPLE" in printed, "the example protocols say so in their name, and it must show"
+
+
+def test_a_cpm_protocol_carries_its_stretch_target(run_session, capsys):
+    """Without it there is nothing to tell a pulling arm where to stop, and Block refuses the
+    prescription outright rather than letting the session discover that."""
+    block = block_from(run_session, ["--protocol", CPM_PROTOCOL])
+    capsys.readouterr()
+    assert block.mode == "cpm"
+    assert block.rom_target_m == pytest.approx(0.012)
+
+
+def test_every_block_of_every_example_protocol_can_be_loaded(run_session, capsys):
+    """Catches a protocol that parses but names a block this script cannot run."""
+    from session.protocol import Protocol
+
+    for path in (ACTIVE_PROTOCOL, CPM_PROTOCOL):
+        for i in range(len(Protocol.load(path))):
+            assert block_from(run_session, ["--protocol", path, "--protocol-block", str(i)])
+            capsys.readouterr()
