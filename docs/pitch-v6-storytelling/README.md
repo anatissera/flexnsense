@@ -56,7 +56,7 @@ A saved copy downloads as `index.html`. Move it into this folder, over the old o
 15. Our goals at Track 4 (Elderly Care & Rehabilitation, Rehab coach): three numbered goals that match the track's expectations. Give a robot arm the capacity to sense force with a low-tech proprioceptive ruler, use a standard tool from the physiotherapist's lab, prove that a robot arm can be used safely with patients (new)
 16. The team
 17. What comes next: built this weekend, then one hand clinic, then orthopedic rehabilitation for other joints (new)
-18. A future approach: two looping tiles, Isaac Sim (the bench rebuilt) and Isaac Lab (the pull policy in training). A click on a tile opens the whole clip in a pop-up at 80 % of the screen; Esc or Close shuts it (new)
+18. A future approach: two looping tiles, Isaac Sim (the bench rebuilt) and Isaac Lab (the pull policy in training). A click on a tile opens the whole clip in a pop-up at 80 % of the screen; Esc or Close shuts it. Two links at the bottom right open the policies and the dataset on Hugging Face (new)
 19. Thank you (team photo, then the card)
 
 To check before presenting:
