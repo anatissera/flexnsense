@@ -400,8 +400,12 @@ async def run(args) -> int:
         print(f"\n!! the arm is {gap} ticks from the start pose. It will be walked there "
               f"first, in steps of {args.goto_max_step_ticks} ticks.")
 
-    print("\nThe arm will MOVE along a fixed path, with a finger attached unless you are "
-          "running --no-camera. Keep a hand on the e-stop.")
+    if args.measure_step:
+        print("\n--measure-step: ONE step will be commanded and timed, then put back. No "
+              "stroke will run. Keep a hand on the e-stop.")
+    else:
+        print("\nThe arm will MOVE along a fixed path, with a finger attached unless you are "
+              "running --no-camera. Keep a hand on the e-stop.")
     if input("Type 'yes' to run: ").strip().lower() != "yes":
         print("aborted; nothing moved.")
         return 1
@@ -445,6 +449,70 @@ async def run(args) -> int:
             m: round(target[m]).to_bytes(2, byteorder="little") for m in move_motors
         })
         await asyncio.sleep(args.settle)
+
+    async def time_one_step(prev: dict[int, float], target: dict[int, float],
+                            move_motors: list[int], timeout_s: float = 3.0) -> float:
+        """Command one step and return how long the joints took to stop moving, in seconds.
+
+        The number `--settle` should be set from, and the only honest way to get it: the
+        repo does not know what unit `RAM_GOAL_SPEED` is in (`lib/station.py` says so, with
+        one confirmed point on the whole scale), so how long a 20-tick step takes at speed
+        700 cannot be derived. It can be measured, which is what this does: send the step,
+        poll position until it stops changing, report the elapsed time.
+
+        Why it matters for smoothness rather than just for pace: if `--settle` is much longer
+        than this, every step is a short move followed by a long wait, and a sequence of
+        move-wait-move-wait is exactly the stop-start judder this had on the bench. If it is
+        much shorter, the next goal lands before the servo finished the last, which
+        `scripts/jog_coordinated.py` warns makes the arm ragged rather than faster.
+        """
+        deltas = {m: target[m] - prev[m] for m in move_motors}
+        speeds = scaled_speeds(deltas, args.speed)
+        await sync_write(client, bus_serial, RAM_GOAL_SPEED, {
+            m: speeds[m].to_bytes(2, byteorder="little") for m in move_motors
+        })
+        started = time.monotonic()
+        await sync_write(client, bus_serial, RAM_GOAL_POSITION, {
+            m: round(target[m]).to_bytes(2, byteorder="little") for m in move_motors
+        })
+        # Settled means "every joint is within a tick of its goal and has stopped changing",
+        # not "the goal was acknowledged": the whole question is when the motion ends.
+        last_seen: dict[int, float] = {}
+        still_since: float | None = None
+        while time.monotonic() - started < timeout_s:
+            now_pose = await read_pose(client, bus_serial, 0.2)
+            moved = any(abs(now_pose.get(m, last_seen.get(m, 0.0)) - last_seen.get(m, 1e9)) > 1
+                        for m in move_motors)
+            last_seen = {m: float(now_pose.get(m, last_seen.get(m, 0.0))) for m in move_motors}
+            at_goal = all(abs(last_seen[m] - target[m]) <= 2 for m in move_motors)
+            if at_goal and not moved:
+                still_since = still_since or time.monotonic()
+                if time.monotonic() - still_since > 0.02:
+                    break
+            else:
+                still_since = None
+        return time.monotonic() - started
+
+    if args.measure_step:
+        # One step, timed, with nothing else happening. Deliberately the first waypoint of the
+        # real stroke rather than an invented delta, so the number describes the motion that
+        # will actually run.
+        print("\nmeasuring one step (nothing else will move) ...")
+        taken = await time_one_step(pose, waypoints[0], motors)
+        print(f"\none {args.step_ticks}-tick step at speed {args.speed}, accel {args.accel} "
+              f"took {taken * 1000:.0f} ms.")
+        print(f"--settle is {args.settle:g}s ({args.settle * 1000:.0f} ms), so the arm spends "
+              f"{max(0.0, 1 - taken / args.settle):.0%} of each cycle standing still.")
+        if taken < args.settle * 0.8:
+            print(f"\nThat dead time is the stop-start judder. Try --settle "
+                  f"{max(0.02, taken * 1.05):.2f} to keep the motion continuous, and raise "
+                  "--speed if you want it quicker than that allows.")
+        else:
+            print("\nLittle dead time: the pace is already set by how fast the servo moves, "
+                  "so raise --speed rather than lowering --settle.")
+        # Put it back where it started before exiting, so a measurement leaves nothing moved.
+        await goto(waypoints[0], pose, move_motors=motors)
+        return 0
 
     if not args.no_camera:
         from lib.camera import open_source
@@ -601,6 +669,12 @@ def main(argv=None) -> int:
                    help="raw ST3215 acceleration units, written once. Same reasoning as "
                         "--speed: jog_coordinated.py's proven value, not the admittance "
                         "loop's")
+    p.add_argument("--measure-step", action="store_true",
+                   help="command ONE step, time how long the joints take to stop, and report "
+                        "what --settle should be. Nothing else moves and the arm is put back "
+                        "where it started. The only honest way to choose --settle: the unit "
+                        "RAM_GOAL_SPEED is in is not known (see lib/station.py), so how long "
+                        "a step takes at a given --speed cannot be derived, only measured")
     p.add_argument("--no-camera", action="store_true",
                    help="run with no force supervision at all. For checking the path with "
                         "NOTHING ATTACHED, the same way scripts/jog_coordinated.py is used")
