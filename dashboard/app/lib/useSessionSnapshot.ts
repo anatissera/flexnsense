@@ -4,10 +4,10 @@
  * Subscribe to the session running on this machine, so the dashboard renders the arm rather
  * than its own clock.
  *
- * `GuideHand.tsx` counts repetitions off `performance.now()` against hardcoded constants, so
- * what the patient hears and what the arm is doing are two independent stories that happen to
- * start together. A snapshot stream makes them the same state by definition: every field here
- * is produced by the same `RepMachine` that decides what the arm does.
+ * `GuideHand.tsx` already runs the real rep machine, but against a SIMULATED patient and arm:
+ * its numbers are produced in the browser and nothing has touched a finger. This stream is the
+ * other source for the same screen, carrying what a real session decided, so the panel can show
+ * the arm when there is one and say plainly that it is simulating when there is not.
  *
  * ## Null is a reading, not a gap
  *
@@ -32,13 +32,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type { SessionSnapshot } from "./sessionSnapshot";
+import { SESSION_SCHEMA_VERSION, type SessionSnapshot } from "./sessionSnapshot";
 
 /** Loopback for the same reason the gauge and tracker servers are: the session runs beside the screen. */
 export const SESSION_URL = "ws://127.0.0.1:8771/session";
 
-/** The schema this client was written against. A mismatch is reported, never guessed at. */
-export const EXPECTED_SCHEMA = 1;
+/** Taken from the shared type so the two cannot drift. A mismatch is reported, never guessed at. */
+export const EXPECTED_SCHEMA = SESSION_SCHEMA_VERSION;
 
 export type SessionStatus =
   | "connecting"

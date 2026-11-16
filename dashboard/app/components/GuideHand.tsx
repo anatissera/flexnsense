@@ -9,7 +9,9 @@ import { modeByName, needsRomTarget, type ExerciseMode } from "../lib/session/mo
 import type { HandFrame } from "../lib/handFrame";
 import { blockFromGrams, type Block } from "../lib/session/protocol";
 import type { SessionFinger } from "../lib/session/fingers";
-import type { RepStep } from "../lib/session/reps";
+import { DEMO } from "../lib/demo";
+import { liveView, type LiveStep } from "../lib/liveView";
+import { useSessionSnapshot } from "../lib/useSessionSnapshot";
 import { DEMO_PASSIVE_TARGET_M, RepSimulation } from "../lib/session/simulation";
 import { Bar } from "./charts";
 import DemoBadge from "./DemoBadge";
@@ -92,7 +94,13 @@ function speak(text: string) {
   }
 }
 
-type View = { step: RepStep; forceN: number | null; travelMm: number; capN: number; reps: number };
+/**
+ * What the panel renders, from either source: the browser's own simulation (a `RepStep`) or a
+ * real session (a `LiveStep`, converted in `lib/liveView.ts`). The fields are the ones the
+ * panel reads; `law` and `target` are on a RepStep and deliberately not here, because nothing
+ * below renders them and a snapshot does not carry them.
+ */
+type View = { step: LiveStep; forceN: number | null; travelMm: number; capN: number; reps: number };
 
 /** The presets, plus whatever is selected now, so a prescribed value is never silently dropped. */
 const withValue = (presets: number[], value: number) =>
@@ -158,6 +166,15 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
   const [dropout, setDropout] = useState(false);
   const dropoutRef = useRef(false);
   const [view, setView] = useState<View | null>(null);
+  // A real session on this machine, if one is running. Never probed in the demonstration
+  // build: there is no bench to reach and the page already says so, so asking loopback would
+  // only produce a connection error to explain.
+  const session = useSessionSnapshot(!DEMO);
+  const live = liveView(session.snapshot);
+  // The live session wins whenever there is one. The simulation is what this panel shows when
+  // nothing is attached, and the two must never be mixed: a screen that blended a measured
+  // force with a simulated rep count would be unanswerable about which part was real.
+  const shown = live ?? view;
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { voiceRef.current = voice; }, [voice]);
   useEffect(() => { dropoutRef.current = dropout; }, [dropout]);
@@ -462,7 +479,7 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
     return () => cancelAnimationFrame(raf);
   }, [playing, say, releaseCamera]);
 
-  const step = view?.step ?? null;
+  const step = shown?.step ?? null;
   const patientMoves = step !== null && RUNNING.has(step.phase) && step.driver === "patient";
   const stopped = step !== null && (step.phase === "aborted" || step.phase === "set_done");
 
@@ -474,10 +491,12 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-2">
           <span className="t-section">Rep machine</span>
-          <DemoBadge kind="simulated" />
+          {/* Says which source is on screen. A panel that looked the same either way would
+              make "is this a real session?" a question nobody could answer by looking. */}
+          {live ? <span className="chip">live session</span> : <DemoBadge kind="simulated" />}
         </span>
         <span className="chip">
-          {waiting ? "Waiting for a hand" : step === null ? "Ready" : stopped ? "Stopped" : `Rep ${step.repIndex}/${view?.reps} · ${step.phase.replace("_", " ")}`}
+          {waiting ? "Waiting for a hand" : step === null ? "Ready" : stopped ? "Stopped" : `Rep ${step.repIndex}/${shown?.reps} · ${step.phase.replace("_", " ")}`}
         </span>
       </div>
       <div ref={mountRef} className="h-[150px] w-full overflow-hidden rounded-md" />
@@ -492,31 +511,36 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
         )}
         <span className="t-body font-semibold">{waiting ? "Show your hand to the camera" : step === null ? "Ready when you are" : step.instruction}</span>
       </div>
-      {step !== null && view && (
+      {step !== null && shown && (
         <div className="space-y-1">
           <div className="flex justify-between t-small num">
             <span className="muted">Force</span>
             <span>
-              {view.forceN === null ? "no reading" : `${view.forceN.toFixed(2)} N (${newtonsToGramsForce(view.forceN).toFixed(0)} gf)`}
-              {" "}of cap {view.capN.toFixed(2)} N
+              {shown.forceN === null ? "no reading" : `${shown.forceN.toFixed(2)} N (${newtonsToGramsForce(shown.forceN).toFixed(0)} gf)`}
+              {" "}of cap {shown.capN.toFixed(2)} N
             </span>
           </div>
-          <Bar value={view.forceN === null ? 0 : view.forceN / view.capN} color={view.forceN === null ? "var(--danger)" : "#4df5e8"} />
+          <Bar value={shown.forceN === null ? 0 : shown.forceN / shown.capN} color={shown.forceN === null ? "var(--danger)" : "#4df5e8"} />
           <div className="flex justify-between t-small num">
             <span className="muted">Travel · reps counted</span>
-            <span>{view.travelMm.toFixed(0)} mm · {step.repsCompleted} of {view.reps} ({step.attemptsAbandoned} abandoned)</span>
+            <span>{shown.travelMm.toFixed(0)} mm · {step.repsCompleted} of {shown.reps} ({step.attemptsAbandoned} abandoned)</span>
           </div>
           <p className="t-small faint">{step.note}</p>
           {stopped && (
             <p className="t-small" style={{ color: step.phase === "aborted" ? "var(--danger)" : "var(--ink)" }}>
               {step.phase === "aborted"
                 ? `Stopped: ${step.note}`
-                : `Set finished: ${step.repsCompleted} of ${view.reps} counted, ${step.attemptsAbandoned} abandoned.`}
+                : `Set finished: ${step.repsCompleted} of ${shown.reps} counted, ${step.attemptsAbandoned} abandoned.`}
             </p>
           )}
         </div>
       )}
       {error && <p className="t-small" style={{ color: "var(--danger)" }}>{error}</p>}
+      {/* Only the states a person can act on. "absent" is the normal case with no bench
+          attached and is left to the simulated badge above, which already says what this is. */}
+      {!DEMO && (session.status === "mismatch" || session.status === "disconnected") && (
+        <p className="t-small" style={{ color: "var(--danger)" }}>{session.detail}</p>
+      )}
       {fromPlan && (
         <p className="t-small" style={{ color: "var(--phase-flexion)" }}>
           Loaded from the plan: {fromPlan}. Changing anything below makes it your own setting.
