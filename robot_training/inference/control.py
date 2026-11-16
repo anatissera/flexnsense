@@ -71,7 +71,7 @@ def add_robot_args(p: argparse.ArgumentParser) -> None:
                    help="si la corriente del gripper llega a esto, su goal se fija en la posición actual "
                         "(como el teleop; evita la protección por sobrecarga del servo). 0 = desactivar")
     s.add_argument("--stall-lead-limit", type=int, default=55,
-                   help="si un motor lleva 1.2 s parado con el goal a más de esto (ticks) de su posición, el goal "
+                   help="si un motor lleva 0.8 s parado con el goal a más de esto (ticks) de su posición, el goal "
                         "se retiene: el servo salta por sobrecarga al 25 %% de carga durante 2 s (~58 ticks). "
                         "0 = desactivar")
 
@@ -248,6 +248,8 @@ async def run_control(args, get_chunk, log: logging.Logger) -> None:
         try:
             print(f"estado de los servos del bus {args.bus_serial} (un estado distinto de 0x00 para los frames):")
             print(await describe_bus(client, args.bus_serial))
+            print("últimos ticks enviados (goal - posición, el más reciente al final):")
+            print(safety.describe_history())
         except Exception as e2:
             print(f"  no se pudo leer el estado de los servos: {e2!r}")
         raise SystemExit(1)
