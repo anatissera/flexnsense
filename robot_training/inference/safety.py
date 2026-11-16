@@ -5,6 +5,8 @@ Separado de station_io.py para poder probarlo sin norma-core ni robot.
 
 from __future__ import annotations
 
+from collections import deque
+
 import numpy as np
 
 def goal_norm_to_ticks(goal_norm: np.ndarray, ranges: list[tuple[int, int]]) -> np.ndarray:
@@ -32,7 +34,7 @@ class GoalSafety:
        Le pasa a cualquier motor que la policy manda contra algo (la mano, la mesa, la anilla).
        Para evitarlo, el goal de un motor se retiene en `posición + hold_lead` ticks (hacia
        donde empujaba) cuando
-         a) lleva `stall_ticks` ticks seguidos sin moverse (< 5 ticks) con el goal enviado a
+         a) lleva `stall_ticks` ticks seguidos sin moverse (< 15 ticks) con el goal enviado a
             más de `lead` ticks de su posición, o
          b) solo el gripper: su corriente llega a `gripper_current` (la regla del teleop con el
             que se grabaron las demos, st3215-remote-teleop-py/mirror.py, umbral 100).
@@ -44,7 +46,7 @@ class GoalSafety:
 
     def __init__(self, n_joints: int = 8, gripper_index: int = 7, max_step: int = 150,
                  gripper_max_step: int = 400, max_delta: int = 600, gripper_current: int = 100,
-                 lead: int = 55, stall_ticks: int = 12, hold_lead: int = 45):
+                 lead: int = 55, stall_ticks: int = 8, hold_lead: int = 45):
         self.step = np.full(n_joints, max_step, dtype=np.int64)
         self.step[gripper_index] = gripper_max_step
         self.arm = np.ones(n_joints, dtype=bool)
@@ -60,6 +62,14 @@ class GoalSafety:
         self.stalled = np.zeros(n_joints, dtype=np.int64)   # ticks seguidos bloqueado
         self.stall_pos = np.zeros(n_joints, dtype=np.int64) # posición al empezar a contar
         self.why = [""] * n_joints
+        self.history: deque = deque(maxlen=40)              # (posición, goal enviado) de los últimos ticks
+
+    def describe_history(self) -> str:
+        """goal - posición de cada motor en los últimos ticks, para ver qué pasó antes de un fallo."""
+        lines = [f"  motor {j + 1}: pos {int(self.history[-1][0][j])} | goal - pos: "
+                 + " ".join(str(int(g[j] - p[j])) for p, g in self.history)
+                 for j in range(len(self.blocked))] if self.history else []
+        return "\n".join(lines)
 
     def _hold_stalled(self, target: np.ndarray, positions: np.ndarray, currents) -> tuple[np.ndarray, str]:
         if self.lead <= 0 and self.gripper_current <= 0:
@@ -73,7 +83,9 @@ class GoalSafety:
             # alrededor de `lead` (visto en el gripper al abrir contra la anilla: 75, 52, 70...)
             # la cuenta no se reinicia, porque el servo sigue acumulando sobrecarga.
             limit = min(self.lead, self.hold_lead) if self.stalled[j] else self.lead
-            if self.lead > 0 and abs(pushing) > limit and abs(int(positions[j]) - self.stall_pos[j]) < 5:
+            # "Parado" = menos de 15 ticks desde que empezó la cuenta: un motor que cede despacio
+            # contra algo elástico (la anilla) también acumula sobrecarga.
+            if self.lead > 0 and abs(pushing) > limit and abs(int(positions[j]) - self.stall_pos[j]) < 15:
                 self.stalled[j] += 1
             else:
                 self.stalled[j], self.stall_pos[j] = 0, positions[j]
@@ -84,14 +96,17 @@ class GoalSafety:
                 why = f"parado {self.stalled[j]} ticks con el goal a {abs(pushing)}"
             if why and not self.blocked[j] and pushing:
                 self.blocked[j] = int(np.sign(pushing))
-                self.hold[j] = int(positions[j]) + self.blocked[j] * min(self.hold_lead, abs(pushing))
                 self.hold_pos[j], self.why[j] = positions[j], why
             if self.blocked[j]:
-                moved = abs(int(positions[j]) - self.hold_pos[j]) > 30
-                if not moved and np.sign(target[j] - self.hold[j]) == self.blocked[j]:
-                    target[j] = self.hold[j]
+                d = int(self.blocked[j])
+                advanced = (int(positions[j]) - self.hold_pos[j]) * d > 30      # el obstáculo ya no está
+                # El goal retenido sigue a la posición: si la anilla empuja el motor hacia atrás,
+                # un goal fijo quedaría cada vez más lejos (visto: retenido a 45, muerto a 80).
+                hold = int(positions[j]) + d * self.hold_lead
+                if not advanced and (target[j] - hold) * d > 0:
+                    target[j] = self.hold[j] = hold
                     self.stalled[j], self.stall_pos[j] = 0, positions[j]
-                    notes.append(f"motor {j + 1} retenido en {self.hold[j]} ({self.why[j]})")
+                    notes.append(f"motor {j + 1} retenido en {hold} ({self.why[j]})")
                 else:
                     self.blocked[j] = 0
         return target, ", ".join(notes)
@@ -105,6 +120,7 @@ class GoalSafety:
             j = int(np.argmax(np.where(self.arm, delta, -1)))
             return None, f"ABORT tick: motor {j + 1} |goal-pos|={int(delta[j])} > {self.max_delta}"
         self.prev = goal
+        self.history.append((np.asarray(positions).copy(), goal.copy()))
         clipped = int((goal != target).sum())
         notes = [f"{clipped} joint(s) limitados por velocidad"] if clipped else []
         return goal, ", ".join(notes + ([held] if held else []))

@@ -66,19 +66,39 @@ def test_gripper_is_exempt_from_the_abort_rule():
     assert goal[7] == 1000
 
 
+def _gripper(safety, pos8, gap):
+    pos = np.array([2432, 2642, 1000, 2688, 1723, 2565, 3076, pos8])
+    target = pos.copy()
+    target[7] = pos8 - gap
+    goal, msg = safety.apply(target, pos, np.zeros(8, dtype=np.int64))
+    return int(pos8 - goal[7]), msg
+
+
 def test_stalled_gripper_goal_is_held_even_if_the_lead_wobbles_around_the_limit():
     # Seen on the arm: the gripper opens against the ring and stops, with the goal 50 to 75 ticks
     # ahead. The servo trips its overload protection unless the goal is pulled back.
     safety = GoalSafety()
-    pos = np.array([2432, 2642, 1000, 2688, 1723, 2565, 3076, 1561])
-    leads = []
-    for gap in [75, 52, 70, 50, 65, 52, 75, 55, 52, 70, 60, 52, 75, 52, 70]:
-        target = pos.copy()
-        target[7] = pos[7] - gap
-        goal, msg = safety.apply(target, pos, np.zeros(8, dtype=np.int64))
-        leads.append(int(pos[7] - goal[7]))
-    assert leads[:12] == [75, 52, 70, 50, 65, 52, 75, 55, 52, 70, 60, 52]
-    assert leads[12:] == [45, 45, 45] and "motor 8 retenido" in msg
+    gaps = [75, 52, 70, 50, 65, 52, 75, 55, 52, 70, 60, 52]
+    leads = [_gripper(safety, 1561, g)[0] for g in gaps]
+    assert leads[:8] == gaps[:8]
+    assert leads[8:] == [45, 45, 45, 45]
+
+
+def test_a_held_goal_follows_a_motor_that_is_pushed_back():
+    # Seen on the arm: held 45 ticks ahead, then the ring pushed the gripper back 35 ticks and
+    # the fixed goal ended up 80 ticks ahead, which tripped the servo.
+    safety = GoalSafety()
+    for _ in range(10):
+        _gripper(safety, 1524, 100)
+    leads = [_gripper(safety, pos8, 100 + pos8 - 1524) for pos8 in (1530, 1540, 1550, 1559, 1559)]
+    assert [lead for lead, _ in leads] == [45] * 5
+    assert "motor 8 retenido" in leads[-1][1]
+
+
+def test_a_motor_that_gives_way_slowly_still_counts_as_stalled():
+    safety = GoalSafety()
+    leads = [_gripper(safety, 1561 - i, 70)[0] for i in range(12)]     # 1 tick of progress per tick
+    assert leads[-1] == 45
 
 
 def test_a_held_motor_is_released_when_the_policy_pulls_back():
@@ -91,3 +111,11 @@ def test_a_held_motor_is_released_when_the_policy_pulls_back():
     target[7] = 1700
     goal, msg = safety.apply(target, pos, None)
     assert goal[7] == 1700 and "retenido" not in msg
+
+
+def test_a_held_motor_is_released_when_it_moves_on():
+    safety = GoalSafety()
+    for _ in range(10):
+        _gripper(safety, 1561, 100)
+    lead, msg = _gripper(safety, 1520, 100)      # the obstacle is gone: 41 ticks towards the goal
+    assert lead == 100 and "retenido" not in msg
