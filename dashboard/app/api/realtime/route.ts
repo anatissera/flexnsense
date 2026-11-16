@@ -1,10 +1,34 @@
 import { LANGUAGE_RULE, REALTIME_TOOLS } from "../../lib/chatContext";
+import { clientKey, take, tooMany } from "../ratelimit";
+
+/**
+ * Tighter than the text route, because each secret buys a voice session that bills by the minute
+ * and runs outside our reach once handed over. A person starts a voice session a few times in a
+ * visit; nobody needs six a minute.
+ */
+const LIMIT = 6;
+const WINDOW_S = 60;
 
 // Mints a short-lived client secret so the browser can open a WebRTC session directly with
 // OpenAI Realtime without ever seeing OPENAI_API_KEY.
-export async function POST() {
+export async function POST(req: Request) {
   const key = process.env.OPENAI_API_KEY;
-  if (!key) return Response.json({ error: "OPENAI_API_KEY is not set in .env" }, { status: 500 });
+  if (!key) {
+    // The text route runs on a Gemini key too; this one cannot. The browser speaks OpenAI's
+    // realtime event protocol directly, and Google's Live API is a different protocol rather
+    // than a different base URL, so it would be a new client and not a new key.
+    return Response.json(
+      {
+        error: process.env.GEMINI_API_KEY
+          ? "Voice needs an OpenAI key. This deployment has a Gemini key, which the text assistant uses; the voice session speaks OpenAI's realtime protocol and has no Gemini equivalent here."
+          : "OPENAI_API_KEY is not set in the environment.",
+      },
+      { status: 500 },
+    );
+  }
+
+  const limit = take(`realtime:${clientKey(req)}`, LIMIT, WINDOW_S);
+  if (!limit.ok) return tooMany(limit.retryAfterS);
 
   const instructions = `You are a voice assistant embedded in a flexor-tendon recovery simulator (3D MyoHand + curl stress-test analysis).
 Keep spoken answers short (1-3 sentences). Call get_scene_context before answering questions about results or numbers, and answer only from it. All data is simulated; no clinical advice.

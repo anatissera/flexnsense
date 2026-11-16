@@ -18,7 +18,11 @@ const SUGGESTIONS = [
 export default function ChatPanel({
   context, onTool,
 }: { context: unknown; onTool: (name: string, args: Record<string, unknown>) => string }) {
-  const [open, setOpen] = useState(true);
+  // The left column stacks the viewer's controls, the rep machine and this. On a short screen all
+  // three do not fit, and the one that folds into a button without losing anything is this one:
+  // collapsed it is still a primary-coloured invitation to ask, and the rep machine above it stays
+  // whole. Tall screens open it, because an assistant nobody notices is an assistant nobody uses.
+  const [open, setOpen] = useState(() => typeof window === "undefined" || window.innerHeight >= 900);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -198,7 +202,7 @@ export default function ChatPanel({
   if (!open) {
     return (
       <button onClick={() => setOpen(true)}
-        className="btn btn-primary absolute bottom-4 left-4 h-9 rounded-full px-4">
+        className="btn btn-primary pointer-events-auto h-9 self-start rounded-full px-4">
         Ask about the scene
       </button>
     );
@@ -206,7 +210,7 @@ export default function ChatPanel({
   const shown = msgs.filter((m) => m.role === "user" || (m.role === "assistant" && m.content));
   const tools = msgs.filter((m) => m.role === "assistant" && m.tool_calls?.length).length;
   return (
-    <div className="panel absolute bottom-4 left-4 flex h-[360px] w-[340px] max-w-[calc(100%-2rem)] flex-col p-0">
+    <div className="panel pointer-events-auto flex h-[360px] w-full shrink-0 flex-col p-0">
       <div className="panel-head m-0 px-4">
         <span className="t-section">Ask about the scene</span>
         <span className="flex items-center gap-2">
