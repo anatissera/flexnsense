@@ -13,11 +13,13 @@ Ubuntu 24.04 (x86_64). Steps marked **(not verified)** were not run as written.
 
 | File | Purpose |
 |---|---|
-| `record_dataset.py` | Recorder: voice prompts, keyboard control, upload to the Hub in batches |
+| `record_dataset.py` | Recorder: voice prompts, keyboard control, background upload to the Hub |
 | `camera_setup.sh` | Sets manual exposure on the cameras (run before starting Station) |
 | `station.yaml` | Station config used for recording |
 | `70-normacore-uvc.rules` | udev rule so Station can open USB cameras without root |
-| `parquet_to_mp4.py` | Renders a recorded episode to an `.mp4` to check it |
+| `parquet_to_mp4.py` | Renders a recorded episode to an `.mp4` to check it (draws the hand keypoints) |
+| `hand_keypoints.py` | Hand keypoints from the overhead camera with WiLoR; shared by the two scripts below |
+| `add_hand_keypoints.py` | Adds the hand keypoints to episodes that are already on the Hub |
 
 ## Dependencies that are not in this repo
 
@@ -100,6 +102,43 @@ The Station Python client itself has no dependencies.
   paths for your machine (`ls -l /dev/v4l/by-path/`), and tune `TABLE_EXPOSURE` /
   `GRIPPER_EXPOSURE` for your lighting.
 
+### 7. WiLoR, for the hand keypoints (optional)
+
+The recorder runs [WiLoR](https://github.com/rolpotamias/WiLoR) on the overhead camera and
+stores the hand keypoints with every frame. It needs an NVIDIA GPU with CUDA (measured on an
+RTX 3050 Ti, 4 GB: 47 ms per frame, 1.6 GB of VRAM). Without one, record with `--no-hands`.
+
+Clone WiLoR at the **repository root** and download its weights:
+
+```bash
+cd ..                                         # repository root
+git clone --depth 1 https://github.com/rolpotamias/WiLoR.git
+cd WiLoR
+H=https://huggingface.co/spaces/rolpotamias/WiLoR/resolve/main
+curl -L -o pretrained_models/detector.pt     $H/pretrained_models/detector.pt
+curl -L -o pretrained_models/wilor_final.ckpt $H/pretrained_models/wilor_final.ckpt   # 2.5 GB
+curl -L -o mano_data/MANO_RIGHT.pkl          $H/mano_data/mano/MANO_RIGHT.pkl
+git clone --depth 1 https://github.com/mattloper/chumpy /tmp/chumpy && cp -r /tmp/chumpy/chumpy .
+```
+
+`MANO_RIGHT.pkl` is under the [MANO license](https://mano.is.tue.mpg.de) (non-commercial
+research; it asks you to register there). `chumpy` is copied in as source because it no longer
+builds with pip on Python 3.12; it is only needed to read that file.
+
+Python packages, in the same environment, with a CUDA build of PyTorch already installed:
+
+```bash
+pip install ultralytics pytorch-lightning smplx==0.1.28 yacs timm einops pyrender scikit-image opencv-python tqdm six lazy_loader
+```
+
+Versions used: `torch 2.15.0+cu132`, `ultralytics 8.4.213`, `pytorch-lightning 2.6.6`,
+`timm 1.0.31`. WiLoR's own `requirements.txt` was **not** installed as written; the list above
+is what inference turned out to need.
+
+The scripts restart themselves with `python -s`, so packages in `~/.local` are ignored (a
+stale `transformers` there broke the WiLoR import on our laptop). Everything has to be
+installed in the environment itself.
+
 ## Recording
 
 Three terminals. Start them in this order.
@@ -135,7 +174,11 @@ python record_dataset.py "move device from right index to right middle finger" 2
 
 Arguments: the task description (stored as the language instruction) and how many episodes
 to record in this run. Options: `--repo` (default `JustoDario/flexnsense_skill1`),
-`--batch` (default 10), `--cameras` (default 3), `--joints` (default 8).
+`--cameras` (default 3), `--joints` (default 8), `--no-hands` (record without hand keypoints),
+`--hand-camera` (default `auto`), `--wilor-root`, `--upload-timeout` (default 300 s).
+
+`python record_dataset.py --upload-only` records nothing: it uploads whatever in `episodes/`
+is not on the Hub yet and exits.
 
 ### Workflow
 
@@ -145,18 +188,34 @@ to record in this run. Options: `--repo` (default `JustoDario/flexnsense_skill1`
    - `n` (next): save the episode. The laptop asks you to reset the environment.
    - `c` (cancel): discard it. After the reset, the same episode number is recorded again.
 4. Reset the scene and press `r` (ready) to record the next one.
-5. After the last episode everything pending is uploaded and the program exits.
+5. After the last episode the program waits for the uploads still in the queue and exits.
+   Ctrl+C there is safe: the rest is uploaded on the next run.
 
 Details:
 
 - N continues from the episodes already on the Hub for that task.
-- Episodes are written to `pending_uploads/` and uploaded every 10 episodes in one commit,
-  to `data/<task_slug>/episode_NNNN.parquet`. Local copies are deleted after a successful
-  upload. Episodes left over after Ctrl+C or a network failure are uploaded on the next run.
+- Each saved episode is written to `episodes/data/<task_slug>/episode_NNNN.parquet` and kept
+  there (never deleted), then put on a background upload queue. A separate thread uploads it,
+  one commit per episode, to the same path in the dataset repo while you keep recording; the
+  status line shows how many are waiting. A slow or dropped connection never blocks the
+  recording: an attempt that does not finish in `--upload-timeout` seconds is killed and
+  retried with a growing pause (up to 2 min).
+- `episodes/uploaded.json` lists the files that are on the Hub, with their sha256. On every
+  run, local episodes not in it are queued again (including leftovers of the old
+  `pending_uploads/` folder, which are moved into `episodes/`).
+- No double uploads: before sending a file the uploader asks the Hub for it. Same sha256:
+  marked as uploaded, nothing sent. A different file at that path (e.g. another machine used
+  the same episode number): not overwritten, reported as a conflict and kept on disk.
+- If the Hub does not answer at start, episode numbers continue from the local copies.
 - Episodes shorter than 2 s are treated as cancelled.
 - If no data arrives for 3 s the laptop warns you: either teleoperation is not running
   (Station only emits frames while the follower has torque) or the number of cameras or
   joints does not match `--cameras` / `--joints`.
+- The hand tracker runs in a second thread while you record. The status line shows
+  `hand found/processed`; if no hand is found in the first 20 frames the laptop says so.
+  The overhead camera is found automatically on the first frame (`[hands] overhead camera =
+  images[N]` in the terminal). This relies on our setup: the overhead image has black left and
+  right edges. If it cannot tell, the recorder stops and asks for `--hand-camera <index>`.
 - The first frame of each camera is saved to `cam_preview/cam0.jpg`, `cam1.jpg`, ... Check at
   the start of every session that the camera order has not changed: frames do not carry
   camera names, only their position in the list.
@@ -176,6 +235,37 @@ One Parquet file per episode, one row per frame, about 10 Hz. Same schema as Nor
 | `task` | string | Task description |
 
 NormaCore's convention: state = `position_norm`, action = `goal_norm`.
+
+Hand keypoints (absent in episodes recorded with `--no-hands`):
+
+| Column | Type | Meaning |
+|---|---|---|
+| `hand_camera` | uint8 | Index of the overhead camera in `images` for this episode |
+| `hand_detected` | bool | WiLoR found a hand in this frame |
+| `hand_is_right` | bool | Handedness reported by WiLoR |
+| `hand_keypoints_2d` | 42 x float32 | 21 points, `x, y` as fractions (0..1) of the overhead image, origin top-left |
+| `hand_fingertips_2d` | 10 x float32 | Thumb, index, middle, ring, pinky tips: points 4, 8, 12, 16, 20 of the above |
+| `hand_keypoints_3d` | 63 x float32 | 21 points, `x, y, z` in metres, hand centred: hand shape, not hand position |
+
+The 21 points follow the MediaPipe / OpenPose layout (`hand_tracking/pose.py`). Frames with no
+detection repeat the nearest detection of the episode and have `hand_detected = false`.
+
+**The order of the cameras in `images` is not the same in every session.** Station lists
+cameras in the order it finds them. In `JustoDario/flexnsense_skill1`, episodes 1-20 are
+`[overhead, gripper, side]` and episodes 21-43 are `[side, overhead, gripper]`. Use
+`hand_camera` to find the overhead image; the other two have to be told apart by the training
+code (or fixed in the dataset) before training on images.
+
+### Adding the keypoints to episodes already on the Hub
+
+```bash
+python add_hand_keypoints.py --dry-run       # process and report only
+python add_hand_keypoints.py                 # process and replace the files on the Hub
+```
+
+It skips episodes that already have the columns (`--force` recomputes them), writes one
+overlay image per episode to `hand_preview/`, and leaves every other column unchanged. The
+previous version of each file stays in the dataset's git history on the Hub.
 
 ## Checking an episode
 
@@ -208,4 +298,6 @@ Setting `frame-skip: 2` in `station.yaml` should cut the video history to a thir
   makes Station fail at startup.
 - Camera exposure is not configurable in Station; `camera_setup.sh` sets it on the camera
   before Station starts, and Station keeps it.
+- Hand keypoints: one hand only. Their accuracy was checked by eye on overlays, not measured
+  against ground truth. The overhead image is 224x224, so one pixel is about 0.45 % of the image.
 - Training and running a policy on the arm are not covered here.
