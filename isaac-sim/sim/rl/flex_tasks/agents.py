@@ -50,3 +50,10 @@ class Pull10PPORunnerCfg(PullPPORunnerCfg):
 class PullBenchPPORunnerCfg(PullPPORunnerCfg):
     max_iterations = 600
     experiment_name = "flex_pull_bench"
+
+
+@configclass
+class DuoPPORunnerCfg(MovePPORunnerCfg):
+    max_iterations = 1500
+    save_interval = 250
+    experiment_name = "flex_duo"

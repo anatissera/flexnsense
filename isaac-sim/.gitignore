@@ -8,3 +8,4 @@ policies/**/*.onnx.data
 policies/**/*.pt
 media/
 !policies/pull_bench_v1/*
+!policies/team_v3/**

@@ -200,6 +200,11 @@ class SimPullRunner:
         self.cap, self.tip, self.scale = self.meta["cap_n"], self.meta["tip_m"], self.meta["action_scale"]
         self.period, self.max_lead = 1.0 / self.meta["rate_hz"], max_lead_rad
         self.cfg = SimpleNamespace(type="flex_sim_pull")
+        # A policy trained together with the move arm (Flex-Team-v0) also gets five flags: which phase of the session
+        # it is (a pull, the move in between, the next pull), whether the other arm holds the scale, and whether the
+        # camera sees the marker. Set `phase` and `held` from whatever runs the session; they default to "a pull".
+        self.team = int(self.meta.get("obs_dim", 29)) == 34
+        self.phase, self.held = 0, False
         self._first = True
         self.last = {}
 
@@ -233,7 +238,14 @@ class SimPullRunner:
             [self.force_prev / self.cap, (force - self.force_prev) / self.cap],
             10.0 * np.array([off @ self.u, off @ self.side, off[2]]),
             self.action,
-        ]).astype(np.float32)[None]
+        ])
+        if self.team:
+            flags = np.zeros(5)
+            flags[int(self.phase)] = 1.0  # 0: a pull, 1: the scale is being moved, 2: the next pull
+            flags[3] = 1.0 if self.held else 0.0
+            flags[4] = 1.0  # a force reading arrived this frame, so the camera sees the marker
+            obs = np.concatenate([obs, flags])
+        obs = obs.astype(np.float32)[None]
         self.action = np.clip(np.asarray(self.infer(obs))[0], -1.0, 1.0).astype(np.float32)
         self.target[DRIVEN] += self.scale * self.action
         self.target = np.clip(self.target, self.arm.lower, self.arm.upper)

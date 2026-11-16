@@ -11,6 +11,7 @@ in the order it happened. Everything is simulation; no real arm was moved by any
 | [04-problems-and-fixes.md](04-problems-and-fixes.md) | The things that went wrong and how each was found |
 | [05-files.md](05-files.md) | Every folder and script, and what it is for |
 | [06-limits-and-next.md](06-limits-and-next.md) | What is assumed, what is not done, what to do next |
+| [07-two-arms-together.md](07-two-arms-together.md) | Both arms on one table learning at the same time: the task, the five runs, the results and what is not good enough |
 
 How to get the policies, upload them and put one on the robot is in [../policies/README.md](../policies/README.md).
 
