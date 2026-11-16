@@ -1,28 +1,41 @@
-// Placeholder patient profile. Static data; the previous, next and save buttons have no action yet.
+"use client";
 
+import { useState } from "react";
 import Image from "next/image";
-
-const PATIENT = {
-  name: "Jordan Woods",
-  lines: [
-    "58 y, Male | MRN 004-71829",
-    "DOB 1967-03-14 | Right-hand dominant",
-    "Dx: Flexor tendon repair, zone II (digit 3, R)",
-    "Surgery 2026-09-22 | Referred by Dr. A. Meier",
-  ],
-};
+import type { DemoPatient } from "../lib/demo/patients";
 
 /**
- * The patient's photo, in a 48 px circle cropped in on the face. The file is a 1254 px square, so
- * next/image serves a small copy sized for the circle (96 px for a high-density screen). It stays
- * greyscale like the placeholder it replaces: the dashboard keeps colour for data and state.
- * Decorative, because the name sits right beside it.
+ * Who this is, and the controls for moving between them.
+ *
+ * Previous and Next used to be decoration. They now switch between the two demonstration
+ * patients, which is the fastest way to show that the machine is prescribed rather than
+ * configured: the same screen, two conditions, two different modes of exercise.
+ *
+ * Save writes to this browser and says so. A demonstration build has nowhere else to put it, and
+ * a Save that silently does nothing is worse than one that tells the truth about its reach.
  */
-function Avatar() {
+
+const SAVED_KEY = "flexnsense.demo.saved.v1";
+
+function Avatar({ src, name }: { src: string | null; name: string }) {
+  if (!src) {
+    const initials = name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+    return (
+      <div
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full t-body font-semibold"
+        style={{ background: "var(--surface-raised)", color: "var(--ink-muted)" }}
+        aria-hidden
+      >
+        {initials}
+      </div>
+    );
+  }
   return (
+    // The file is a 1254 px square, so next/image serves a small copy sized for the circle.
+    // Greyscale like the placeholder it replaces: the dashboard keeps colour for data and state.
     <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full" style={{ filter: "grayscale(1)" }}>
       <Image
-        src="/profile_photo.png"
+        src={src}
         alt=""
         width={96}
         height={96}
@@ -33,28 +46,54 @@ function Avatar() {
   );
 }
 
-export default function PatientCard({ onExport }: { onExport?: () => void }) {
+export default function PatientCard({ patient, index, count, onPrev, onNext, onExport }: {
+  patient: DemoPatient;
+  index: number;
+  count: number;
+  onPrev: () => void;
+  onNext: () => void;
+  onExport?: () => void;
+}) {
+  // Tagged with the patient it belongs to, so moving to the next one drops the message without
+  // an effect reaching in to clear it.
+  const [saved, setSaved] = useState<{ patient: string; text: string } | null>(null);
+  const savedHere = saved?.patient === patient.id ? saved.text : null;
+
+  const save = () => {
+    const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+    let text: string;
+    try {
+      window.localStorage.setItem(SAVED_KEY, JSON.stringify({ patient: patient.id, at: stamp }));
+      text = `Saved in this browser at ${stamp}. Nothing left this machine.`;
+    } catch {
+      text = "This browser refused to store it. Nothing left this machine either way.";
+    }
+    setSaved({ patient: patient.id, text });
+  };
+
   return (
     <section className="space-y-3 border-b border-(--line) pb-4" aria-label="Patient profile">
       <div className="flex items-start gap-3">
-        <Avatar />
+        <Avatar src={patient.photo} name={patient.name} />
         <div className="min-w-0">
-          <h2 className="t-title">{PATIENT.name}</h2>
+          <h2 className="t-title">{patient.name}</h2>
           <div className="t-small muted mt-1 space-y-0.5">
-            {PATIENT.lines.map((l) => (
+            {patient.lines.map((l) => (
               <p key={l}>{l}</p>
             ))}
           </div>
         </div>
       </div>
-      <div className="flex gap-2">
-        <button className="btn btn-sm" title="Coming soon">
+      <p className="t-small muted">{patient.summary}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <button className="btn btn-sm" onClick={onPrev} title="The other demonstration patient">
           Previous patient
         </button>
-        <button className="btn btn-sm" title="Coming soon">
+        <button className="btn btn-sm" onClick={onNext} title="The other demonstration patient">
           Next patient
         </button>
-        <button className="btn btn-sm ml-auto" title="Coming soon">
+        <span className="t-small faint">{index + 1} of {count}</span>
+        <button className="btn btn-sm ml-auto" onClick={save} title="Stores your place in this browser only">
           Save
         </button>
         <button
@@ -66,6 +105,7 @@ export default function PatientCard({ onExport }: { onExport?: () => void }) {
           Export Medical Report
         </button>
       </div>
+      {savedHere && <p className="t-small faint">{savedHere}</p>}
     </section>
   );
 }

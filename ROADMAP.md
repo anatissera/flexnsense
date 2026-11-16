@@ -41,6 +41,8 @@ Still to do: measure `ticks_per_metre` and the yield direction on the bench, the
 
 ## 4. Simulation rig - `feature/sim-rig`
 
+**What was built instead (16 Nov 2026):** the bench in NVIDIA Isaac Sim and both arms trained in Isaac Lab, in [isaac-sim/](./isaac-sim/), not MuJoCo. Simulation only. The plan below is the original one, kept for the record.
+
 MuJoCo model plus a linear spring (F = k·x, k measurable from the PESOLA in minutes) and a scripted "patient finger" trajectory. NormaCore ships URDF/STEP/STL for the ElRobot (`hardware/elrobot/simulation` in their repo), but it hasn't been checked for use here yet.
 
 Purpose is **de-risking the controller without a human in the loop** - oscillation, force overshoot, behaviour when the force reading freezes or spikes. Not for generating training data.

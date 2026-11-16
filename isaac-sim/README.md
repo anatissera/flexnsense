@@ -13,10 +13,40 @@ what does not is stated plainly below and in [docs/06-limits-and-next.md](docs/0
 - **The policy to test is `policies/pull_bench_v1`** (the pull arm, trained on the full bench at the pace of the real
   control loop). It is in this folder, ready to run with `robot_training/inference`. Go through the steps below in
   order; the first three need no robot.
-- **The move policy is known to be wrong for real use** and is not prepared for the robot: in its training task the
-  scale is not a physical object, the whole move takes about 0.4 s, and it starts already hovering over the scale.
+- **The first move policy (`move_v1`) is known to be wrong for real use**: in its training task the scale is not a
+  physical object, the whole move takes about 0.4 s, and it starts already hovering over the scale. The jointly
+  trained one (`team_v3`, below) starts from rest and takes 3.5 s, but it is a simulation result too.
   For moving the scale between fingers, the policies in `robot_training/` (trained on real recordings) are the ones
   to use.
+
+## Both arms learning together (16 November)
+
+`Flex-Team-v0` puts both follower arms on one wooden table, laid out as measured on the real bench (bases 28 cm
+apart, the move arm taking the scale 7 cm from the pull arm's gripper, the camera 50 cm up), with the PESOLA of the
+datasheet. Each arm has its own policy and both learn at the same time: a finger pulls and the pull arm limits the
+force; the pull ends and the move arm wakes from its rest posture, moves the scale's loop to the other finger and goes
+back to rest; the other finger pulls. Some episodes start with the loop lying on the table instead.
+
+On 1,024 unseen simulated tables the final policies place the loop in 99.8 % of episodes with none dropped and none
+hitting a finger. The team's own scale reader, run on the rendered overhead camera, agrees with the true force to a
+few grams.
+
+They are a **simulation result only**: the pull policy trained this way fails the no-robot test of the real-robot
+runner, the grip is a rule, and the move policy is told where things are. The whole record, five runs and what was
+wrong with each, is in [docs/07-two-arms-together.md](docs/07-two-arms-together.md). The policies are in
+`policies/team_v3/`.
+
+## The move arm learning by contact alone (16 November, morning)
+
+`Flex-Phys-v0` removes the last rules. The scale is a chain of real bodies (swivel, tube, a sliding rod on the
+datasheet's spring, a wire loop), the fingers are solid posts, and the move arm has to pinch the tube between its jaw
+pads and carry it by friction. The sequence: the loop lies on the table; the move arm puts it on the index finger; the
+pull arm pulls until the scale shows 200 g and returns to zero; the move arm moves the loop to the middle finger; the
+pull arm pulls again.
+
+After 62 minutes of training the policy completes the whole sequence on all 1,024 unseen simulated tables. It is a
+simulation result only, its pulls overshoot 200 g by about 17 g, and its gripper is faster than wanted. The record is in
+[docs/08-physical-contact.md](docs/08-physical-contact.md); the policy is in `policies/phys_v1/`.
 
 ## Test the pull policy with `robot_training/inference`
 

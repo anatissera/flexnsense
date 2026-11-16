@@ -28,12 +28,14 @@ ROOT = os.path.expanduser("~/flexnsense-sim/assets/elrobot")
 def fix(folder: str):
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
-    src = f"{ROOT}/{folder}/elrobot_follower.usd/elrobot_follower/elrobot_follower.usda"
-    dst = src.replace("elrobot_follower.usda", "elrobot_follower_fixed.usda")
+    folder, _, name = folder.partition(":")
+    name = name or "elrobot_follower"
+    src = f"{ROOT}/{folder}/elrobot_follower.usd/{name}/{name}.usda"
+    dst = src.replace(f"{name}.usda", f"{name}_fixed.usda")
     if os.path.exists(dst):
         os.remove(dst)
     layer = Sdf.Layer.CreateNew(dst)
-    layer.subLayerPaths.append("./elrobot_follower.usda")
+    layer.subLayerPaths.append(f"./{name}.usda")
     stage = Usd.Stage.Open(layer)
     src_stage = Usd.Stage.Open(src)
     stage.SetDefaultPrim(stage.GetPrimAtPath(src_stage.GetDefaultPrim().GetPath()))
@@ -75,7 +77,7 @@ def fix(folder: str):
 def main():
     sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
     with launch_simulation(sim_cfg, args_cli):
-        for folder in ("usd", "usd_decomposed"):
+        for folder in os.environ.get("FIX_FOLDERS", "usd,usd_decomposed").split(","):
             fix(folder)
 
 

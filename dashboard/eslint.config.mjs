@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored, not ours: MediaPipe's emscripten output. Linting it produced five errors and
+    // 260 warnings we cannot act on, which hid the one error that was actually in our code.
+    "public/mediapipe/**",
   ]),
 ]);
 
