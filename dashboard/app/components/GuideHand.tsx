@@ -8,6 +8,7 @@ import { gramsForceToNewtons, newtonsToGramsForce } from "../lib/units";
 import { modeByName, needsRomTarget, type ExerciseMode } from "../lib/session/modes";
 import type { HandFrame } from "../lib/handFrame";
 import { blockFromGrams, type Block } from "../lib/session/protocol";
+import type { SessionFinger } from "../lib/session/fingers";
 import type { RepStep } from "../lib/session/reps";
 import { DEMO_PASSIVE_TARGET_M, RepSimulation } from "../lib/session/simulation";
 import { Bar } from "./charts";
@@ -23,16 +24,32 @@ const GREY = new THREE.Color(0xc9ccd2);
 const BLUE = new THREE.Color(0x3b82f6);
 const AMBER = new THREE.Color(0xf59e0b);
 const MODEL_URL = "/models/hand/right.glb"; // WebXR generic hand, MIT (immersive-web/webxr-input-profiles)
+/**
+ * The bone prefix for each prescribed finger. The model follows the WebXR hand-input naming, in
+ * which the little finger is "pinky", the one vocabulary difference `session/fingers.py` exists
+ * to reconcile. The thumb has one phalanx fewer and a different axis, so it is not posed here;
+ * neither prescription in the demo asks for it, and a wrong thumb is worse than no thumb.
+ */
+const BONE_PREFIX: Partial<Record<SessionFinger, string>> = {
+  index: "index-finger",
+  middle: "middle-finger",
+  ring: "ring-finger",
+  little: "pinky-finger",
+};
+export const POSEABLE = Object.keys(BONE_PREFIX) as SessionFinger[];
 // In this glb the finger bones are siblings under one Armature (not a parent/child chain),
 // so the chain is posed by hand. Fingers point -Y, the palm faces -X, so flexion is a
 // rotation about world -Z
 // (the model is turned palm-up in the scene, which keeps that axis).
-const INDEX_BONES = [
-  "index-finger-phalanx-proximal",
-  "index-finger-phalanx-intermediate",
-  "index-finger-phalanx-distal",
-  "index-finger-tip",
-];
+const boneNames = (finger: SessionFinger) => {
+  const prefix = BONE_PREFIX[finger] ?? BONE_PREFIX.index!;
+  return [
+    `${prefix}-phalanx-proximal`,
+    `${prefix}-phalanx-intermediate`,
+    `${prefix}-phalanx-distal`,
+    `${prefix}-tip`,
+  ];
+};
 const FLEX_AXIS = new THREE.Vector3(0, 0, -1);
 
 /** 0 = no tint, 1 = demand (the patient moves), 2 = preview (the arm moves). */
@@ -76,6 +93,10 @@ function speak(text: string) {
 
 type View = { step: RepStep; forceN: number | null; travelMm: number; capN: number; reps: number };
 
+/** The presets, plus whatever is selected now, so a prescribed value is never silently dropped. */
+const withValue = (presets: number[], value: number) =>
+  [...new Set([...presets, value])].sort((a, b) => a - b);
+
 /**
  * The rep machine, shown as a hand, a cue and a voice.
  *
@@ -89,7 +110,7 @@ type View = { step: RepStep; forceN: number | null; travelMm: number; capN: numb
  * Nothing here is measured and nothing here can move an arm. The machine that decides when a real
  * arm pulls a real finger is the Python one, behind the safety gate.
  */
-export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onForce }: {
+export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onForce, prescribed }: {
   /** The tracker's HandFrame stream. A frame arrives only when a hand is found. */
   subscribe: (fn: (frame: HandFrame) => void) => () => void;
   /** Whether the webcam hand tracker is running. */
@@ -102,6 +123,12 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
    * the patient panel shows and the number this machine is deciding on are the same number.
    */
   onForce?: (forceN: number | null) => void;
+  /**
+   * A block loaded from the clinician's plan, with the label to show for where it came from.
+   * Setting it fills the controls below: the panel stays the one place a set is configured, so
+   * there is never a prescription on screen that differs from what Start would actually run.
+   */
+  prescribed?: { block: Block; label: string } | null;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const flexRef = useRef(0);
@@ -118,6 +145,15 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
   const [mode, setMode] = useState<ExerciseMode>("active");
   const [reps, setReps] = useState(3);
   const [capGf, setCapGf] = useState(200);
+  // Which finger the set is for. It decides what the patient is told and which finger the guide
+  // hand poses, so a prescription for the middle finger does not animate the index.
+  const [finger, setFinger] = useState<SessionFinger>("index");
+  const [romTargetM, setRomTargetM] = useState<number | null>(null);
+  // Short by default so a visitor sees a whole repetition quickly. A prescription overrides it:
+  // a 3 s hold is where a repaired tendon actually glides, and shortening it is a different exercise.
+  const [holdS, setHoldS] = useState(1.0);
+  /** The block this came from, when a clinician's plan put it here rather than the selects. */
+  const [fromPlan, setFromPlan] = useState<string | null>(null);
   const [dropout, setDropout] = useState(false);
   const dropoutRef = useRef(false);
   const [view, setView] = useState<View | null>(null);
@@ -126,6 +162,24 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
   useEffect(() => { dropoutRef.current = dropout; }, [dropout]);
   const onForceRef = useRef(onForce);
   useEffect(() => { onForceRef.current = onForce; });
+
+  // A block arriving from the plan fills the controls. It does not start anything: a prescription
+  // is still something a person presses Start on, with the patient's hand in front of them.
+  // Adjusted during render rather than in an effect, so the panel never paints one set of numbers
+  // and then replaces them: what is on screen is always what Start would run.
+  const [lastLoaded, setLastLoaded] = useState(prescribed);
+  if (prescribed && prescribed !== lastLoaded) {
+    const b = prescribed.block;
+    setLastLoaded(prescribed);
+    setFinger(b.finger);
+    setMode(b.mode);
+    setReps(b.reps);
+    setCapGf(Math.round(newtonsToGramsForce(b.capN)));
+    setHoldS(b.holdS);
+    setRomTargetM(b.romTargetM);
+    setFromPlan(prescribed.label);
+    setError(null);
+  }
   const said = useRef("");
   const say = useCallback((key: string, text: string) => {
     if (said.current === key) return;
@@ -184,21 +238,22 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
 
       // Per-vertex weight on the index finger bones, so only that finger is tinted.
       const names = mesh.skeleton.bones.map((b) => b.name);
-      const isIdx = names.map((n) => n.startsWith("index-finger"));
+      const prefix = BONE_PREFIX[finger] ?? BONE_PREFIX.index!;
+      const isSel = names.map((n) => n.startsWith(prefix));
       const geo = mesh.geometry;
       const si = geo.getAttribute("skinIndex");
       const sw = geo.getAttribute("skinWeight");
       weights = new Float32Array(si.count);
       for (let v = 0; v < si.count; v++) {
         let t = 0;
-        for (let k = 0; k < 4; k++) if (isIdx[si.getComponent(v, k)]) t += sw.getComponent(v, k);
+        for (let k = 0; k < 4; k++) if (isSel[si.getComponent(v, k)]) t += sw.getComponent(v, k);
         weights[v] = Math.min(1, t);
       }
       colorAttr = new THREE.BufferAttribute(new Float32Array(si.count * 3), 3);
       geo.setAttribute("color", colorAttr);
       mesh.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0 });
 
-      bones = INDEX_BONES.map((n) => root.getObjectByName(n) as THREE.Bone);
+      bones = boneNames(finger).map((n) => root.getObjectByName(n) as THREE.Bone);
       restPos = bones.map((b) => b.getWorldPosition(new THREE.Vector3()));
       restQuat = bones.map((b) => b.getWorldQuaternion(new THREE.Quaternion()));
       const parent = bones[0].parent as THREE.Object3D;
@@ -269,20 +324,33 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, []);
+    // Rebuilt when the prescribed finger changes, which is rare (loading a block, or starting a
+    // set) and cheap: the model is already in the browser's cache, so this is a parse, not a fetch.
+  }, [finger]);
 
   /** Switch the camera off again. Start is the only control that turns it on, so Stop and the end of a set turn it off. */
   const releaseCamera = useCallback(() => { onTrackerChange(false); }, [onTrackerChange]);
+
+  /**
+   * Any hand edit to the controls drops the claim that this set is the prescribed one. The panel
+   * may differ from the plan, which is a clinician's call to make, but it must not say otherwise.
+   */
+  const edit = (change: () => void) => {
+    setFromPlan(null);
+    change();
+  };
 
   const start = () => {
     setError(null);
     try {
       // Built now so a bad prescription is reported before the camera is touched.
       pendingBlock.current = blockFromGrams({
-        finger: "index", mode, reps, capGf, holdS: 1.0,
+        finger, mode, reps, capGf, holdS,
         // Every mode whose arm pulls toward a stretch needs the distance, and the ones that never
         // pull must not carry it. Asking the mode table keeps a third mode from needing a branch here.
-        romTargetM: needsRomTarget(modeByName(mode)) ? DEMO_PASSIVE_TARGET_M : null,
+        romTargetM: needsRomTarget(modeByName(mode))
+          ? (romTargetM ?? DEMO_PASSIVE_TARGET_M)
+          : null,
       });
       new RepSimulation(pendingBlock.current, 0); // validates the block against the machine's own checks
     } catch (e) {
@@ -448,17 +516,31 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
         </div>
       )}
       {error && <p className="t-small" style={{ color: "var(--danger)" }}>{error}</p>}
+      {fromPlan && (
+        <p className="t-small" style={{ color: "var(--phase-flexion)" }}>
+          Loaded from the plan: {fromPlan}. Changing anything below makes it your own setting.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
-        <select className="btn btn-sm" value={mode} disabled={playing || waiting} onChange={(e) => setMode(e.target.value as ExerciseMode)}>
+        <select className="btn btn-sm" value={finger} disabled={playing || waiting} onChange={(e) => edit(() => setFinger(e.target.value as SessionFinger))}>
+          {POSEABLE.map((f) => (
+            <option key={f} value={f} className="text-black capitalize">{f} finger</option>
+          ))}
+        </select>
+        <select className="btn btn-sm" value={mode} disabled={playing || waiting} onChange={(e) => edit(() => setMode(e.target.value as ExerciseMode))}>
           <option value="active" className="text-black">Active (you flex)</option>
           <option value="passive" className="text-black">Passive (arm pulls, you flex back)</option>
           <option value="cpm" className="text-black">CPM (arm does both)</option>
         </select>
-        <select className="btn btn-sm" value={reps} disabled={playing || waiting} onChange={(e) => setReps(+e.target.value)}>
-          {[1, 3, 5].map((n) => <option key={n} value={n} className="text-black">{n} reps</option>)}
+        <select className="btn btn-sm" value={reps} disabled={playing || waiting} onChange={(e) => edit(() => setReps(+e.target.value))}>
+          {/* A prescribed count that is not one of the presets has to be selectable, or the panel
+              would quietly run a different number of repetitions than the plan asked for. */}
+          {withValue([1, 3, 5, 10], reps).map((n) => <option key={n} value={n} className="text-black">{n} reps</option>)}
         </select>
-        <select className="btn btn-sm" value={capGf} disabled={playing || waiting} onChange={(e) => setCapGf(+e.target.value)}>
-          {[100, 200, 300].map((g) => <option key={g} value={g} className="text-black">cap {gramsForceToNewtons(g).toFixed(2)} N ({g} gf)</option>)}
+        <select className="btn btn-sm" value={capGf} disabled={playing || waiting} onChange={(e) => edit(() => setCapGf(+e.target.value))}>
+          {withValue([100, 150, 200, 300], capGf).map((g) => (
+            <option key={g} value={g} className="text-black">cap {gramsForceToNewtons(g).toFixed(2)} N ({g} gf)</option>
+          ))}
         </select>
       </div>
       <div className="flex gap-2">

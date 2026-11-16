@@ -18,9 +18,14 @@ import MuscleCallout from "./MuscleCallout";
 import DemoBadge from "./DemoBadge";
 import SimulatedGauge from "./SimulatedGauge";
 import { DEMO } from "../lib/demo";
+import { DEMO_PATIENTS, planOf } from "../lib/demo/patients";
+import ClinicianPlan from "./ClinicianPlan";
+import SessionHistory from "./SessionHistory";
+import { blockCapGf, type Block } from "../lib/session/protocol";
+import { newtonsToGramsForce } from "../lib/units";
 import { onEmergencyStop } from "../lib/estop";
 import type { MuscleAnchor } from "./MyoViewer";
-import { buildContext, MUSCLE_NAMES, muscleInfo, resolveMuscle, type SessionContext } from "../lib/chatContext";
+import { buildContext, MUSCLE_NAMES, muscleInfo, resolveMuscle, type CaseContext, type SessionContext } from "../lib/chatContext";
 import { median } from "../lib/curlsim/dsp";
 import { curveAt } from "../lib/curlsim/dsp";
 import { genTrial, refOf } from "../lib/curlsim/generator";
@@ -194,6 +199,51 @@ export default function SimApp() {
   // A ref, not state: it changes every frame and nothing up here needs to re-render for it.
   const repForceRef = useRef<number | null>(null);
   const onRepForce = useCallback((n: number | null) => { repForceRef.current = n; }, []);
+
+  // Which demonstration patient is on screen, and the block of their plan that has been sent to
+  // the rep machine. Two patients, because the two reasons to own this machine ask for different
+  // modes of exercise: a tendon repair the patient has to drive, and a weak hand the arm drives.
+  const [patientIdx, setPatientIdx] = useState(0);
+  const patient = DEMO_PATIENTS[patientIdx];
+  const [prescribed, setPrescribed] = useState<{ block: Block; label: string } | null>(null);
+  const loadBlock = useCallback((block: Block, label: string) => setPrescribed({ block, label }), []);
+  // A different patient's plan is a different set of blocks, so nothing stays loaded across them.
+  useEffect(() => { setPrescribed(null); }, [patientIdx]);
+
+  // What the assistant knows about the person on screen. The plan is parsed here rather than
+  // passed raw so that the chat sees the same validated blocks the panel does, in clinician units.
+  const patientCase: CaseContext = useMemo(() => {
+    let plan: CaseContext["plan"] = null;
+    let planError: string | null = null;
+    try {
+      const p = planOf(patient);
+      plan = {
+        uploadedBy: patient.plan.uploadedBy,
+        uploadedOn: patient.plan.uploadedOn,
+        note: patient.plan.note,
+        ceilingGf: Math.round(newtonsToGramsForce(p.ceilingN)),
+        blocks: p.blocks.map((b) => ({
+          finger: b.finger,
+          mode: b.mode,
+          reps: b.reps,
+          capGf: Math.round(blockCapGf(b)),
+          holdS: b.holdS,
+          stretchMm: b.romTargetM === null ? null : Math.round(b.romTargetM * 1000),
+        })),
+      };
+    } catch (e) {
+      planError = e instanceof Error ? e.message : String(e);
+    }
+    return {
+      name: patient.name,
+      id: patient.id,
+      details: patient.lines,
+      summary: patient.summary,
+      plan,
+      planError,
+      history: patient.history,
+    };
+  }, [patient]);
   const camToken = useRef(0);
   const camAnalyzer = useRef<LiveAnalyzer | null>(null);
   const camBuf = useRef<CamBuf>(newCamBuf());
@@ -602,8 +652,9 @@ export default function SimApp() {
       study, week, sel,
       snap ? { phase: snap.phase, repsDone: snap.repsDone, recovery_index: snap.recovery_index ?? undefined } : null,
       { measured, medicalReport: snap && hasReps ? (report ?? medicalReportMd(study, week, snap)) : null },
+      patientCase,
     );
-  }, [study, week, sel, snap, camTrial, camForce, camOn, live, report, dropSecs]);
+  }, [study, week, sel, snap, camTrial, camForce, camOn, live, report, dropSecs, patientCase]);
 
   const weeks = SESSIONS;
   const riSeries: Series[] = FINGERS.flatMap((f) => {
@@ -637,11 +688,17 @@ export default function SimApp() {
           screen loses the least important thing last. The column is transparent to the mouse so
           the 3D view behind it still drags and the explore wheel still works. */}
       <div className="pointer-events-none absolute bottom-4 left-4 top-4 flex w-[340px] max-w-[calc(100%-2rem)] flex-col justify-end gap-4">
-        <GuideHand subscribe={subscribeHandFrames} trackerOn={trackerOn} onTrackerChange={requestTracker} onForce={onRepForce} />
+        <GuideHand subscribe={subscribeHandFrames} trackerOn={trackerOn} onTrackerChange={requestTracker}
+          onForce={onRepForce} prescribed={prescribed} />
         <ChatPanel context={chatContext} onTool={onTool} />
       </div>
       <aside className="panel absolute bottom-4 right-4 top-4 w-[470px] max-w-[calc(100%-2rem)] space-y-4 overflow-y-auto">
         <PatientCard
+          patient={patient}
+          index={patientIdx}
+          count={DEMO_PATIENTS.length}
+          onPrev={() => setPatientIdx((i) => (i + DEMO_PATIENTS.length - 1) % DEMO_PATIENTS.length)}
+          onNext={() => setPatientIdx((i) => (i + 1) % DEMO_PATIENTS.length)}
           onExport={snap && snap.reps.length > 0 && !live && !camOn ? () => {
             const md = report ?? medicalReportMd(study, week, snap);
             if (!report) setReport(md);
@@ -650,6 +707,9 @@ export default function SimApp() {
             setTimeout(() => URL.revokeObjectURL(url), 60_000);
           } : undefined}
         />
+        <ClinicianPlan patient={patient} onLoad={loadBlock} loaded={prescribed?.label ?? null} />
+        <SessionHistory patient={patient} />
+
         <div>
           <div className="flex items-center gap-2">
             <span className="t-title">Flexor recovery simulator</span>

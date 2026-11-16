@@ -88,10 +88,10 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "show_dashboard_section",
-      description: "Scroll the dashboard sidebar to the section that explains a metric and highlight it. Sections: live = live streaming metrics (ROM, peak force, RFD, stiffness, SPARC, hysteresis, steadiness, relaxation tau; only after Run index curl); signals = x(t)/F(t) traces with flexion/hold/extension phases; recovery_table = recovery index, R-inf, tau, t90 per finger; recovery_curve = recovery index vs week; group_scores = motion/strength/mechanics/consistency scores; force_loop = force-displacement loop (apparent stiffness, hysteresis); tendon_units = FDP/FDS estimated recovery; weights = index weights and sensitivity; data_quality = flags; export = CSV/report downloads. Use when the user asks where a metric is or to show/explain it.",
+      description: "Scroll the dashboard sidebar to the section that explains a metric and highlight it. Sections: plan = the clinician's prescription for this patient (blocks, caps, holds, stretch targets); history = this patient's past sessions and their notes; live = live streaming metrics (ROM, peak force, RFD, stiffness, SPARC, hysteresis, steadiness, relaxation tau; only after Run index curl); signals = x(t)/F(t) traces with flexion/hold/extension phases; recovery_table = recovery index, R-inf, tau, t90 per finger; recovery_curve = recovery index vs week; group_scores = motion/strength/mechanics/consistency scores; force_loop = force-displacement loop (apparent stiffness, hysteresis); tendon_units = FDP/FDS estimated recovery; weights = index weights and sensitivity; data_quality = flags; export = CSV/report downloads. Use when the user asks where a metric is or to show/explain it.",
       parameters: {
         type: "object",
-        properties: { section: { type: "string", enum: ["live","signals","recovery_table","recovery_curve","group_scores","force_loop","tendon_units","weights","data_quality","export"] } },
+        properties: { section: { type: "string", enum: ["plan","history","live","signals","recovery_table","recovery_curve","group_scores","force_loop","tendon_units","weights","data_quality","export"] } },
         required: ["section"],
       },
     },
@@ -181,10 +181,29 @@ export interface SessionContext {
   perRep: unknown;
 }
 
+/** The patient on screen, their prescription and what they have done, as the chat sees it. */
+export type CaseContext = {
+  name: string;
+  id: string;
+  details: readonly string[];
+  summary: string;
+  plan: {
+    uploadedBy: string;
+    uploadedOn: string;
+    note: string;
+    ceilingGf: number;
+    blocks: { finger: string; mode: string; reps: number; capGf: number; holdS: number; stretchMm: number | null }[];
+  } | null;
+  /** Why there is no plan here, when there is none: a plan that fails validation is not hidden. */
+  planError: string | null;
+  history: readonly unknown[];
+};
+
 export function buildContext(
   study: Study, week: number, sel: Finger,
   live?: { phase: string; repsDone: number; recovery_index?: number } | null,
   session?: { measured: SessionContext | null; medicalReport: string | null },
+  patientCase?: CaseContext | null,
 ) {
   return {
     note: "All data is SIMULATED. Recovery values are fractions of the contralateral (healthy) hand, shown here as %. 'simTruth' is the generator's hidden ground truth.",
@@ -226,6 +245,9 @@ export function buildContext(
       perRep: session.measured.perRep,
     }) : null,
     medicalReport: session?.medicalReport ?? null,
+    // The clinical half: who this is, what a clinician prescribed, and what they have done so far.
+    // Invented, like everything else here, but it is what the panels on screen are showing.
+    patientCase: patientCase ?? null,
     muscles: MUSCLES.map((m) => `${m.name}: ${m.label}`),
   };
 }
@@ -233,5 +255,6 @@ export function buildContext(
 export const SYSTEM_PROMPT = `You are an assistant embedded in a flexor-tendon recovery simulator (MuJoCo MyoHand 3D model + a stress-test/curl analysis).
 Answer questions about the scene and the study results using ONLY the JSON context provided; if something isn't in it, say so. Be concise.
 The context includes the session the user just measured: "measuredSession" (per-rep and median metrics, group scores, force source and gauge dropouts) and "medicalReport" (the assessment report in Markdown, summarising that session). Both are null until at least one curl repetition has been analysed. Use them for questions about the measured finger curls, the report, or "how did I do". If measuredSession.inProgress is true the session is still running, so say the figures are provisional. If forceSource is not the gauge, say force values are assumed rather than measured; force dropouts were recorded as 0 N.
+The context also includes "patientCase": the patient on screen, the prescription a clinician uploaded for them (blocks of finger, mode, reps, force cap in grams-force, hold, stretch target) and their past sessions. Use it for questions about what this patient is supposed to do, what they have done, or why one patient is on cpm and the other on active. Counted repetitions are those where the force actually reached the cap; abandoned ones stopped short, which is a finding about the finger. Seconds of "no reading" are a camera problem, never a patient one, so never read them as a worse week.
 All data is simulated; do not give clinical advice. ${LANGUAGE_RULE}
 When the user asks to see, find, or learn about a specific muscle or tendon (or its properties/recovery), CALL the tools: show_muscle_info for a property question, highlight_muscles to just show muscles, show_dashboard_section to point at the dashboard section for a metric, clear_highlights to reset, tour_muscles to automatically step through every muscle popup, set_camera_view to go to a named view (sagittal, frontal, transverse, a corner, or home) and rotate_camera for a relative turn. Then briefly explain in text. Whenever your answer is about, or names, a specific muscle or tendon (even a general question like "what does the FDP do?" or "how is the index FDS healing?"), also call highlight_muscles (or show_muscle_info) for the relevant muscle(s) so it lights up in the 3D view; do not wait to be asked to show it. Skip highlighting only when the answer isn't about a particular muscle. Muscle names: FDP = deep flexor, FDS = superficial flexor, digits 2-5 = index, middle, ring, little.`;
