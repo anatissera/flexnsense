@@ -218,7 +218,8 @@ body.film{background:#000}                 /* no light border around the film if
 .sim .simt figcaption b{flex:none;font:700 22px var(--f-data);letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
 .sim .simt figcaption span{font-size:27px;line-height:1.3;color:var(--ink-2)}
 .sim .lead{position:absolute;left:120px;top:954px;width:1680px;font-size:22px;color:var(--ink-3)}
-.sim .hf{position:absolute;right:120px;top:954px;font-size:22px;color:var(--ink-3);z-index:5}
+.sim .hf{position:absolute;right:120px;top:946px;display:flex;align-items:center;gap:10px;font-size:22px;color:var(--ink-3);z-index:5;white-space:pre}
+.sim .hf img{width:40px;height:37px;flex:none}
 .sim .hf a{color:var(--ink);font-weight:600;text-decoration:underline;text-underline-offset:4px;cursor:pointer}
 
 /* === 8 · USER INTERFACE =================================================== */
@@ -773,7 +774,7 @@ body.editing [contenteditable]:focus{outline-style:solid}
     <figcaption><b>Isaac Lab</b><span>4,096 tables, two arms each, learn both jobs.</span></figcaption>
   </figure>
   <p class="lead" data-a="up" style="--d:460ms">Simulation only: no trained policy has moved the real arm yet.</p>
-  <div class="hf" data-a="up" style="--d:520ms">On Hugging Face: <a href="https://huggingface.co/peresjav/flexnsense-sim-policies" target="_blank" rel="noopener">the policies</a> · <a href="https://huggingface.co/datasets/peresjav/lerobot-2026" target="_blank" rel="noopener">the dataset</a></div>
+  <div class="hf" data-a="up" style="--d:520ms"><img src="assets/brand/hf-logo.svg" alt="">On Hugging Face: <a href="https://huggingface.co/peresjav/flexnsense-sim-policies" target="_blank" rel="noopener">the policies</a> · <a href="https://huggingface.co/datasets/peresjav/lerobot-2026" target="_blank" rel="noopener">the dataset</a></div>
 </section>
 
 <section class="slide s11" data-name="Thank you" data-foot="none" data-enter="finale">
