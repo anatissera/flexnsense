@@ -114,6 +114,20 @@ project).
 - Turn **Deployment Protection off**, or visitors meet a login instead of the dashboard.
 - `public/` is about 32 MB of meshes, model and WebAssembly. It is static and served from the CDN.
 
+### The assistant runs on an OpenAI or a Gemini key
+
+The text assistant takes either: set `GEMINI_API_KEY` and it uses Gemini's OpenAI-compatible
+chat-completions endpoint, tool calls included, or `OPENAI_API_KEY` and it uses OpenAI. Gemini wins
+when both are set, and `GEMINI_MODEL` or `OPENAI_MODEL` overrides the default model.
+
+The **voice** assistant is OpenAI-only and not portable by changing a key. `/api/realtime` mints an
+ephemeral secret and the browser then speaks OpenAI's realtime event protocol directly; Google's
+Live API is a different protocol, so it would be a new client rather than a new base URL. With only
+a Gemini key, the text assistant works and the voice button says why it does not.
+
+The **emergency stop by voice** is unaffected by any of this. It is the browser's own Web Speech
+API: no key, no provider, no cost.
+
 ### The assistant costs money on a public page
 
 `/api/chat` and `/api/realtime` both reach OpenAI on our key, and `/api/realtime` mints an ephemeral
