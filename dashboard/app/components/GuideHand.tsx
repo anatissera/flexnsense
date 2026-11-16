@@ -14,6 +14,7 @@ import { DEMO_PASSIVE_TARGET_M, RepSimulation } from "../lib/session/simulation"
 import { Bar } from "./charts";
 import DemoBadge from "./DemoBadge";
 import { onEmergencyStop } from "../lib/estop";
+import { Hint } from "./Hints";
 
 // Index joint targets (rad) when flexed: MCP, PIP, DIP.
 const FLEX = [0.5, 0.55, 0.35];
@@ -469,7 +470,7 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
     // Placed by the left column in SimApp, which stacks this above the chat. It used to sit at a
     // hardcoded 392 px off the bottom, which is the height of an open chat panel: collapsing the
     // chat left a hole, and a shorter screen pushed this panel off the top of the view.
-    <div id="flex-guide" className="panel pointer-events-auto w-full space-y-2 p-3">
+    <div id="flex-guide" className="panel pointer-events-auto mt-auto w-full shrink-0 space-y-2 p-3">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-2">
           <span className="t-section">Rep machine</span>
@@ -543,6 +544,11 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
           ))}
         </select>
       </div>
+      <Hint kind="demo">
+        No hardware is detected, so this set is simulated end to end. What is real: the state machine
+        deciding the phases, the cues and the counting, and your own finger in front of the camera.
+        What is not: the force, and the arm it is deciding about.
+      </Hint>
       <div className="flex gap-2">
         {playing || waiting ? (
           <button className="btn btn-danger flex-1" onClick={stop}>
@@ -568,6 +574,11 @@ export default function GuideHand({ subscribe, trackerOn, onTrackerChange, onFor
         <input type="checkbox" checked={dropout} onChange={(e) => setDropout(e.target.checked)} />
         Simulate a lost force reading (try it while the arm is pulling)
       </label>
+      <Hint>
+        Tick this mid-repetition. The set stops: with no force reading the arm may not pull, and the
+        last value is never held. It is the rule the whole safety design rests on, and it is worth
+        seeing happen.
+      </Hint>
       <p className="t-small faint">
         Start opens the webcam, with the model chosen in the right panel, and begins once a hand is detected. The force and arm are simulated (no gauge or arm is attached), so the numbers are not measurements.
       </p>

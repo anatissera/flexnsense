@@ -684,10 +684,12 @@ export default function SimApp() {
       </div>
       <MuscleCallout callouts={callouts} anchors={anchorsRef} study={study} week={week} onClose={closeCallout} />
       {/* The left column: the rep machine with the chat under it, stacked from the bottom up so
-          that collapsing the chat lowers the rep machine instead of leaving a hole, and a shorter
-          screen loses the least important thing last. The column is transparent to the mouse so
-          the 3D view behind it still drags and the explore wheel still works. */}
-      <div className="pointer-events-none absolute bottom-4 left-4 top-4 flex w-[340px] max-w-[calc(100%-2rem)] flex-col justify-end gap-4">
+          that collapsing the chat lowers the rep machine instead of leaving a hole. The bottom
+          alignment is `mt-auto` on the first panel rather than `justify-end` on the column: with
+          justify-end, content taller than the column is clipped at the top and cannot be scrolled
+          back to, which is exactly what happens once the hint notes are showing. The column is
+          transparent to the mouse so the 3D view behind it still drags and the explore wheel works. */}
+      <div className="pointer-events-none absolute bottom-4 left-4 top-4 flex w-[340px] max-w-[calc(100%-2rem)] flex-col gap-4 overflow-y-auto">
         <GuideHand subscribe={subscribeHandFrames} trackerOn={trackerOn} onTrackerChange={requestTracker}
           onForce={onRepForce} prescribed={prescribed} />
         <ChatPanel context={chatContext} onTool={onTool} />
