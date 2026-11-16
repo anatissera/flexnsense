@@ -73,6 +73,16 @@ lib/              shared helpers with no knowledge of any one device; use them f
 gauge_reader/     roadmap item 2: read the PESOLA spring scale through a camera (python -m gauge_reader)
 hand_tracking/    roadmap item 5: finger flexion angles through a camera (python -m hand_tracking)
   landmarks.py    pure geometry on MediaPipe's 21 landmarks; no mediapipe/cv2 import, so it is unit-testable
+session/          the session layer: prescriptions, modes, repetitions, two arms
+  protocol.py     a clinician's prescription as data (finger, mode, reps, cap, hold, stretch)
+  tuning.py       the machine's own settings, from config/session-tuning.json
+  modes.py        active / passive / cpm, as data rather than as branches
+  reps.py         one repetition, start to finish, and the device-driven deadman
+  interlock.py    only one arm may be able to move, ever
+  arm2.py         the hook mover behind one interface, local or remote
+  wire.py         the two-machine message protocol and the lease (pure, no sockets)
+  remote_arm2.py  arm 2 over a link, both ends (pure, no sockets)
+  link.py         the WebSocket under remote_arm2. Needs fastapi, uvicorn, websockets
 control/          roadmap item 3: the admittance controller
   safety.py       the gate: one force reading -> HOLD / YIELD / RELEASE. Pure, exhaustively tested
   admittance.py   the law: overshoot -> how far to move this cycle. Pure
