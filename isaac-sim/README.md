@@ -36,6 +36,18 @@ runner, the grip is a rule, and the move policy is told where things are. The wh
 wrong with each, is in [docs/07-two-arms-together.md](docs/07-two-arms-together.md). The policies are in
 `policies/team_v3/`.
 
+## The move arm learning by contact alone (16 November, morning)
+
+`Flex-Phys-v0` removes the last rules. The scale is a chain of real bodies (swivel, tube, a sliding rod on the
+datasheet's spring, a wire loop), the fingers are solid posts, and the move arm has to pinch the tube between its jaw
+pads and carry it by friction. The sequence: the loop lies on the table; the move arm puts it on the index finger; the
+pull arm pulls until the scale shows 200 g and returns to zero; the move arm moves the loop to the middle finger; the
+pull arm pulls again.
+
+After 62 minutes of training the policy completes the whole sequence on all 1,024 unseen simulated tables. It is a
+simulation result only, its pulls overshoot 200 g by about 17 g, and its gripper is faster than wanted. The record is in
+[docs/08-physical-contact.md](docs/08-physical-contact.md); the policy is in `policies/phys_v1/`.
+
 ## Test the pull policy with `robot_training/inference`
 
 The policy plugs into the control loop of branch `feature/robot-training` without changing it: it takes the eight

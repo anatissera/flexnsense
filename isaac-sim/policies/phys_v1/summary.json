@@ -1,0 +1,18 @@
+{
+  "tables": 1024,
+  "every_episode_starts_with_the_loop_on_the_table": true,
+  "share_loop_put_on_index_finger": 1.0,
+  "share_loop_then_moved_to_middle_finger": 1.0,
+  "share_whole_sequence_with_both_pulls": 1.0,
+  "share_out_of_time": 0.0,
+  "seconds_until_on_index_mean": 4.6,
+  "seconds_until_on_middle_mean": 14.155,
+  "seconds_whole_sequence_mean": 20.679,
+  "first_pull_top_reading_N_mean": 2.126,
+  "first_pull_top_reading_N_highest": 2.164,
+  "second_pull_top_reading_N_mean": 2.125,
+  "second_pull_top_reading_N_highest": 2.313,
+  "pull_target_N": 1.96,
+  "move_arm_fastest_gripper_speed_m_per_s_mean": 0.5335,
+  "loop_highest_point_m_mean": 0.0685
+}
