@@ -1,0 +1,29 @@
+{
+  "schema": "scale-calib/2",
+  "mode": "stickers",
+  "u0": 0.1246,
+  "u1": 0.9203,
+  "g0": 0.0,
+  "g1": 600.0,
+  "slope_g_per_u": 754.0530350634662,
+  "offset_g": -96.90634459144599,
+  "tare_u": 0.1285139639856893,
+  "samples": [],
+  "s1_ref": [
+    978.6838389012723,
+    460.06282794999237
+  ],
+  "s2_ref": [
+    1710.7224558664282,
+    408.146012239039
+  ],
+  "ref_profile": {
+    "area_ratio": 1.4377358490566037,
+    "elong1": 3.0933767751565795,
+    "elong2": 2.033744134209729,
+    "redness1": 110.1850357055664,
+    "redness2": 87.96981048583984
+  },
+  "created_at": "2026-11-15T14:35:14+00:00",
+  "notes": "ROG EYE S, 1920x1080. References clicked by hand: the red band by the label (1) and the red mark at the far end (2). Zeroed with the scale unloaded."
+}

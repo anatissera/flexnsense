@@ -1,0 +1,15 @@
+{
+  "bus_serial": "5B8E114979",
+  "calibrated_on": "2026-11-15",
+  "note": "See follower-5B8E114979.md for context. Range lives on the servos' firmware, not on any computer.",
+  "ranges": {
+    "1": [1085, 3011],
+    "2": [996, 3100],
+    "3": [891, 3205],
+    "4": [898, 3198],
+    "5": [139, 3957],
+    "6": [1024, 3072],
+    "7": [109, 3987],
+    "8": [1242, 2854]
+  }
+}

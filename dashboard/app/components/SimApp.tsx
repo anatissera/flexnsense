@@ -3,12 +3,20 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import MyoViewerClient from "./MyoViewerClient";
 import HandTracker, { type HandPose } from "./HandTracker";
+import GaugeForce, { freshGauge, type GaugeSample } from "./GaugeForce";
+import { CORNERS, FACES, TURNS } from "../lib/viewPresets";
 import { Bar, FINGER_COLOR, Legend, LineChart, type Band, type Series } from "./charts";
 import ChatPanel from "./ChatPanel";
 import GuideHand from "./GuideHand";
+import PatientCard from "./PatientCard";
+import { reportPage } from "../lib/markdownHtml";
+import HandMeasurements from "./HandMeasurements";
+import ViewCube from "./ViewCube";
+import type { ViewApi } from "./MyoViewer";
+import type { HandFrame } from "../lib/handFrame";
 import MuscleCallout from "./MuscleCallout";
 import type { MuscleAnchor } from "./MyoViewer";
-import { buildContext, MUSCLE_NAMES, muscleInfo, resolveMuscle } from "../lib/chatContext";
+import { buildContext, MUSCLE_NAMES, muscleInfo, resolveMuscle, type SessionContext } from "../lib/chatContext";
 import { median } from "../lib/curlsim/dsp";
 import { curveAt } from "../lib/curlsim/dsp";
 import { genTrial, refOf } from "../lib/curlsim/generator";
@@ -33,6 +41,10 @@ function download(name: string, text: string, type: string) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+// The simulated index curl's controls (Run, speed, New patient) are hidden for now: the Rep machine is the
+// way to run an exercise. Flip this to bring them back, nothing else about them was removed.
+const SHOW_SIM_RUN_CONTROLS = false;
 
 const FocusCtx = createContext<string | null>(null);
 
@@ -137,6 +149,11 @@ function LivePanel({ snap, running }: { snap: LiveSnapshot; running: boolean }) 
   );
 }
 
+// `drops` are [t0, t1] spans (s) where the gauge was on but gave no fresh reading (recorded as 0 N);
+// `open` is the start of the span in progress; `measured` is whether any sample used the gauge.
+type CamBuf = { t: number[]; x: number[]; F: number[]; drops: [number, number][]; open: number | null; measured: boolean };
+const newCamBuf = (): CamBuf => ({ t: [], x: [], F: [], drops: [], open: null, measured: false });
+
 export default function SimApp() {
   const [seed, setSeed] = useState(1);
   const base = useMemo(() => runStudy(seed), [seed]);
@@ -156,9 +173,15 @@ export default function SimApp() {
   const handPoseRef = useRef<HandPose | null>(null);
   const runToken = useRef(0);
   const camDispRef = useRef<number | null>(null);
+  // Measured force from the gauge reader (null when absent or stale). `gaugeOn` is whether the user has
+  // switched force sensing on; when it is off the old constant-20-N assumption still applies.
+  const gaugeRef = useRef<GaugeSample | null>(null);
+  const gaugeOn = useRef(false);
+  const onGaugeActive = useCallback((on: boolean) => { gaugeOn.current = on; }, []);
   const camToken = useRef(0);
   const camAnalyzer = useRef<LiveAnalyzer | null>(null);
-  const camBuf = useRef<{ t: number[]; x: number[]; F: number[] }>({ t: [], x: [], F: [] });
+  const camBuf = useRef<CamBuf>(newCamBuf());
+  const [camForce, setCamForce] = useState<{ measured: boolean; drops: [number, number][] }>({ measured: false, drops: [] });
   const [camTrial, setCamTrial] = useState<Trial | null>(null);
   const [camOn, setCamOn] = useState(false);
 
@@ -189,10 +212,13 @@ export default function SimApp() {
   const exploreRef = useRef(false);
   const exploreIdxRef = useRef(0);
   const viewerWrapRef = useRef<HTMLDivElement>(null);
-  const showExplore = useCallback((i: number) => {
+  // `focusMs`: also swing the camera round to face the muscle over that long (chat tour only; stepping
+  // with the mouse wheel leaves the camera where the user put it).
+  const showExplore = useCallback((i: number, focusMs?: number) => {
     const n = MUSCLE_NAMES.length;
     const idx = ((i % n) + n) % n;
     const m = MUSCLE_NAMES[idx];
+    if (focusMs) viewApiRef.current?.focusMuscle(m, focusMs);
     exploreIdxRef.current = idx;
     setExploreIdx(idx);
     highlightRef.current = { muscles: new Set([m]), color: 0xfde047 };
@@ -220,11 +246,13 @@ export default function SimApp() {
     exploreRef.current = true;
     setExplore(true);
     let i = 0;
-    showExplore(0);
+    // The camera move takes most of the dwell time, but never longer than 1.2 s, so it has settled before the next muscle.
+    const moveMs = Math.min(1200, sec * 600);
+    showExplore(0, moveMs);
     tourTimer.current = setInterval(() => {
       i += 1;
       if (i >= MUSCLE_NAMES.length) { stopExplore(); return; }
-      showExplore(i);
+      showExplore(i, moveMs);
     }, sec * 1000);
   }, [showExplore, stopExplore, stopTour]);
   useEffect(() => {
@@ -278,6 +306,24 @@ export default function SimApp() {
       focusTimer.current = setTimeout(() => setFocusSec(null), 6000);
       return `scrolled to and highlighted the "${id}" section of the dashboard`;
     }
+    if (name === "set_camera_view" || name === "rotate_camera") {
+      const view = viewApiRef.current;
+      if (!view) return "error: the 3D view is not ready yet";
+      if (name === "rotate_camera") {
+        const turn = TURNS[String(args.direction) as keyof typeof TURNS];
+        if (!turn) return `error: unknown direction ${JSON.stringify(args.direction)}; use ${Object.keys(TURNS).join(", ")}`;
+        const raw = Number(args.degrees);
+        const deg = Number.isFinite(raw) ? Math.min(360, Math.max(1, raw)) : 90;
+        view.turn(turn[0], turn[1] * (deg * Math.PI) / 180);
+        return `rotating the camera ${args.direction} by ${deg} degrees`;
+      }
+      const id = String(args.view ?? "");
+      if (id === "home") { view.home(); return "returning the camera to the starting side profile"; }
+      const preset = FACES.find((f) => f.id === id) ?? CORNERS.find((c) => c.id === id);
+      if (!preset) return `error: unknown view ${JSON.stringify(args.view)}`;
+      view.snapTo(preset.dir, preset.up);
+      return `rotating the camera to the ${"label" in preset ? preset.label : `${preset.name} corner (three-quarter)`} view`;
+    }
     if (name === "clear_highlights") {
       setFocusSec(null);
       highlightRef.current = null;
@@ -291,6 +337,7 @@ export default function SimApp() {
       if (!ok.length) return `error: unknown muscles ${JSON.stringify(bad)}`;
       highlightRef.current = { muscles: new Set(ok), color: 0xfde047 };
       updateCallouts(ok.slice(0, 4)); // every highlighted muscle gets a pointer box
+      viewApiRef.current?.focusMuscle(ok[0]);
       select(ok[0]);
       return `highlighted ${ok.join(", ")}${bad.length ? `; unknown: ${bad.join(", ")}` : ""}`;
     }
@@ -304,6 +351,7 @@ export default function SimApp() {
         anchorsRef.current.wanted = new Set(next);
         return next;
       });
+      viewApiRef.current?.focusMuscle(m);
       select(m);
       return `showing floating info box for ${m}`;
     }
@@ -333,6 +381,8 @@ export default function SimApp() {
   const publishCamTrial = useCallback(() => {
     const b = camBuf.current;
     if (b.t.length < 60) return;
+    const tEnd = b.t[b.t.length - 1];
+    setCamForce({ measured: b.measured, drops: b.open === null ? [...b.drops] : [...b.drops, [b.open, tEnd]] });
     setCamTrial({
       patientId: base.patient.id, finger: "index", hand: "injured", session: week, trialIndex: 1, test: "full",
       fs: CAM_FS, t: Float64Array.from(b.t), x: Float64Array.from(b.x), F: Float64Array.from(b.F),
@@ -343,13 +393,15 @@ export default function SimApp() {
     camToken.current++;
     if (camAnalyzer.current) { setSnap(camAnalyzer.current.snapshot()); publishCamTrial(); }
     camAnalyzer.current = null;
+    forceRef.current = null;
     setCamOn(false);
   }, [publishCamTrial]);
   useEffect(() => () => { camToken.current++; }, []);
 
   // Camera mode: the tracked index-tip displacement drives the live analysis in place of the simulated
-  // curl. Force is assumed constant at 20 N with +/-1 N uniform noise (no force sensor yet). The analyzer
-  // zeroes its baseline over the first 0.2 s, so force is held at 0 during that tare window.
+  // curl. Force comes from the gauge reader when force sensing is on (a dropout is recorded as 0 N and
+  // marked on the chart); otherwise it is assumed constant at 20 N with +/-1 N uniform noise. The analyzer
+  // zeroes its baseline over the first 0.2 s, so the assumed force is held at 0 during that tare window.
   const startCam = useCallback(() => {
     const token = ++camToken.current;
     const FS = CAM_FS;
@@ -358,7 +410,8 @@ export default function SimApp() {
     const analyzer = new LiveAnalyzer(FS, refRomLive, conA.reps.length ? medOfAnalysis(conA) : null, weights);
     const tare = Math.round(0.2 * FS);
     camAnalyzer.current = analyzer;
-    camBuf.current = { t: [], x: [], F: [] };
+    camBuf.current = newCamBuf();
+    setCamForce({ measured: false, drops: [] });
     setCamTrial(null);
     setSel("index");
     setSnap(null);
@@ -375,18 +428,53 @@ export default function SimApp() {
         const n = Math.floor(((now - start) / 1000) * FS);
         const b = camBuf.current;
         for (; pushed <= n; pushed++) {
-          const f = pushed < tare ? 0 : 20 + (Math.random() * 2 - 1);
+          // Measured force when the gauge is on; a dropout is 0 N, never the last value. Otherwise the
+          // constant-force assumption (zero during the tare window).
+          const g = gaugeOn.current ? freshGauge(gaugeRef) : null;
+          const f = gaugeOn.current ? (g ? g.n : 0) : pushed < tare ? 0 : 20 + (Math.random() * 2 - 1);
           analyzer.push(pushed / FS, d, f);
-          if (b.t.length < 30000) { b.t.push(pushed / FS); b.x.push(d); b.F.push(f); }
+          if (b.t.length < 30000) {
+            const ts = pushed / FS;
+            b.t.push(ts); b.x.push(d); b.F.push(f);
+            if (gaugeOn.current) {
+              b.measured = true;
+              if (!g && b.open === null) b.open = ts;
+              else if (g && b.open !== null) { b.drops.push([b.open, ts]); b.open = null; }
+            } else if (b.open !== null) { b.drops.push([b.open, ts]); b.open = null; }
+          }
         }
         if (now - lastSnap > 100) { lastSnap = now; setSnap(analyzer.snapshot()); publishCamTrial(); }
       }
+      // The fingertip arrow follows the measured force; absent or stale means no arrow.
+      const measured = gaugeOn.current ? freshGauge(gaugeRef) : null;
+      forceRef.current = measured ? { n: measured.n } : null;
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   }, [base.patient, week, weights, publishCamTrial]);
 
   const onCamActive = useCallback((on: boolean) => { if (on) startCam(); else stopCam(); }, [startCam, stopCam]);
+
+  // The tracker's on/off state lives here so the rep machine panel can start the camera too.
+  // Starting it from outside must not leave the simulated curl running underneath it, which
+  // pressing the tracker's own button already prevents through its `onStart={stop}`.
+  const [trackerOn, setTrackerOn] = useState(false);
+  const requestTracker = useCallback((on: boolean) => {
+    if (on) stop();
+    setTrackerOn(on);
+  }, [stop]);
+
+  // The main camera's API, handed up by the viewer for the view cube in the top right.
+  const viewApiRef = useRef<ViewApi | null>(null);
+  const onViewApi = useCallback((api: ViewApi | null) => { viewApiRef.current = api; }, []);
+
+  // One HandFrame stream from the tracker, fanned out to whatever panels want every frame.
+  const handFrameSubs = useRef(new Set<(frame: HandFrame) => void>());
+  const onHandFrame = useCallback((frame: HandFrame) => { handFrameSubs.current.forEach((fn) => fn(frame)); }, []);
+  const subscribeHandFrames = useCallback((fn: (frame: HandFrame) => void) => {
+    handFrameSubs.current.add(fn);
+    return () => { handFrameSubs.current.delete(fn); };
+  }, []);
 
   const run = useCallback(() => {
     const token = ++runToken.current;
@@ -461,6 +549,11 @@ export default function SimApp() {
       { x0: t[g.extStart], x1: t[g.e], color: "rgba(52,211,153,0.14)" },
     ];
   });
+  // Force dropouts (gauge on, no reading) in red, on the camera trial only.
+  const dropBands: Band[] = view.cam
+    ? camForce.drops.map(([x0, x1]) => ({ x0, x1, color: "rgba(239,68,68,0.28)" }))
+    : [];
+  const dropSecs = camForce.drops.reduce((s, [a, b]) => s + (b - a), 0);
   const loop = (a: typeof view.aI, color: string, name: string): Series | null => {
     const g = a.segs[0];
     if (!g) return null;
@@ -468,10 +561,28 @@ export default function SimApp() {
   };
   const loopSeries = [loop(view.aC, "#9ca3af", "contralateral (reference)"), loop(view.aI, FINGER_COLOR[sel], `${sel} injured`)].filter(Boolean) as Series[];
 
-  const chatContext = useMemo(
-    () => buildContext(study, week, sel, snap ? { phase: snap.phase, repsDone: snap.repsDone, recovery_index: snap.recovery_index ?? undefined } : null),
-    [study, week, sel, snap],
-  );
+  // What the chat sees of the measured curls: the session metrics and the medical report, both only once
+  // a rep has been analysed. The report is the same text the Export button opens.
+  const chatContext = useMemo(() => {
+    const hasReps = !!snap && snap.reps.length > 0;
+    const measured: SessionContext | null = snap && hasReps ? {
+      source: camTrial ? "camera" : "simulated",
+      inProgress: !!live || camOn,
+      forceSource: !camTrial ? "simulation" : camForce.measured ? "gauge reader (measured)" : "assumed constant 20 N",
+      forceDropouts: camTrial && camForce.measured ? { count: camForce.drops.length, totalSeconds: dropSecs } : null,
+      repsAnalysed: snap.reps.length,
+      recoveryIndex: snap.recovery_index,
+      groupScores: snap.groups,
+      medianMetrics: snap.med,
+      trialVariability: snap.trial,
+      perRep: snap.reps,
+    } : null;
+    return buildContext(
+      study, week, sel,
+      snap ? { phase: snap.phase, repsDone: snap.repsDone, recovery_index: snap.recovery_index ?? undefined } : null,
+      { measured, medicalReport: snap && hasReps ? (report ?? medicalReportMd(study, week, snap)) : null },
+    );
+  }, [study, week, sel, snap, camTrial, camForce, camOn, live, report, dropSecs]);
 
   const weeks = SESSIONS;
   const riSeries: Series[] = FINGERS.flatMap((f) => {
@@ -492,12 +603,26 @@ export default function SimApp() {
     <FocusCtx.Provider value={focusSec}>
     <div className="relative h-full w-full">
       <div ref={viewerWrapRef} className="absolute inset-0">
-        <MyoViewerClient curl={curlRef} health={healthRef} highlight={highlightRef} anchors={anchorsRef} force={forceRef} handPose={handPoseRef} explore={exploreRef} />
+        <MyoViewerClient curl={curlRef} health={healthRef} highlight={highlightRef} anchors={anchorsRef} force={forceRef} handPose={handPoseRef} explore={exploreRef}
+          exploreOn={explore}
+          exploreLabel={`${exploreIdx + 1}/${MUSCLE_NAMES.length} ${muscleInfo(MUSCLE_NAMES[exploreIdx])?.label ?? ""}`}
+          onExploreToggle={explore ? stopExplore : startExplore}
+          onViewApi={onViewApi} />
+      <ViewCube api={viewApiRef} />
       </div>
       <MuscleCallout callouts={callouts} anchors={anchorsRef} study={study} week={week} onClose={closeCallout} />
-      <GuideHand />
+      <GuideHand subscribe={subscribeHandFrames} trackerOn={trackerOn} onTrackerChange={requestTracker} />
       <ChatPanel context={chatContext} onTool={onTool} />
       <aside className="panel absolute bottom-4 right-4 top-4 w-[470px] max-w-[calc(100%-2rem)] space-y-4 overflow-y-auto">
+        <PatientCard
+          onExport={snap && snap.reps.length > 0 && !live && !camOn ? () => {
+            const md = report ?? medicalReportMd(study, week, snap);
+            if (!report) setReport(md);
+            const url = URL.createObjectURL(new Blob([reportPage(`Medical report ${study.patient.id} week ${week}`, md)], { type: "text/html" }));
+            window.open(url, "_blank");
+            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+          } : undefined}
+        />
         <div>
           <div className="t-title">Flexor recovery simulator</div>
           <p className="t-small muted mt-1">
@@ -514,25 +639,26 @@ export default function SimApp() {
               <button key={w} onClick={() => setWi(i)} aria-pressed={i === wi} className="chip">{w}</button>
             ))}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {live ? (
-              <button onClick={stop} className="btn btn-danger">Stop</button>
-            ) : (
-              <button onClick={run} disabled={camOn} className="btn btn-primary">Run index curl</button>
-            )}
-            <select value={speed} onChange={(e) => setSpeed(+e.target.value)} className="field">
-              {[1, 2, 4].map((s) => <option key={s} value={s} className="text-black">{s}× speed</option>)}
-            </select>
-            <button onClick={() => setSeed((s) => s + 1)} className="btn">New patient</button>
-            <button onClick={explore ? stopExplore : startExplore} aria-pressed={explore} className="chip"
-              title="Scroll the mouse wheel over the 3D view to step through every tendon (Esc to exit)">
-              Explore
-            </button>
-            {explore && (
-              <span className="t-small muted">{exploreIdx + 1}/{MUSCLE_NAMES.length} {muscleInfo(MUSCLE_NAMES[exploreIdx])?.label}</span>
-            )}
+          {SHOW_SIM_RUN_CONTROLS && (
+            <div className="flex flex-wrap items-center gap-2">
+              {live ? (
+                <button onClick={stop} className="btn btn-danger">Stop</button>
+              ) : (
+                <button onClick={run} disabled={camOn} className="btn btn-primary">Run index curl</button>
+              )}
+              <select value={speed} onChange={(e) => setSpeed(+e.target.value)} className="field">
+                {[1, 2, 4].map((s) => <option key={s} value={s} className="text-black">{s}× speed</option>)}
+              </select>
+              <button onClick={() => setSeed((s) => s + 1)} className="btn">New patient</button>
+            </div>
+          )}
+          {/* Hand camera and force camera side by side; each column holds its own picker, status and preview. */}
+          {/* Both columns are 3-row subgrids (controls, video, readout) of this grid, with a divider between. */}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] grid-rows-[auto_auto_auto] gap-x-5 p-1.5">
+            <HandTracker pose={handPoseRef} disp={camDispRef} onActive={onCamActive} onFrame={onHandFrame} on={trackerOn} onOnChange={setTrackerOn} />
+            <div aria-hidden className="row-span-3 w-px self-stretch" style={{ background: "var(--line)" }} />
+            <GaugeForce force={gaugeRef} onActive={onGaugeActive} />
           </div>
-          <HandTracker pose={handPoseRef} disp={camDispRef} onStart={stop} onActive={onCamActive} />
           <div className="flex gap-1">
             {FINGERS.map((f) => (
               <button key={f} onClick={() => setSel(f)} aria-pressed={sel === f}
@@ -544,42 +670,28 @@ export default function SimApp() {
           </div>
         </div>
 
-        {snap && <LivePanel snap={snap} running={!!live || camOn} />}
-
-        {snap && !live && !camOn && snap.reps.length > 0 && (
-          <Section id="medical_report" title="Medical report"
-            note="Built from the completed index curl above and the fitted healing course. Simulated data, not for clinical use.">
-            <div className="flex flex-wrap gap-2">
-              <button className="btn btn-primary" onClick={() => setReport(medicalReportMd(study, week, snap))}>
-                {report ? "Regenerate medical report" : "Generate medical report"}
-              </button>
-              {report && (
-                <button className="btn" onClick={() => download(`MEDICAL_REPORT_${study.patient.id}_wk${week}.md`, report, "text/markdown")}>
-                  Download .md
-                </button>
-              )}
-            </div>
-            {report && (
-              <pre className="t-small max-h-96 overflow-auto whitespace-pre-wrap rounded border border-(--line) p-2">{report}</pre>
-            )}
-          </Section>
-        )}
-
         <Section id="signals" title={`${sel} · ${view.cam ? "camera" : `week ${week}`} · displacement x(t) and force F(t)`}
-          note="Shaded: flexion (blue), hold (amber), extension (green). Filtered, force baseline zeroed over first 0.2 s.">
+          note={`Shaded: flexion (blue), hold (amber), extension (green). Filtered, force baseline zeroed over first 0.2 s.${dropBands.length ? " Red: force dropouts (no gauge reading), recorded as 0 N." : ""}`}>
           <LineChart h={110} yLabel="x (mm)" series={[{ name: "x", color: FINGER_COLOR[sel], xs: view.aI.t, ys: view.aI.xf }]}
             bands={bands} cursor={cursorT} />
           <LineChart h={110} yLabel="F (N)" xLabel="time (s)" series={[{ name: "F", color: "#e5e7eb", xs: view.aI.t, ys: view.aI.Ff }]}
-            bands={bands} cursor={cursorT} />
+            bands={[...bands, ...dropBands]} cursor={cursorT} />
           <div className="t-small muted">
             {view.aI.ok
               ? `${view.aI.reps.length} clean reps`
               : view.cam
-                // Constant 20 N force reads as baseline drift to the offline checker; not meaningful here.
-                ? `${view.aI.reps.length} reps detected (camera, constant 20 N force assumed)`
+                // The offline checker can reject a camera trial for force baseline drift: a constant 20 N
+                // assumption reads as drift, and so can a gauge dropout (0 N). Neither means a bad trial.
+                ? `${view.aI.reps.length} reps detected (camera, ${camForce.measured ? "measured force from the gauge" : "constant 20 N force assumed"})`
                 : `Trial rejected: ${view.aI.reasons.join("; ")}`}
+            {view.cam && camForce.drops.length > 0 &&
+              ` · ${camForce.drops.length} force dropout${camForce.drops.length === 1 ? "" : "s"}, ${dropSecs.toFixed(1)} s total (0 N)`}
           </div>
         </Section>
+
+        {snap && <LivePanel snap={snap} running={!!live || camOn} />}
+
+        {camOn && <HandMeasurements subscribe={subscribeHandFrames} />}
 
         <Section id="recovery_table" title="Recovery index per finger" note="Recovery index = weighted mean of motion / strength / mechanics / consistency scores vs contralateral (capped 0–120 %). R∞, τ from fit R(t)=R∞(1−e^(−t/τ)); time-to-90 % is when the fitted index reaches 90 %.">
           <table className="tbl">
