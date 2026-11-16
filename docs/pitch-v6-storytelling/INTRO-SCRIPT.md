@@ -44,3 +44,9 @@ After the two seconds of silence, carry on with the slide's own line: "Here, the
 - "playful" is the cue for the picture of Javier with the humanoid: a smile fits there.
 - Slow down on "Each of us has someone special." It is the one line the room should feel.
 - Say the last line as the picture fades, so the black screen and the silence arrive together.
+
+## The text over the film
+
+The same lines appear as text over the film, each with its picture, so the intro also works when nobody presents it.
+Press **C** before starting to hide them when you speak the lines yourself. The lines and their times are in `index.html`,
+in the `.subs` block of the first slide: change the wording here and there together.
