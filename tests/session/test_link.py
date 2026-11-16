@@ -11,7 +11,7 @@ import asyncio
 
 import pytest
 
-from session.link import PATH, QueueLink, app_for
+from session.link import PATH, QueueLink, app_for, connect_to_actuator
 
 
 def test_send_is_not_a_coroutine():
@@ -193,3 +193,54 @@ def test_the_far_end_refuses_a_request_it_cannot_trust_over_a_real_socket():
 
     assert seen["authorised"] is False
     assert seen.get("rejected"), "the refusal should have been logged"
+
+
+def test_brain_transport_task_ends_when_the_actuator_disconnects():
+    """A clean remote close must stop both sides of the brain's socket pump."""
+    websockets = pytest.importorskip("websockets")
+
+    async def run():
+        async def actuator(ws, path=None):
+            await ws.recv()
+
+        async with websockets.serve(actuator, "127.0.0.1", 0) as server:
+            port = server.sockets[0].getsockname()[1]
+            link, task = await connect_to_actuator(f"ws://127.0.0.1:{port}/arm2")
+            link.send({"kind": "probe"})
+            await asyncio.wait_for(task, timeout=2.0)
+            assert task.done()
+
+    asyncio.run(run())
+
+
+def test_manual_actuator_reports_the_persons_confirmation(monkeypatch):
+    from session import link as link_module
+    from session.arm2 import HookResult
+    from session.wire import Lease, MessageKind, decode, encode_hook_request
+
+    async def confirm(prompt: str) -> bool:
+        assert "index" in prompt
+        return True
+
+    monkeypatch.setattr(link_module, "_ask_yes_no", confirm)
+
+    async def run():
+        link = QueueLink()
+        worker = asyncio.create_task(link_module._manual_on_link(link))
+        link.deliver(encode_hook_request(
+            "index", Lease(move_id=1, issued_at=0.0, period_s=10.0)
+        ))
+        try:
+            raw = await asyncio.wait_for(link.next_outgoing(), timeout=1.0)
+        finally:
+            worker.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await worker
+
+        kind, fields = decode(raw)
+        assert kind is MessageKind.HOOK_REPORT
+        assert fields["result"] is HookResult.CONFIRMED
+        assert fields["finger"] == "index"
+        assert fields["move_id"] == 1
+
+    asyncio.run(run())

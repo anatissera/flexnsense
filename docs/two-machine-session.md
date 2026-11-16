@@ -115,14 +115,31 @@ On arm 2's machine:
 .venv/bin/python -m session.link serve --host 0.0.0.0 --port 8770
 ```
 
-It prints which finger to hook and waits for a person to confirm, which is `ManualHookMover`'s
-contract over a wire. No policy is trained for the hook move (`session/arm2.py`), so there is
-nothing else it could honestly do yet.
+By default it asks a person to move the hook by hand, then report whether it seated. This mode
+does not launch a policy or command the arm. To use the real policy process instead, pass
+`--checkpoint`, `--task` and `--bus-serial`; the operator still confirms the result, and
+`stop_and_home.py` must return success before the actuator reports a confirmed move.
 
 On arm 1's machine, `session.link.connect_to_actuator` returns a link, and a `RemoteHookMover`
 around it goes where a `ManualHookMover` goes. `GET /health` on the actuator reports the schema
 version it speaks, so a mismatch is visible before a session starts rather than as a refused
 message in the middle of one.
+
+### Probe the socket with one manual request
+
+On arm 2's machine, start the default manual server as above. On arm 1's machine, send one
+request:
+
+```bash
+.venv/bin/python scripts/try_remote_hook.py \
+    --url ws://justo.local:8770/arm2 --finger index --timeout 90
+```
+
+Replace `justo.local` with the actuator machine's reachable hostname or IP. The actuator
+terminal asks a person to move the hook by hand and confirm only after checking where it is.
+The client prints the reported result. This exercises one request, lease renewals, and the
+report over the real socket; it does not run `session.orchestrator.Orchestrator` or a full
+prescription. `session.orchestrator` remains a Python state machine without a runnable CLI.
 
 ## What actually goes over the socket
 

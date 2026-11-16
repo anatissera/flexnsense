@@ -177,9 +177,20 @@ async def connect_to_actuator(url: str, link: QueueLink | None = None):
             async for raw in ws:
                 link.deliver(json.loads(raw))
 
+        tasks = [asyncio.create_task(outgoing()), asyncio.create_task(incoming())]
         try:
-            await asyncio.gather(outgoing(), incoming())
+            done, pending = await asyncio.wait(
+                tasks, return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in pending:
+                task.cancel()
+            for task in done:
+                task.result()
         finally:
+            for task in tasks:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await task
             await ws.close()
 
     return link, asyncio.create_task(run())
@@ -263,8 +274,8 @@ def _policy_on_link(checkpoint: str, task: str, bus_serial: str, inference_dir: 
 
 
 async def _manual_on_link(link: QueueLink) -> None:
-    """Hold the arm still and report what a person does by hand, with no policy involved.
-    `ManualHookMover`'s contract, over a wire."""
+    """Ask a person to move the hook by hand, then report their confirmation over the wire."""
+    from session.arm2 import HookResult
     from session.remote_arm2 import ActuatorSide
 
     actuator = ActuatorSide(link)
@@ -277,10 +288,18 @@ async def _manual_on_link(link: QueueLink) -> None:
         if decision.move_to != last:
             last = decision.move_to
             if decision.move_to:
-                print(f"\n>> move the hook to the {decision.move_to} finger.")
-                print("   This end has NOT been given a way to move it on its own: no "
-                      "policy is trained (see session/arm2.py), so a person does it and "
-                      "confirms, exactly as ManualHookMover works locally.")
+                finger = decision.move_to
+                print(f"\n>> move the hook to the {finger} finger by hand.")
+                confirmed = await _ask_yes_no(
+                    f"   Is the hook actually on the {finger} finger? Confirm only after "
+                    "checking [Y/n]: "
+                )
+                if confirmed:
+                    actuator.report(HookResult.CONFIRMED,
+                                    "confirmed by the operator at arm 2")
+                else:
+                    actuator.report(HookResult.FAILED,
+                                    "operator reported the hook did not seat")
         await asyncio.sleep(0.05)
 
 
