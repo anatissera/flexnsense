@@ -110,7 +110,7 @@ def step_from_velocity(velocity_m_s: float, dt_s: float, params: AdmittanceParam
     `--max-step-mm` caps the yield step's smoothness against a flexing finger, so raising it
     to make a slow return faster also loosened that unrelated bound, which nobody wanted. At
     the camera's real, loaded frame rate (well under its nominal 30 fps - see
-    `scripts/run_session.py`'s main loop), `velocity_m_s * dt_s` routinely exceeds a few
+    `scripts/session/run_session.py`'s main loop), `velocity_m_s * dt_s` routinely exceeds a few
     millimetres, so whichever cap is in force wins outright: dozens of consecutive recovery
     cycles were seen pinned at exactly `params.max_step_m`, meaning the requested recovery or
     retrace speed had no effect at all until this split.

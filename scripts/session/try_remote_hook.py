@@ -1,6 +1,6 @@
 """Send one hook request to a remote actuator and print its reported outcome.
 
-    .venv/bin/python scripts/try_remote_hook.py \
+    .venv/bin/python scripts/session/try_remote_hook.py \
         --url ws://justo.local:8770/arm2 --finger index
 
 This probes one RemoteHookMover request over the real WebSocket. It does not run the session

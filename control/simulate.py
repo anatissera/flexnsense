@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from control.admittance import AdmittanceParams, step_from_velocity, yield_velocity
 from control.safety import Action, SafetyGate, SafetyLimits
 
-# Bench-measured tether stiffness (spring + cord + attachments), scripts/measure_tether_stiffness.py
+# Bench-measured tether stiffness (spring + cord + attachments), scripts/measure/measure_tether_stiffness.py
 # against data/tether_stiffness.csv: 56.2 N/m. Stiffer than the PESOLA-alone datasheet shortcut
 # (600 gf / ~110 mm = 53.5 N/m) because the cord adds its own give in series with the spring.
 SPRING_N_PER_M = 56.2

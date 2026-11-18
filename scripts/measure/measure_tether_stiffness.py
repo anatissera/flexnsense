@@ -22,9 +22,9 @@ Run it as a sweep up and then back down through the same force levels: the gap b
 the spring's own hysteresis, and it bounds how precisely any displacement inferred from a force
 reading can ever be known.
 
-    python scripts/measure_tether_stiffness.py                  # prompt through both sweeps, log, fit
-    python scripts/measure_tether_stiffness.py --grams 50,100,200,300,400
-    python scripts/measure_tether_stiffness.py --fit data/tether_stiffness.csv   # re-fit a log
+    python scripts/measure/measure_tether_stiffness.py                  # prompt through both sweeps, log, fit
+    python scripts/measure/measure_tether_stiffness.py --grams 50,100,200,300,400
+    python scripts/measure/measure_tether_stiffness.py --fit data/tether_stiffness.csv   # re-fit a log
 """
 from __future__ import annotations
 

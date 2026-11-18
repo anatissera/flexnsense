@@ -1,8 +1,8 @@
 """Simulate the tether pull: one joint's arc against a coordinated straight line.
 
-    .venv/bin/python scripts/simulate_pull.py                      # animate, live pose
-    .venv/bin/python scripts/simulate_pull.py --save pull.mp4      # write a video
-    .venv/bin/python scripts/simulate_pull.py --distance 90 --motors 3,4
+    .venv/bin/python scripts/preview/simulate_pull.py                      # animate, live pose
+    .venv/bin/python scripts/preview/simulate_pull.py --save pull.mp4      # write a video
+    .venv/bin/python scripts/preview/simulate_pull.py --distance 90 --motors 3,4
 
 Why this exists: a single revolute joint moves the gripper along an **arc**. Over a few
 millimetres that is indistinguishable from a line, which is why a first bench test would not

@@ -421,7 +421,7 @@ def test_for_pose_accepts_a_wide_enough_tick_range():
 
 # ---------------------------------------------------------------- speed/accel through the loop
 def test_the_coordinated_loop_scales_speed_per_joint(fake_station):
-    """The whole point of porting this from scripts/jog_coordinated.py: the real controller
+    """The whole point of porting this from scripts/arm/jog_coordinated.py: the real controller
     must get the same per-joint speed matching, not just the diagnostic script. Without it,
     whichever joint travels furthest this cycle is still moving once the others have stopped,
     which is the wobble `scaled_speeds` exists to remove."""

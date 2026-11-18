@@ -160,7 +160,7 @@ def test_the_committed_bench_calibration_loads_and_reports_what_is_missing():
     # `yield_sign` is measured: the camera run of 2026-11-15 found -1 for motor 4, and the
     # URDF geometry independently agrees (tests/lib/test_kinematics.py). `ticks_per_metre` is
     # not, and on this arm a single-joint measurement of it cannot be taken at all, because no
-    # joint moves the gripper along the tether; `scripts/run_session.py --coordinated` derives
+    # joint moves the gripper along the tether; `scripts/session/run_session.py --coordinated` derives
     # the equivalent number from the pose instead. See docs/bench-measurements.md.
     assert c.missing == ["ticks_per_metre"]
     with pytest.raises(NotMeasured):

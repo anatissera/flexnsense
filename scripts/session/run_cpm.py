@@ -1,9 +1,9 @@
 """Continuous passive motion: walk the finger out along a line and back, over and over.
 
-    .venv/bin/python scripts/run_cpm.py --no-camera          # nothing attached, check the line
-    .venv/bin/python scripts/run_cpm.py --reps 5             # with the finger hooked
+    .venv/bin/python scripts/session/run_cpm.py --no-camera          # nothing attached, check the line
+    .venv/bin/python scripts/session/run_cpm.py --reps 5             # with the finger hooked
 
-**This is a different kind of thing from `scripts/run_session.py`, on purpose.**
+**This is a different kind of thing from `scripts/session/run_session.py`, on purpose.**
 
 `run_session.py` is an admittance controller: the patient moves, the camera measures the
 force, and the force decides every step the arm takes. That is the right design when the
@@ -23,7 +23,7 @@ and it does not work, for a reason worth writing down rather than rediscovering:
   reached 32 mm out with the return permanently refused. It could not come back.
 
 So the motion here is a **walk between two saved poses**, computed once before the first
-command and repeated unchanged. It is the same motion `scripts/go_home.py` performs, run out
+command and repeated unchanged. It is the same motion `scripts/arm/go_home.py` performs, run out
 and back over and over: on this bench the cpm start pose and the session home are 80 mm apart
 at the gripper, which is most of a finger's measured excursion (98 to 114 mm,
 `config/calibration/bench.json`). The camera is a supervisor with one job: stop everything if
@@ -37,7 +37,7 @@ straight line between the two poses (9.7 mm on this bench, printed every run bef
 moves), which with a finger attached is side-load. What it buys in exchange is that both
 endpoints are poses someone placed by hand with the real rig in front of them, and that every
 waypoint is a per-joint convex combination of two in-range poses, so no joint can be
-commanded past travel that either endpoint has not already proved. `scripts/jog_coordinated.py`
+commanded past travel that either endpoint has not already proved. `scripts/arm/jog_coordinated.py`
 is still the way to check a genuinely straight pull.
 
 ## Where it starts, and why that is a second pose
@@ -50,9 +50,9 @@ attached and the tether already taking up.
 So CPM has its own start pose, `config/calibration/cpm-start-pose.json`, captured the same
 way the home pose was:
 
-    .venv/bin/python scripts/lock_arm.py --release
+    .venv/bin/python scripts/arm/lock_arm.py --release
     # ... place the arm by hand, with the finger hooked, where the stroke should begin ...
-    .venv/bin/python scripts/set_home_pose.py --save --to cpm
+    .venv/bin/python scripts/arm/set_home_pose.py --save --to cpm
 
 This script walks the arm to that pose before it starts, in paced steps, and returns it there
 at the end, which is also where it starts from, so running it again right after needs no walk
@@ -89,7 +89,7 @@ from session.tuning import DEFAULT_TUNING_PATH, load_tuning  # noqa: E402
 GAUGE_CALIB = "config/scale_calib.json"
 
 # Bench-proven for exactly this kind of motion: an open-loop walk through a pre-planned list
-# of waypoints, each held for a settle period. These are scripts/jog_coordinated.py's own
+# of waypoints, each held for a settle period. These are scripts/arm/jog_coordinated.py's own
 # defaults, and its CoordinatedAxis docstring records why: "700/50 tracked a straight line
 # with no visible wobble on this bench at a pace that kept up with a hand-paced pull."
 #
@@ -109,7 +109,7 @@ JOG_PROVEN_SETTLE = 0.3
 def build_pipeline(calib_path: str, outlier_persist: int = 5):
     """The same pipeline `python -m gauge_reader run` uses, with a longer outlier window.
 
-    Duplicated from `scripts/run_session.py` rather than imported, because `scripts/` is not a
+    Duplicated from `scripts/session/run_session.py` rather than imported, because `scripts/` is not a
     package and importing one script from another by path is worse than two lines. If a third
     caller appears, this belongs in `gauge_reader/` instead.
     """
@@ -134,7 +134,7 @@ def pose_waypoints(start: dict[int, float], end: dict[int, float], motors: list[
     """Intermediate poses from `start` to `end`, no joint moving more than `step_ticks` at a
     time, ending exactly on `end`.
 
-    The same shape as `session.home_pose.home_waypoints`, which is what `scripts/go_home.py`
+    The same shape as `session.home_pose.home_waypoints`, which is what `scripts/arm/go_home.py`
     walks, and deliberately so: this stroke IS that walk, repeated. It is kept here rather
     than reused because that one rounds to whole ticks at every waypoint and keys off the
     home pose's own joint set, while a stroke needs float precision carried along the path
@@ -159,7 +159,7 @@ def pose_waypoints(start: dict[int, float], end: dict[int, float], motors: list[
 async def read_pose(client, bus_serial: str, seconds: float) -> dict[int, float]:
     """Every joint's current tick reading, or whatever arrived before `seconds` ran out.
 
-    The same function `scripts/jog_coordinated.py` and `scripts/go_home.py` use.
+    The same function `scripts/arm/jog_coordinated.py` and `scripts/arm/go_home.py` use.
     `follow_motor_state` yields one tuple per motor across every bus, so filtering to this
     bus is the caller's job.
     """
@@ -212,7 +212,7 @@ class ForceSupervisor:
 
         Both halves belong off the event loop together: the grab blocks on the camera and the
         measurement is heavy CPU on a 1920x1080 frame. Leaving either inline starves the
-        Station traffic that is actually moving the arm, which `scripts/run_session.py`
+        Station traffic that is actually moving the arm, which `scripts/session/run_session.py`
         documents having measured.
         """
         ok, frame, ts, _ = self.source.read()
@@ -282,9 +282,9 @@ async def run(args) -> int:
             "CPM starts from its own pose, not from the session home: the home pose is where "
             "the arm is parked with nothing hooked, and a CPM stroke needs somewhere to "
             "travel to with the finger attached. Capture one:\n\n"
-            "    .venv/bin/python scripts/lock_arm.py --release\n"
+            "    .venv/bin/python scripts/arm/lock_arm.py --release\n"
             "    # place the arm by hand where the stroke should begin\n"
-            "    .venv/bin/python scripts/set_home_pose.py --save --to cpm\n"
+            "    .venv/bin/python scripts/arm/set_home_pose.py --save --to cpm\n"
         ) from None
 
     try:
@@ -293,7 +293,7 @@ async def run(args) -> int:
         raise SystemExit(
             f"no pose saved at {NAMED_POSES[args.to]}, so there is nowhere for the stroke to "
             f"travel to. Capture it with:\n\n"
-            f"    .venv/bin/python scripts/set_home_pose.py --save --to {args.to}\n"
+            f"    .venv/bin/python scripts/arm/set_home_pose.py --save --to {args.to}\n"
         ) from None
 
     client = await connect(host=host)
@@ -308,7 +308,7 @@ async def run(args) -> int:
 
     # --- the stroke, solved once, between the two named poses ---
     # Both endpoints were placed by hand with the real rig in front of someone and saved
-    # (scripts/set_home_pose.py), so the path interpolates between two known-good poses
+    # (scripts/arm/set_home_pose.py), so the path interpolates between two known-good poses
     # rather than extrapolating a direction from one of them. Solved from the saved start
     # pose and not from wherever the arm happens to be, so a repetition cannot depend on how
     # the last run was left: that repeatability is the whole point of this mode.
@@ -359,7 +359,7 @@ async def run(args) -> int:
         if out_of_range:
             raise SystemExit(
                 f"joint(s) {out_of_range} would be commanded outside their measured travel. "
-                f"Nothing has moved. Re-capture the poses with scripts/set_home_pose.py."
+                f"Nothing has moved. Re-capture the poses with scripts/arm/set_home_pose.py."
             )
 
     waypoints = pose_waypoints(pose, far, motors, args.step_ticks)
@@ -376,7 +376,7 @@ async def run(args) -> int:
     print(f"!! {gap_m * 1000:.0f} mm of tip travel, {abs(along_tether) * 1000:.0f} mm of it "
           f"along the tether")
     print(f"!! the path bows {worst_bow * 1000:.1f} mm off the straight line between the two "
-          "poses: it interpolates each joint, which is what scripts/go_home.py does, not a "
+          "poses: it interpolates each joint, which is what scripts/arm/go_home.py does, not a "
           "straight tether pull. With a finger attached that is side-load.")
 
     ceiling_n = grams_force_to_newtons(args.ceiling_gf)
@@ -425,7 +425,7 @@ async def run(args) -> int:
                    move_motors: list[int] | None = None) -> None:
         """One step along the path. Two sync_writes, speed scaled per joint.
 
-        The same two-packet pattern `scripts/jog_coordinated.py` uses, and for the same two
+        The same two-packet pattern `scripts/arm/jog_coordinated.py` uses, and for the same two
         reasons: one bus transaction so every joint's goal lands together, and a speed scaled
         to each joint's share of this step so they arrive together instead of whichever has
         furthest to go still moving after the others stopped.
@@ -435,7 +435,7 @@ async def run(args) -> int:
         only moves the joints it was given), so moving the rest too would be writing a
         no-op delta. It is NOT right for the walk to the start pose, where any of the seven
         joints may differ from where the arm currently sits, and every one of them has to be
-        passed explicitly - `scripts/go_home.py` moves every key of each waypoint for exactly
+        passed explicitly - `scripts/arm/go_home.py` moves every key of each waypoint for exactly
         this reason, and the walk below has to match it rather than assume the pull joints
         are the only ones that could be out of place.
         """
@@ -464,7 +464,7 @@ async def run(args) -> int:
         than this, every step is a short move followed by a long wait, and a sequence of
         move-wait-move-wait is exactly the stop-start judder this had on the bench. If it is
         much shorter, the next goal lands before the servo finished the last, which
-        `scripts/jog_coordinated.py` warns makes the arm ragged rather than faster.
+        `scripts/arm/jog_coordinated.py` warns makes the arm ragged rather than faster.
         """
         deltas = {m: target[m] - prev[m] for m in move_motors}
         speeds = scaled_speeds(deltas, args.speed)
@@ -553,7 +553,7 @@ async def run(args) -> int:
             way_f = {m: float(v) for m, v in way.items()}
             # Every joint in the waypoint, not just the three that pull the line: any of the
             # seven could be away from the start pose, and the walk here has to close all of
-            # that gap, the same as scripts/go_home.py does.
+            # that gap, the same as scripts/arm/go_home.py does.
             await goto(prev, way_f, move_motors=list(way_f))
             prev = {**prev, **way_f}
             if supervisor and supervisor.stop_reason:
@@ -601,7 +601,7 @@ async def run(args) -> int:
                 await set_position(client, bus_serial, motor_id, round(pose[motor_id]))
             except Exception as exc:  # noqa: BLE001
                 print(f"!! could not return motor {motor_id} ({exc}). Release torque by hand: "
-                      f"`python scripts/lock_arm.py --release --motors {motor_id}`.")
+                      f"`python scripts/arm/lock_arm.py --release --motors {motor_id}`.")
         await asyncio.sleep(1.0)
         if source_cam is not None:
             source_cam.release()
@@ -616,7 +616,7 @@ async def run(args) -> int:
         "arm here while you are still testing or exercising.\n\n"
         "Only when you are done with cpm for this session, unhook the finger and park the "
         "arm at the session home instead:\n"
-        "    .venv/bin/python scripts/go_home.py\n"
+        "    .venv/bin/python scripts/arm/go_home.py\n"
         "Going there with the finger still hooked would drag it through the arc between the "
         "two poses, which is why this is a choice to make on purpose, not a step after every "
         "run."
@@ -633,7 +633,7 @@ def main(argv=None) -> int:
     p.add_argument("--to", choices=sorted(NAMED_POSES), default="home",
                    help="the pose the stroke travels TO before coming back. The stroke is "
                         "the walk between two saved poses, which is the same motion "
-                        "scripts/go_home.py performs, repeated: on this bench the two are "
+                        "scripts/arm/go_home.py performs, repeated: on this bench the two are "
                         "80 mm apart at the tip")
     p.add_argument("--reach", type=float, default=1.0, metavar="FRACTION",
                    help="how far toward --to to actually travel, 0 to 1. The full stroke is "
@@ -652,14 +652,14 @@ def main(argv=None) -> int:
     p.add_argument("--start-pose", default=CPM_START_POSE_PATH,
                    help="the pose the stroke begins and ends at. Not the session home: that "
                         "is where the arm is parked with nothing hooked. Capture one with "
-                        "scripts/set_home_pose.py --save --to cpm")
+                        "scripts/arm/set_home_pose.py --save --to cpm")
     p.add_argument("--start-tolerance-ticks", type=int, default=20,
                    help="how far from the start pose counts as already there")
     p.add_argument("--goto-max-step-ticks", type=int, default=80,
                    help="largest per-joint move on the way to the start pose")
     p.add_argument("--speed", type=int, default=JOG_PROVEN_SPEED,
                    help="raw ST3215 goal-speed units, scaled per joint each step so all of "
-                        "them arrive together. Defaults to scripts/jog_coordinated.py's own "
+                        "them arrive together. Defaults to scripts/arm/jog_coordinated.py's own "
                         "bench-proven value, not config/session-tuning.json's "
                         "coordinated_speed: that number is tuned for the admittance "
                         "controller's continuous small corrections, a different motion from "
@@ -677,7 +677,7 @@ def main(argv=None) -> int:
                         "a step takes at a given --speed cannot be derived, only measured")
     p.add_argument("--no-camera", action="store_true",
                    help="run with no force supervision at all. For checking the path with "
-                        "NOTHING ATTACHED, the same way scripts/jog_coordinated.py is used")
+                        "NOTHING ATTACHED, the same way scripts/arm/jog_coordinated.py is used")
     p.add_argument("--ceiling-gf", type=float, default=tuning.safety.ceiling_gf,
                    help="stop everything if the force passes this. A ceiling, not a cap: it "
                         "is not a force the stroke works against, it is the number that says "

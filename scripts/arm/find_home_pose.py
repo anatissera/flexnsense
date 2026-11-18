@@ -1,7 +1,7 @@
 """Search the workspace for the pose that pulls straightest, and save it as home.
 
-    .venv/bin/python scripts/find_home_pose.py             # search and report
-    .venv/bin/python scripts/find_home_pose.py --save      # and write config/calibration/
+    .venv/bin/python scripts/arm/find_home_pose.py             # search and report
+    .venv/bin/python scripts/arm/find_home_pose.py --save      # and write config/calibration/
 
 Geometry only, from NormaCore's URDF: nothing moves, Station is not needed, and the whole
 search runs in the repo's normal .venv in a couple of minutes.
@@ -134,7 +134,7 @@ def main(argv=None) -> int:
             "condition_number": round(cond, 3),
             "smallest_singular_value": round(sigma, 5),
             "search": {"samples": args.samples, "seed": args.seed, "margin": args.margin},
-            "note": ("Found by scripts/find_home_pose.py. Geometry only, from the URDF: this "
+            "note": ("Found by scripts/arm/find_home_pose.py. Geometry only, from the URDF: this "
                      "has not been checked against the physical arm for reachability with the "
                      "rig in place. Confirm nothing collides before trusting it."),
         }, indent=2) + "\n")

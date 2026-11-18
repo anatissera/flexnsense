@@ -1,6 +1,6 @@
 """Measure ticks_per_metre and yield_sign using the camera instead of a ruler.
 
-    .venv/bin/python scripts/measure_ticks_with_camera.py --motor 4
+    .venv/bin/python scripts/measure/measure_ticks_with_camera.py --motor 4
 
 No ruler, no typing numbers between moves: the camera reads the PESOLA and the tether's known
 stiffness converts the force change into the displacement that caused it, `dx = dF / k`. The
@@ -116,8 +116,8 @@ async def run(args) -> int:
         raise SystemExit(
             "tether_n_per_m is not measured, and this method is built on it: the camera gives "
             "a force change and the stiffness turns it into a distance.\n\n"
-            "    .venv/bin/python scripts/measure_tether_stiffness.py\n\n"
-            "Or use the ruler method instead: scripts/measure_ticks_per_metre.py"
+            "    .venv/bin/python scripts/measure/measure_tether_stiffness.py\n\n"
+            "Or use the ruler method instead: scripts/measure/measure_ticks_per_metre.py"
         )
     hysteresis_m = calib.get("displacement_uncertainty_m")
 
@@ -205,7 +205,7 @@ async def run(args) -> int:
         print(f"\nreturning motor {args.motor} to {baseline} ...")
         if not await command_with_retry(client, bus_serial, args.motor, baseline, args.attempts):
             print(f"!! could not return motor {args.motor} to baseline. Release torque by hand: "
-                  f"`python scripts/lock_arm.py --release --motors {args.motor}`")
+                  f"`python scripts/arm/lock_arm.py --release --motors {args.motor}`")
         source.release()
 
     if len(tick_points) < 2:
@@ -225,7 +225,7 @@ async def run(args) -> int:
             print(f"\nInherited uncertainty: the tether's {hysteresis_m*1000:.0f} mm hysteresis "
                   f"over a {span_m*1000:.0f} mm move is about "
                   f"{hysteresis_m/span_m*100:.0f}% on this number. The ruler method "
-                  "(scripts/measure_ticks_per_metre.py) does not carry it.")
+                  "(scripts/measure/measure_ticks_per_metre.py) does not carry it.")
 
     if args.save:
         bench_calibration_io.save({

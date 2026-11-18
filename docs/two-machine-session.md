@@ -131,7 +131,7 @@ On arm 2's machine, start the default manual server as above. On arm 1's machine
 request:
 
 ```bash
-.venv/bin/python scripts/try_remote_hook.py \
+.venv/bin/python scripts/session/try_remote_hook.py \
     --url ws://justo.local:8770/arm2 --finger index --timeout 90
 ```
 

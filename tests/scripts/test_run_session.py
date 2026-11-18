@@ -1,4 +1,4 @@
-"""How `scripts/run_session.py` turns a live pose into something the control loop can drive.
+"""How `scripts/session/run_session.py` turns a live pose into something the control loop can drive.
 
 The part worth testing without hardware is the resolution step: given a pose, which joints
 pull, which one gets tracked, how many ticks to the metre, and which way releases. Every one
@@ -30,7 +30,7 @@ POSE = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275, 8: 1301}
 def load_script():
     """Import the script by path: `scripts/` is not a package, so it is not importable."""
     spec = importlib.util.spec_from_file_location(
-        "run_session", REPO_ROOT / "scripts/run_session.py"
+        "run_session", REPO_ROOT / "scripts/session/run_session.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -262,7 +262,7 @@ def test_the_arm_is_actually_commanded_when_the_force_is_over_the_cap(tmp_path, 
     printed a rising force and a nonzero 'step' column for three full reps while the arm
     never moved, ending in 'arm travelled 0.0 mm'.
 
-    The cause was `scripts/run_session.py`'s main loop never yielding to the event loop
+    The cause was `scripts/session/run_session.py`'s main loop never yielding to the event loop
     during the session (grab frame, process, decide - all synchronous, and `ControlLoop.step`
     performs no I/O until it has a position to command against). A coroutine that never
     suspends never lets a concurrently scheduled task take a turn, so the background task

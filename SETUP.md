@@ -95,7 +95,7 @@ next to the binary.
 **Servo IDs and joint-range calibration are done once per physical arm, by hand, in this web
 UI** (*ST3215 motor config* and *ST3215 bus calibration* pages) - NormaCore does not publish a
 scripted procedure for either. Each bus shows a serial number on its card; note it down, you
-need it for everything below. Our `scripts/calibrate.py` only checks that this has already
+need it for everything below. Our `scripts/arm/calibrate.py` only checks that this has already
 been done - run it after, not instead of, the web UI step.
 
 Once calibrated, commit the result so the team doesn't redo it per laptop: a
@@ -104,7 +104,7 @@ a calibration is ever lost (servo reset, reflash, replaced servo), restore it fr
 without redoing the manual web UI step:
 
 ```bash
-python scripts/restore_calibration.py config/calibration/<bus serial>.json
+python scripts/arm/restore_calibration.py config/calibration/<bus serial>.json
 ```
 
 ## 5. The Python client (for our scripts)
@@ -159,11 +159,11 @@ cp .env.example .env
 
 ```bash
 .venv/bin/python -m pytest -q                         # software, no hardware, no Station needed
-.venv/bin/python scripts/calibrate.py                   # Station: is the bus calibrated, do 8 motors answer
-.venv/bin/python scripts/log_force_calibration.py --probe   # current readings, unloaded
+.venv/bin/python scripts/arm/calibrate.py                   # Station: is the bus calibrated, do 8 motors answer
+.venv/bin/python scripts/measure/log_force_calibration.py --probe   # current readings, unloaded
 ```
 
-`scripts/calibrate.py` is the first thing to run against the real arm: it connects to
+`scripts/arm/calibrate.py` is the first thing to run against the real arm: it connects to
 Station, watches the bus, and tells you which motor ids respond and whether each one already
 has a calibrated range - before you trust any position command or force reading. Force
 calibration procedure: [docs/force-calibration.md](./docs/force-calibration.md).

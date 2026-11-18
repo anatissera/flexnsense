@@ -25,7 +25,7 @@ CALIB = REPO_ROOT / "config/calibration/follower-5B8E114979.json"
 URDF = REPO_ROOT / "norma-core/hardware/elrobot/simulation/elrobot_follower.urdf"
 
 pytestmark = pytest.mark.skipif(not HOME_FILE.is_file(),
-                                reason="no home pose saved; run scripts/find_home_pose.py --save")
+                                reason="no home pose saved; run scripts/arm/find_home_pose.py --save")
 
 
 def test_it_names_every_arm_joint():

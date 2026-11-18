@@ -101,7 +101,7 @@ Simulating the closed loop (tether at 56.2 N/m, 30 Hz, patient pulling at a cons
 gives a relationship worth knowing before touching the bench. 56.2 N/m is the bench-measured
 stiffness of the whole tether, spring plus cord plus attachments, not the spring alone: hand-pull
 the PESOLA through 50-500 gf and back, measuring the distance between a fixed and a moving
-reference mark at each level (`scripts/measure_tether_stiffness.py`, fit by `lib.stiffness`). It
+reference mark at each level (`scripts/measure/measure_tether_stiffness.py`, fit by `lib.stiffness`). It
 replaces the datasheet shortcut this doc used before measuring (600 gf over ~110 mm of printed
 scale = 53.5 N/m), which was always going to be a little too stiff, since the real tether adds a
 cord in series with the spring. The raw sweep is `data/tether_stiffness.csv`; the worst up/down

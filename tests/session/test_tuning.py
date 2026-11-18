@@ -27,7 +27,7 @@ REPO = Path(__file__).resolve().parents[2]
 def run_session():
     """Import the script by path: `scripts/` is not a package, so it is not importable."""
     spec = importlib.util.spec_from_file_location(
-        "run_session", REPO / "scripts" / "run_session.py"
+        "run_session", REPO / "scripts" / "session" / "run_session.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

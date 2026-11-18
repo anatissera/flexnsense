@@ -1,9 +1,9 @@
 """Walk the gripper along the tether's line and back, with no camera and no force reading.
 
-    .venv/bin/python scripts/jog_coordinated.py
+    .venv/bin/python scripts/arm/jog_coordinated.py
 
 Answers one question on its own, with nothing else in the loop: do the three joints
-`scripts/run_session.py --coordinated` picked actually move the gripper the way the geometry
+`scripts/session/run_session.py --coordinated` picked actually move the gripper the way the geometry
 says they should, on *this* arm, not just in the URDF. `control.loop.ControlLoop` adds a
 force reading, a safety gate and an admittance law on top of exactly this motion; if this
 script does not track straight, nothing built on top of it will either, and the camera was
@@ -113,7 +113,7 @@ async def run(args) -> int:
             if gap > 20:
                 print(f"!! {gap} ticks from the saved home pose before this run has even "
                       "started. Each run returns to where IT started, not to home, so this "
-                      "does not self-correct - run scripts/go_home.py first.\n")
+                      "does not self-correct - run scripts/arm/go_home.py first.\n")
         except SystemExit:
             pass   # no home pose saved; nothing to compare against
 
@@ -214,7 +214,7 @@ async def run(args) -> int:
                 await set_position(client, bus_serial, motor_id, round(pose[motor_id]))
             except Exception as exc:  # noqa: BLE001
                 print(f"!! could not return motor {motor_id} to {round(pose[motor_id])} ticks "
-                      f"({exc}). Release torque by hand: `python scripts/lock_arm.py --release "
+                      f"({exc}). Release torque by hand: `python scripts/arm/lock_arm.py --release "
                       f"--motors {motor_id}`, or power down Station.")
         # Long enough for the servo's own step response to actually finish, not just for the
         # command to be sent: the readback right after this is the whole point of measuring

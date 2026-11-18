@@ -4,8 +4,8 @@ Single file: a tiny HTTP server (stdlib + pyarrow) that serves one HTML page.
 Episodes are downloaded on demand with HF_TOKEN (environment or .env) and cached
 under recordings/flexnsense_cache (git-ignored).
 
-    .venv/bin/python scripts/flexnsense_viewer.py            # http://127.0.0.1:8765
-    .venv/bin/python scripts/flexnsense_viewer.py --port 9000 --no-browser
+    .venv/bin/python scripts/preview/flexnsense_viewer.py            # http://127.0.0.1:8765
+    .venv/bin/python scripts/preview/flexnsense_viewer.py --port 9000 --no-browser
 
 Camera images are served straight from the parquet bytes; nothing is re-encoded.
 """

@@ -1,14 +1,14 @@
 """Does opening the camera stop Station's position stream? Measures it, three ways.
 
-    .venv/bin/python scripts/check_camera_vs_station.py
+    .venv/bin/python scripts/measure/check_camera_vs_station.py
 
 **Nothing moves.** This opens the camera and reads Station, both read-only, and commands no
 motor at any point. It exists because a session can look completely normal - force climbing,
 phases advancing, the printed step column tracking the admittance law - while the arm never
 receives a single command, and the reason is not in any of that output.
 
-The question it answers: `scripts/go_home.py --check` reads every joint instantly, and
-`scripts/run_session.py` with a fake camera reads them fine too, but the same session with the
+The question it answers: `scripts/arm/go_home.py --check` reads every joint instantly, and
+`scripts/session/run_session.py` with a fake camera reads them fine too, but the same session with the
 real camera open received **zero** position updates in 22 seconds on this bench. Those two
 facts together point at the camera and the arm competing rather than at the control code, and
 `lsusb -t` on this machine shows why that is plausible: the camera (1920x1080 MJPG, 480M) and
@@ -89,7 +89,7 @@ async def run(args) -> int:
         """Read frames the way a session does, so the camera is genuinely streaming.
 
         `source.read()` is synchronous and blocks the event loop while it waits, exactly as it
-        does in `scripts/run_session.py`; the `sleep(0)` between reads is what lets the
+        does in `scripts/session/run_session.py`; the `sleep(0)` between reads is what lets the
         Station subscription get its turn, also exactly as it does there. Reproducing that
         shape matters: a version of this check that read frames in a thread would measure a
         situation the session never actually runs in.
@@ -122,7 +122,7 @@ async def run(args) -> int:
     if alone == 0 and after == 0:
         print("Station sent nothing even with the camera closed, so this test cannot say "
               "anything about the camera. Fix the Station connection first "
-              "(scripts/go_home.py --check).")
+              "(scripts/arm/go_home.py --check).")
         return 1
     share = with_camera / alone if alone else 0.0
     print(f"with the camera open, Station delivered {share * 100:.0f} percent of its "

@@ -10,7 +10,7 @@ larger than either builder assumed. It dominates error at every tick delta small
 the force under the therapy cap: even a 60 mm move, most of the tether's usable travel, is only
 good to 10%. A ruler reading is good to about its own precision (roughly 1 mm) regardless of how
 far the arm moves, so it wins at any displacement actually reachable here. See
-docs/admittance-design.md and scripts/measure_ticks_per_metre.py for the full argument.
+docs/admittance-design.md and scripts/measure/measure_ticks_per_metre.py for the full argument.
 
 `fit_ticks_per_metre` is forced through the origin: zero commanded ticks is zero displacement by
 construction (it is the baseline the ruler reading started from), so there is no intercept to

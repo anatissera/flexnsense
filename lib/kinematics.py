@@ -13,7 +13,7 @@ hard to judge by eye, especially for telling "moves along the pull axis" from "m
 The URDF answers it exactly, and it ships with the hardware.
 
 Two conventions this relies on, both checked against the arm rather than assumed
-(`tests/lib/test_kinematics.py` pins them, and `scripts/which_motor.py --check` re-runs the
+(`tests/lib/test_kinematics.py` pins them, and `scripts/arm/which_motor.py --check` re-runs the
 comparison against whatever calibration is in `config/calibration/`):
 
   * `rev_motor_0N` in the URDF is Station's motor N. Confirmed by comparing the URDF's joint
@@ -569,8 +569,8 @@ def level_direction(direction: np.ndarray) -> np.ndarray:
     line the tether actually runs along. Levelling trades following the gripper's exact tilt
     for matching a tether that is close to horizontal, which is what the rig's photos show.
 
-    Shared rather than owned by one script because `scripts/jog_coordinated.py` and
-    `scripts/run_session.py` have to agree on it exactly: a pull that tracks straight when
+    Shared rather than owned by one script because `scripts/arm/jog_coordinated.py` and
+    `scripts/session/run_session.py` have to agree on it exactly: a pull that tracks straight when
     jogged and then climbs under the controller is the same rig behaving two ways, and the
     only honest way to rule that out is for both to compute the direction with one function.
 

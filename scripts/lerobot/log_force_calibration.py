@@ -1,6 +1,6 @@
 """NOT our hardware. Kept in case we ever port to a LeRobot-supported arm (SO-101 etc).
 
-Our arm is the ElRobot, controlled through NormaCore Station - see scripts/log_force_calibration.py
+Our arm is the ElRobot, controlled through NormaCore Station - see scripts/measure/log_force_calibration.py
 (the default, one level up) and docs/elrobot.md. This file is the original SO-101-via-LeRobot
 script, unmodified, parked here rather than deleted.
 

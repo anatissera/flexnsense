@@ -1,8 +1,8 @@
 """Move the arm to one of two named poses, slowly and in steps.
 
-    .venv/bin/python scripts/go_home.py --check         # where is it now? nothing moves
-    .venv/bin/python scripts/go_home.py                 # to the session home (the default)
-    .venv/bin/python scripts/go_home.py --to cpm         # to the cpm start pose
+    .venv/bin/python scripts/arm/go_home.py --check         # where is it now? nothing moves
+    .venv/bin/python scripts/arm/go_home.py                 # to the session home (the default)
+    .venv/bin/python scripts/arm/go_home.py --to cpm         # to the cpm start pose
 
 Exactly two destinations, named rather than an open path, because a typed `--path` would let
 a typo or an unrelated file become somewhere the arm actually drives to. `--to` only accepts
@@ -14,7 +14,7 @@ the control quality is repeatable rather than a matter of how the arm was last l
 pose-dependent bench numbers are used in the pose they were measured in. Why that pose:
 `session/home_pose.py`.
 
-`cpm` is `scripts/run_cpm.py`'s own start pose: tether already taken up, finger attached. Not
+`cpm` is `scripts/session/run_cpm.py`'s own start pose: tether already taken up, finger attached. Not
 a parking pose, which is exactly why walking to it is also something worth doing on its own,
 outside of running a stroke, for example to get the arm back there after it was moved by hand
 or after `--to home`.
@@ -125,7 +125,7 @@ async def run(args) -> int:
             await asyncio.sleep(args.settle)
     except KeyboardInterrupt:
         print(f"\nstopped. The arm is partway to {label}; rerun to finish, or move it by "
-              "hand after `scripts/lock_arm.py --release`.")
+              "hand after `scripts/arm/lock_arm.py --release`.")
         return 1
 
     final = await read_pose(client, bus_serial, sorted(home), args.seconds)
@@ -147,7 +147,7 @@ def main(argv=None) -> int:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--to", choices=sorted(NAMED_POSES), default="home",
                    help="which saved pose to walk to. 'home' is the session's parking pose "
-                        "(nothing hooked, tether slack); 'cpm' is scripts/run_cpm.py's start "
+                        "(nothing hooked, tether slack); 'cpm' is scripts/session/run_cpm.py's start "
                         "pose (tether taken up, finger attached). Exactly these two, not an "
                         "open path: see session.home_pose.NAMED_POSES")
     p.add_argument("--check", action="store_true", help="report the distance, move nothing")

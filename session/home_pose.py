@@ -17,7 +17,7 @@ of the limits, scored by the smallest singular value of the jacobian, which is t
 in its *worst* direction. The best candidates were then simulated through full 90 mm pulls in
 28 directions, out and back, and ranked by the worst deviation any of them produced. The
 winner holds every direction to 0.79 mm, against 8.6 mm for the all-centred pose. The search
-is in `scripts/find_home_pose.py` so it can be re-run if the arm or the rig changes.
+is in `scripts/arm/find_home_pose.py` so it can be re-run if the arm or the rig changes.
 """
 from __future__ import annotations
 
@@ -26,15 +26,15 @@ from pathlib import Path
 
 HOME_POSE_PATH = "config/calibration/home-pose.json"
 
-#: Where `scripts/run_cpm.py`'s stroke begins and ends: tether already taken up, finger
+#: Where `scripts/session/run_cpm.py`'s stroke begins and ends: tether already taken up, finger
 #: attached. Not a parking pose, and deliberately not the same file as `HOME_POSE_PATH`,
 #: because a pose with the tether slack and nothing hooked cannot be where a stroke that
 #: needs tension already present starts from. Lives next to `HOME_POSE_PATH` rather than in
-#: `scripts/run_cpm.py` so `scripts/go_home.py` can walk to either one without importing a
+#: `scripts/session/run_cpm.py` so `scripts/arm/go_home.py` can walk to either one without importing a
 #: script from a script, which `scripts/` being unpackaged rules out anyway.
 CPM_START_POSE_PATH = "config/calibration/cpm-start-pose.json"
 
-#: Every pose `scripts/go_home.py` is willing to walk to, by name. Closed on purpose: an open
+#: Every pose `scripts/arm/go_home.py` is willing to walk to, by name. Closed on purpose: an open
 #: `--path` would let a typo or an unrelated file become a destination the arm actually
 #: drives to, and the whole point of a named pose is that it was placed and measured with the
 #: real rig in front of someone, not that it is any JSON file with a `ticks` key.
@@ -51,7 +51,7 @@ def load_home_pose(path: str | Path = HOME_POSE_PATH) -> dict[int, int]:
         raise SystemExit(
             f"no home pose at {p}.\n\n"
             "Find one with:\n\n"
-            "    .venv/bin/python scripts/find_home_pose.py --save\n\n"
+            "    .venv/bin/python scripts/arm/find_home_pose.py --save\n\n"
             "It searches the calibrated joint ranges for the configuration that pulls "
             "straightest in the worst direction. See session/home_pose.py."
         )
@@ -67,7 +67,7 @@ def home_pose_metadata(path: str | Path = HOME_POSE_PATH) -> dict:
 def distance_from_home(pose: dict[int, float], home: dict[int, int] | None = None) -> int:
     """Largest tick difference between `pose` and home, over the joints home specifies.
 
-    What "the arm is home" means in practice, and what `scripts/go_home.py` reports. A single
+    What "the arm is home" means in practice, and what `scripts/arm/go_home.py` reports. A single
     number rather than a per-joint dict because the question it answers is binary: close
     enough to start, or not.
     """
@@ -91,8 +91,8 @@ def home_waypoints(start: dict[int, float], home: dict[int, int] | None = None,
     """Intermediate poses from `start` to `home`, each joint no more than `max_step_ticks`
     further along than the last waypoint.
 
-    Pure: no Station, no sleeping, no confirmation prompt. This exists so `scripts/go_home.py`
-    and `scripts/run_session.py`'s own return-to-home share one answer to "how do I get from
+    Pure: no Station, no sleeping, no confirmation prompt. This exists so `scripts/arm/go_home.py`
+    and `scripts/session/run_session.py`'s own return-to-home share one answer to "how do I get from
     here to home without asking any servo to cross its whole range in one jump" - a servo
     given a goal far from its current position moves as fast as it can get there, and that is
     the one thing this arm must never do near a hand. Each caller still owns the pacing

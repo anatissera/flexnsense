@@ -212,7 +212,7 @@ def scaled_speeds(deltas: dict[int, float], base_speed: int, min_speed: int = 30
     moving after the others have stopped, which bends the tip off the line *during* the step,
     not just between waypoints. Scaling each joint's speed by its share of the largest delta
     in this batch makes them land together instead. Found on the bench running
-    `scripts/jog_coordinated.py`, and the reason `ControlLoop._command_coordinated` uses this
+    `scripts/arm/jog_coordinated.py`, and the reason `ControlLoop._command_coordinated` uses this
     too: the effect is identical whichever caller is behind the sync_write.
 
     `min_speed` floors anything that would round near zero. Partly because a near-stationary

@@ -58,7 +58,7 @@ HOW_TO_MEASURE: dict[str, str] = {
     ),
     "ticks_per_metre": (
         "Measure the displacement with a RULER ON THE ARM, not by inferring it from the force. "
-        "Lock the arm in the session pose (scripts/lock_arm.py), with no finger anywhere near "
+        "Lock the arm in the session pose (scripts/arm/lock_arm.py), with no finger anywhere near "
         "it. Mark the gripper's position against a fixed reference, command a known tick delta "
         "on the motor that moves along the tether axis, and measure how far the mark moved: "
         "ticks_per_metre = d_ticks / d_metres. Move as far as the pose safely allows, since the "

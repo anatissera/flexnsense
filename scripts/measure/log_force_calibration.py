@@ -4,10 +4,10 @@ Used to calibrate servo current against grams read off the PESOLA spring scale.
 See docs/force-calibration.md for the rig and the procedure, docs/elrobot.md for
 what Station is and how to set up its Python client.
 
-    python scripts/log_force_calibration.py --probe --bus-serial <SERIAL>
-    python scripts/log_force_calibration.py --tare --bus-serial <SERIAL>
-    python scripts/log_force_calibration.py --out data/calib_up.csv --bus-serial <SERIAL>
-    python scripts/log_force_calibration.py --fit data/calib_up.csv
+    python scripts/measure/log_force_calibration.py --probe --bus-serial <SERIAL>
+    python scripts/measure/log_force_calibration.py --tare --bus-serial <SERIAL>
+    python scripts/measure/log_force_calibration.py --out data/calib_up.csv --bus-serial <SERIAL>
+    python scripts/measure/log_force_calibration.py --fit data/calib_up.csv
 
 `--fit` reads a CSV and does not need Station or the norma-core client at all.
 Everything else is async, because Station's client is.

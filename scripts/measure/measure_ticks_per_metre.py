@@ -20,7 +20,7 @@ procedure recommended it, and the numbers above are why that was wrong.
 
 Setup, needs the real arm:
 
-1. Lock the arm in the exact session pose: `python scripts/lock_arm.py --motors <id>`.
+1. Lock the arm in the exact session pose: `python scripts/arm/lock_arm.py --motors <id>`.
 2. Anchor the PESOLA between the gripper (or whatever the tether attaches to) and a fixed point,
    with some pre-tension, so the tether stays taut through a small move without going slack.
    Start the pre-tension low (tens of gf): a bigger tick delta is what gives the ruler reading
@@ -34,7 +34,7 @@ Setup, needs the real arm:
 5. ticks_per_metre comes out of the ruler readings alone. yield_sign comes out of whichever
    delta direction made the force go down.
 
-    python scripts/measure_ticks_per_metre.py --motor 3 --ticks 30,60,90,-30,-60,-90
+    python scripts/measure/measure_ticks_per_metre.py --motor 3 --ticks 30,60,90,-30,-60,-90
 """
 from __future__ import annotations
 
@@ -122,7 +122,7 @@ async def safe_return_to_baseline(client, bus_serial: str, motor_id: int, baseli
               f"{exc}")
         print(f"!! the arm is at an unknown position and may still be under tension - do not "
               f"leave it. Release torque by hand: "
-              f"`python scripts/lock_arm.py --release --motors {motor_id}`, "
+              f"`python scripts/arm/lock_arm.py --release --motors {motor_id}`, "
               f"or power down Station if that does not respond.")
 
 

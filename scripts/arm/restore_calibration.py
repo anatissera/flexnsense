@@ -7,8 +7,8 @@ back here skips that physical step and trusts the file instead. If the arm's act
 range changed since the file was recorded (different joint, different build), recalibrate by
 hand in the web UI instead of using this.
 
-    python scripts/restore_calibration.py config/calibration/follower-5B8E114979.json
-    python scripts/restore_calibration.py config/calibration/follower-5B8E114979.json --yes
+    python scripts/arm/restore_calibration.py config/calibration/follower-5B8E114979.json
+    python scripts/arm/restore_calibration.py config/calibration/follower-5B8E114979.json --yes
 
 Without --yes this only shows what it would write and asks for confirmation; nothing is sent
 until you type "yes". After writing, it reads the bus back and reports whether every motor's

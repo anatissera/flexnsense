@@ -6,10 +6,10 @@ pose"). It does not move the arm: it reads each motor's current position, writes
 value back as its goal, and only then enables torque, so there is no jump when the servo starts
 actively holding.
 
-    python scripts/lock_arm.py                  # lock all 8 motors (asks for confirmation)
-    python scripts/lock_arm.py --yes             # skip the confirmation
-    python scripts/lock_arm.py --release         # let the arm go limp again
-    python scripts/lock_arm.py --motors 1,2,5    # only these motor ids
+    python scripts/arm/lock_arm.py                  # lock all 8 motors (asks for confirmation)
+    python scripts/arm/lock_arm.py --yes             # skip the confirmation
+    python scripts/arm/lock_arm.py --release         # let the arm go limp again
+    python scripts/arm/lock_arm.py --motors 1,2,5    # only these motor ids
 
 With torque on, the servo's own control loop holds position and draws current to resist being
 pushed away from it - that resistance current is what log_force_calibration.py measures. This

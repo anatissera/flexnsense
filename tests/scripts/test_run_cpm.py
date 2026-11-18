@@ -1,7 +1,7 @@
 """The CPM runner: a fixed path, and a camera that supervises rather than drives.
 
 The properties worth testing without hardware are the ones that make this a different kind of
-thing from `scripts/run_session.py`:
+thing from `scripts/session/run_session.py`:
 
 - the path is computed once and is the same every repetition, which is what "the same motion
   every time" actually means;
@@ -26,7 +26,7 @@ POSE = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275, 8: 1301}
 
 @pytest.fixture(scope="module")
 def run_cpm():
-    spec = importlib.util.spec_from_file_location("run_cpm", REPO / "scripts" / "run_cpm.py")
+    spec = importlib.util.spec_from_file_location("run_cpm", REPO / "scripts" / "session" / "run_cpm.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -55,10 +55,10 @@ def build_args(run_cpm, argv):
 
 
 def build_jog_args(argv):
-    """scripts/jog_coordinated.py's own parser, so a test can compare against its real
+    """scripts/arm/jog_coordinated.py's own parser, so a test can compare against its real
     defaults rather than a second copy of 700/50 that could drift from the original."""
     spec = importlib.util.spec_from_file_location(
-        "jog_coordinated", REPO / "scripts" / "jog_coordinated.py"
+        "jog_coordinated", REPO / "scripts" / "arm" / "jog_coordinated.py"
     )
     jog = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(jog)
@@ -105,7 +105,7 @@ def test_it_starts_from_its_own_pose_not_the_session_home(run_cpm):
 
 
 def test_the_camera_can_be_turned_off_entirely_for_a_dry_path_check(run_cpm):
-    """The same way scripts/jog_coordinated.py is used: confirm the line with nothing
+    """The same way scripts/arm/jog_coordinated.py is used: confirm the line with nothing
     attached before putting a finger anywhere near it."""
     assert build_args(run_cpm, ["--no-camera"]).no_camera is True
 
@@ -124,7 +124,7 @@ def test_speed_and_accel_come_from_jog_coordinated_not_the_tuning_profile(run_cp
     coordinated_speed/accel (900/30) borrows a profile tuned for the admittance loop's
     continuous small corrections, not for this open-loop waypoint walk. With a low accel and
     a short settle, the servo never finished ramping up before the next 1 mm waypoint
-    overwrote its goal, so every step looked like a jerky restart. scripts/jog_coordinated.py
+    overwrote its goal, so every step looked like a jerky restart. scripts/arm/jog_coordinated.py
     tunes exactly this kind of motion and found 700/50 smooth; this has to use that, not the
     other script's number, on purpose."""
     from session.tuning import load_tuning
@@ -137,7 +137,7 @@ def test_speed_and_accel_come_from_jog_coordinated_not_the_tuning_profile(run_cp
 
 def test_the_proven_profile_matches_jog_coordinated_py_exactly(run_cpm):
     """Not a coincidence this test can check: both should read as the same two numbers,
-    because scripts/jog_coordinated.py is where 700/50 was found to be smooth, and the whole
+    because scripts/arm/jog_coordinated.py is where 700/50 was found to be smooth, and the whole
     point of borrowing it is to get that same proven motion here."""
     jog_defaults = build_jog_args([])
     assert run_cpm.JOG_PROVEN_SPEED == jog_defaults.speed
@@ -351,11 +351,11 @@ def test_set_home_pose_writes_to_exactly_one_of_the_two_named_poses():
     from session.home_pose import NAMED_POSES
 
     spec = importlib.util.spec_from_file_location(
-        "set_home_pose", REPO / "scripts" / "set_home_pose.py"
+        "set_home_pose", REPO / "scripts" / "arm" / "set_home_pose.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    source = (REPO / "scripts" / "set_home_pose.py").read_text()
+    source = (REPO / "scripts" / "arm" / "set_home_pose.py").read_text()
     assert "--path" not in source, "writing to an arbitrary path was deliberately removed"
     assert "args.to" in source
     assert set(NAMED_POSES) == {"home", "cpm"}
@@ -388,7 +388,7 @@ def test_go_home_only_accepts_the_two_named_destinations(capsys):
     which is why this calls main() directly rather than through build_args: argparse refuses
     the bad value and exits before build_args's own capture ever runs."""
     spec = importlib.util.spec_from_file_location(
-        "go_home", REPO / "scripts" / "go_home.py"
+        "go_home", REPO / "scripts" / "arm" / "go_home.py"
     )
     go_home = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(go_home)
@@ -399,7 +399,7 @@ def test_go_home_only_accepts_the_two_named_destinations(capsys):
 
 def test_go_home_defaults_to_the_session_home():
     spec = importlib.util.spec_from_file_location(
-        "go_home", REPO / "scripts" / "go_home.py"
+        "go_home", REPO / "scripts" / "arm" / "go_home.py"
     )
     go_home = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(go_home)
@@ -411,7 +411,7 @@ def test_go_home_can_target_the_cpm_start_pose():
 
     assert NAMED_POSES["cpm"] == CPM_START_POSE_PATH
     spec = importlib.util.spec_from_file_location(
-        "go_home", REPO / "scripts" / "go_home.py"
+        "go_home", REPO / "scripts" / "arm" / "go_home.py"
     )
     go_home = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(go_home)
@@ -420,7 +420,7 @@ def test_go_home_can_target_the_cpm_start_pose():
 
 def test_set_home_pose_only_accepts_the_two_named_destinations(capsys):
     spec = importlib.util.spec_from_file_location(
-        "set_home_pose", REPO / "scripts" / "set_home_pose.py"
+        "set_home_pose", REPO / "scripts" / "arm" / "set_home_pose.py"
     )
     set_home_pose = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(set_home_pose)

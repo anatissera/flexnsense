@@ -1,16 +1,16 @@
 """Capture the arm's current pose, as placed by hand, and save it to one of two named slots.
 
-    .venv/bin/python scripts/lock_arm.py --release   # so the arm can be moved by hand
+    .venv/bin/python scripts/arm/lock_arm.py --release   # so the arm can be moved by hand
     # ... move the arm to where it should sit between sessions ...
-    .venv/bin/python scripts/set_home_pose.py --save              # --to home, the default
-    .venv/bin/python scripts/set_home_pose.py --save --to cpm     # scripts/run_cpm.py's start
+    .venv/bin/python scripts/arm/set_home_pose.py --save              # --to home, the default
+    .venv/bin/python scripts/arm/set_home_pose.py --save --to cpm     # scripts/session/run_cpm.py's start
 
 `--to` only accepts `session.home_pose.NAMED_POSES`'s two keys, not an arbitrary path: a
 captured pose is only trustworthy because someone placed and checked it against the real rig,
-so the destinations it may be written to are the same closed, named pair `scripts/go_home.py`
+so the destinations it may be written to are the same closed, named pair `scripts/arm/go_home.py`
 reads from, not any file that happens to have a `ticks` key.
 
-`scripts/find_home_pose.py` searches for a home pose from the URDF alone, which is geometry
+`scripts/arm/find_home_pose.py` searches for a home pose from the URDF alone, which is geometry
 that has never been checked against the physical rig: collisions, cables, the leader arm, the
 camera mount, none of that is in the model. This is the other way round. Someone places the
 arm by hand, knowing the real rig, and this reads that pose back and reports the same
@@ -89,7 +89,7 @@ def main(argv=None) -> int:
     p.add_argument("--to", choices=sorted(NAMED_POSES), default="home",
                    help="which of the two named poses to write. 'home' is the session's "
                         "parking pose, the one every admittance session starts from and "
-                        "returns to. 'cpm' is scripts/run_cpm.py's start pose: held under "
+                        "returns to. 'cpm' is scripts/session/run_cpm.py's start pose: held under "
                         "tension with the finger already hooked, and therefore NOT somewhere "
                         "the arm should be parked between sessions. Exactly these two, not "
                         "an open path: see session.home_pose.NAMED_POSES")
@@ -180,7 +180,7 @@ def main(argv=None) -> int:
             "source": "set_home_pose.py: placed by hand on the real rig, not searched",
             "note": ("Chosen on the physical arm, with the rig, cables and the other arm in "
                      "place, rather than from URDF geometry alone. Re-run "
-                     "scripts/measure_ticks_per_metre.py in this pose before trusting it for "
+                     "scripts/measure/measure_ticks_per_metre.py in this pose before trusting it for "
                      "ticks_per_metre or yield_sign, since both are pose-dependent."),
         }, indent=2) + "\n")
         print(f"\nwrote {out}")

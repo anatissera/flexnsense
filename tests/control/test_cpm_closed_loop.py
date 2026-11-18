@@ -63,7 +63,7 @@ def run_session():
     """The script, for its real `pull_plan_for`. A copy of that logic here would prove
     nothing: the function under test is the one the arm actually runs."""
     spec = importlib.util.spec_from_file_location(
-        "run_session_cpm", REPO / "scripts" / "run_session.py"
+        "run_session_cpm", REPO / "scripts" / "session" / "run_session.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

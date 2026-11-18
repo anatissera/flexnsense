@@ -10,7 +10,7 @@ A `null` means **not measured yet**, never zero and never a default: asking for 
 
 Measured 2026-11-15 by hand-pulling the PESOLA against a fixed anchor through 50 to 500 gf and
 back, reading the distance between a fixed and a moving reference mark at each level
-(`scripts/measure_tether_stiffness.py`, fit by `lib.stiffness.fit_stiffness`). Raw sweep in
+(`scripts/measure/measure_tether_stiffness.py`, fit by `lib.stiffness.fit_stiffness`). Raw sweep in
 `data/tether_stiffness.csv`.
 
 | Sweep | k | r2 | Worst residual |
@@ -47,7 +47,7 @@ earlier version of those instructions recommended the force method, so nobody re
 ### Fingertip excursion: 98 to 114 mm
 
 Measured 2026-11-15 from hand-tracking recordings, one per finger
-(`scripts/measure_tip_excursion.py`).
+(`scripts/measure/measure_tip_excursion.py`).
 
 | Finger | Excursion |
 |---|---|

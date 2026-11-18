@@ -1,7 +1,7 @@
 """Nudge exactly one motor by a small, safe tick delta, then put it back. For identifying which
 motor moves along the tether axis before running measure_ticks_per_metre.py.
 
-    .venv/bin/python scripts/jog_one_motor.py --motor 4
+    .venv/bin/python scripts/arm/jog_one_motor.py --motor 4
 
 Run this once per motor id (1 to 8) with the tether rigged but deliberately SLACK, no finger
 anywhere near the rig. Watch the arm (or Station's web UI) each time: the motor that moves the
@@ -74,7 +74,7 @@ async def run(args) -> int:
             await set_position(client, bus_serial, args.motor, baseline)
         except Exception as exc:  # noqa: BLE001
             print(f"!! could not return motor {args.motor} to baseline ({baseline} ticks): {exc}")
-            print(f"!! release torque by hand: python scripts/lock_arm.py --release "
+            print(f"!! release torque by hand: python scripts/arm/lock_arm.py --release "
                   f"--motors {args.motor}, or power down Station.")
         watcher.cancel()
 

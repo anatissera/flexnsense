@@ -12,7 +12,7 @@ Do this **first**. The admittance controller's force signal comes from here, and
 
 **Units** (see AGENTS.md "Units"): you read and enter **grams** throughout this procedure, because that is what the PESOLA shows and what a human can weigh things in. The fit at the end reports both grams and **newtons**; the controller reads the newtons figure. 200 gf, the cap used throughout this doc, is **1.96 N**.
 
-This goes through [NormaCore Station](./elrobot.md), not LeRobot - there is no LeRobot support for the ElRobot. `scripts/log_force_calibration.py` subscribes to Station's `st3215/inference` queue and reads `current_ma` per motor; it does not read `Present_Load`, because Station's own examples don't expose that field, only current, temperature, voltage and position.
+This goes through [NormaCore Station](./elrobot.md), not LeRobot - there is no LeRobot support for the ElRobot. `scripts/measure/log_force_calibration.py` subscribes to Station's `st3215/inference` queue and reads `current_ma` per motor; it does not read `Present_Load`, because Station's own examples don't expose that field, only current, temperature, voltage and position.
 
 ## Why this might not work (read before you start)
 
@@ -49,25 +49,25 @@ What you are calibrating is *force along the therapy axis*, not *weight hanging 
 1. Put arm B in **the exact pose it will hold during therapy**. The current↔force mapping depends on arm configuration - the moment arm changes as the arm moves - so a calibration taken in a different pose will not transfer. This matters more on the ElRobot than it would on a 5-joint arm: 7 joints for a 1-DOF task means the "pose" includes which joints you chose to lock, see [elrobot.md](./elrobot.md).
 2. Attach the PESOLA to the gripper using **the same attachment you will use with a patient**.
 3. Arrange the pull so the force acts **along the direction the finger will pull**. Easiest version: orient the rig so that direction is vertical and hang the weights directly. If the therapy axis is horizontal, run a string from the PESOLA over a pulley at the table edge and hang the weights off that.
-4. **Torque must be enabled** and the arm commanded to hold its pose. With torque off the motor draws no current and measures nothing. `scripts/lock_arm.py` does this: it reads each motor's current position, commands that same position back (so nothing moves), then enables torque on all 8 - confirm with `yes` when it asks, it is about to make the arm actively resist being moved.
-5. **Station must already be running**, pointed at this bus (`./station --web ... --tcp ...`), and this arm's joint ranges must already be calibrated in the web UI - an uncalibrated motor's readings aren't meaningful. `scripts/calibrate.py` checks this before you start.
+4. **Torque must be enabled** and the arm commanded to hold its pose. With torque off the motor draws no current and measures nothing. `scripts/arm/lock_arm.py` does this: it reads each motor's current position, commands that same position back (so nothing moves), then enables torque on all 8 - confirm with `yes` when it asks, it is about to make the arm actively resist being moved.
+5. **Station must already be running**, pointed at this bus (`./station --web ... --tcp ...`), and this arm's joint ranges must already be calibrated in the web UI - an uncalibrated motor's readings aren't meaningful. `scripts/arm/calibrate.py` checks this before you start.
 
 ## Procedure
 
 ```bash
 # 0. Station running, bus serial known (from the web UI), .env has STATION_HOST / FOLLOWER_BUS_SERIAL
-python scripts/calibrate.py                             # confirm the bus is calibrated and all 8 motors answer
-python scripts/log_force_calibration.py --probe          # confirm current readings look sane, unloaded
+python scripts/arm/calibrate.py                             # confirm the bus is calibrated and all 8 motors answer
+python scripts/measure/log_force_calibration.py --probe          # confirm current readings look sane, unloaded
 
 # 1. baseline: nothing attached, arm holding its pose
-python scripts/log_force_calibration.py --tare
+python scripts/measure/log_force_calibration.py --tare
 
 # 2. sweep up, then back down
-python scripts/log_force_calibration.py --out data/calib_up.csv
-python scripts/log_force_calibration.py --out data/calib_down.csv --direction down
+python scripts/measure/log_force_calibration.py --out data/calib_up.csv
+python scripts/measure/log_force_calibration.py --out data/calib_down.csv --direction down
 
 # 3. fit (prints both the g/mA and the N/mA line; the controller reads the N one)
-python scripts/log_force_calibration.py --fit data/calib_up.csv
+python scripts/measure/log_force_calibration.py --fit data/calib_up.csv
 ```
 
 In the logging mode the script prompts for the grams currently applied (what you read off the PESOLA), samples for a couple of seconds, and writes the mean and spread of current per motor. Workflow per point: hang the weight, let it settle, read the PESOLA, type that number, press Enter.

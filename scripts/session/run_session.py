@@ -3,8 +3,8 @@
 This is the piece that was missing between "every layer has tests" and "you can try it".
 Nothing had ever fed a real camera and a real arm to the same loop.
 
-    .venv/bin/python scripts/run_session.py --motor 4 --finger index --cap-gf 100 --reps 3
-    .venv/bin/python scripts/run_session.py --coordinated --finger index --cap-gf 100 --reps 3
+    .venv/bin/python scripts/session/run_session.py --motor 4 --finger index --cap-gf 100 --reps 3
+    .venv/bin/python scripts/session/run_session.py --coordinated --finger index --cap-gf 100 --reps 3
 
 Each cycle: read the camera, measure the PESOLA through the same pipeline as
 `python -m gauge_reader run`, pass the force to `control.safety.SafetyGate` and
@@ -18,7 +18,7 @@ Each cycle: read the camera, measure the PESOLA through the same pipeline as
 2. **The gauge reader calibrated on this machine** (`python -m gauge_reader calibrate`). Without
    it there is no force reading at all, and a controller with no force input is the one thing
    this project must never run.
-3. **`ticks_per_metre` and `yield_sign` measured** (`scripts/measure_ticks_per_metre.py`, see
+3. **`ticks_per_metre` and `yield_sign` measured** (`scripts/measure/measure_ticks_per_metre.py`, see
    docs/bench-measurements.md). The control law decides in metres and the servo takes ticks;
    without the conversion there is nothing to command. `--ticks-per-metre` overrides it for a
    first rough trial, and says so loudly, because a wrong value means the arm moves a different
@@ -40,7 +40,7 @@ it needs no bench measurement of either. It refuses to run if the pose cannot fo
 to the end of the travel limit. What it still does not know is backlash: geometry is not a
 measurement, and the printed warning says so.
 
-There is no `--step-mm` or `--settle` here, unlike `scripts/jog_coordinated.py`: this loop's
+There is no `--step-mm` or `--settle` here, unlike `scripts/arm/jog_coordinated.py`: this loop's
 pace comes from the camera's frame rate and the admittance law's own velocity, not from a
 fixed schedule, which is already "move at the speed the finger pulls" by construction.
 `--coordinated-speed` and `--coordinated-accel` are the part that *does* carry over: the same
@@ -98,7 +98,7 @@ reading stops the arm whichever way it was going.
 
 Releasing moves a short, bounded step first, then, once the tether is slack, the arm walks
 back to the saved home pose (`session/home_pose.py`) in small, paced steps, the same pattern
-`scripts/go_home.py` uses by hand. That order is deliberate: unloading the tether is urgent,
+`scripts/arm/go_home.py` uses by hand. That order is deliberate: unloading the tether is urgent,
 and a pose change is a second, separate motion that should happen only once the tension is
 already gone. This matters because `ticks_per_metre` is pose-dependent, and drifting away
 from home across sessions quietly invalidates whichever source (a bench measurement, or
@@ -106,7 +106,7 @@ from home across sessions quietly invalidates whichever source (a bench measurem
 
 A finger may still be through the hook at this point even though the tether is slack, and
 walking back to home drags the attachment point through an arc, so the printed message gives
-a moment to remove it and Ctrl-C pauses the return partway (rerun `scripts/go_home.py` to
+a moment to remove it and Ctrl-C pauses the return partway (rerun `scripts/arm/go_home.py` to
 finish from there). `--no-home-check` skips this entirely and leaves the arm wherever the
 session ended, matching the old behaviour exactly.
 
@@ -200,7 +200,7 @@ def ticks_per_metre_from_geometry(motor_id: int, pose_ticks: dict[int, float]) -
     says only orients the gripper, measured exactly zero travel per tick on the bench.
 
     Use it to get the controller moving when a bench measurement is not available. Prefer
-    `scripts/measure_ticks_per_metre.py` for the real number: only a measurement catches
+    `scripts/measure/measure_ticks_per_metre.py` for the real number: only a measurement catches
     backlash, belt stretch and anything else the model does not know about.
     """
     from lib.kinematics import load_chain
@@ -252,7 +252,7 @@ def resolve_coordinated(args, pose_ticks: dict[int, float],
         source = "the gripper's own axis at this pose"
 
     if args.level:
-        # The same levelling `scripts/jog_coordinated.py --level` applies, from the same
+        # The same levelling `scripts/arm/jog_coordinated.py --level` applies, from the same
         # function, so a pull that tracked straight when jogged tracks the same line here.
         # Without it this follows the gripper's own small tilt out of horizontal, which over
         # a long pull is the arm visibly climbing or dipping away from the tether's line.
@@ -278,7 +278,7 @@ def resolve_coordinated(args, pose_ticks: dict[int, float],
     except ValueError as exc:
         raise SystemExit(
             f"{exc}\n\n"
-            "This pose cannot follow that pull. Re-pose the arm (scripts/set_home_pose.py "
+            "This pose cannot follow that pull. Re-pose the arm (scripts/arm/set_home_pose.py "
             "reports straightness for a pose placed by hand), shorten it with "
             "--max-travel-mm, or give the axis explicitly with --tether-axis."
         ) from None
@@ -350,7 +350,7 @@ def resolve_axis(args, pose_ticks: dict[int, float] | None = None) -> AxisCalibr
             f"{exc}\n\n"
             "That measurement is itself the first arm test, and it is the safer one: it moves "
             "the arm in known steps with nothing attached to a person.\n\n"
-            "    .venv/bin/python scripts/measure_ticks_per_metre.py --motor <id> "
+            "    .venv/bin/python scripts/measure/measure_ticks_per_metre.py --motor <id> "
             "--ticks 30,60,90,-30,-60,-90\n\n"
             "To try this controller before measuring, pass --ticks-per-metre and --yield-sign "
             "explicitly and accept that the distances are wrong by an unknown factor."
@@ -677,6 +677,12 @@ async def run(args) -> int:
     from lib.camera import open_source
 
     source = open_source(camera=args.camera)
+    rec = None
+    if args.record:
+        from gauge_reader.cli import RECORDINGS_DIR, StripRecorder, _stamp
+        rec_name = "strip" if pipeline.mode == "fixed" else "crop"
+        rec = StripRecorder(RECORDINGS_DIR / f"{rec_name}-{_stamp()}.mp4", source.fps)
+        print(f"recording the scale {rec_name} to {rec.path} (crop only, never the full frame)")
     # `pose_at` starts empty rather than seeded with `now`: the initial `pose_ticks` came from
     # the startup read, which could have been many seconds ago by the time the operator typed
     # 'yes', and treating that as fresh would mask exactly the staleness this tracks.
@@ -711,7 +717,7 @@ async def run(args) -> int:
             "controller would have been unable to command the arm for the whole session.\n\n"
             "Nothing has moved and the camera is closed. Check Station is running and the "
             "bus is reachable:\n\n"
-            "    .venv/bin/python scripts/go_home.py --check\n"
+            "    .venv/bin/python scripts/arm/go_home.py --check\n"
         )
     started = time.monotonic()
     last_line = ""
@@ -743,6 +749,8 @@ async def run(args) -> int:
             )
             if not ok:
                 continue
+            if rec:
+                rec.write(pipeline.record_crop(frame, result))
             force_n = result.newtons if result.found else None
 
             step = machine.step(RepInput(
@@ -815,10 +823,13 @@ async def run(args) -> int:
             await loop.release(client, bus_serial)
         except Exception as exc:  # noqa: BLE001
             print(f"!! could not release ({exc}). The arm may still be under tension: release "
-                  f"torque by hand, `python scripts/lock_arm.py --release --motors {axis.motor_id}`, "
+                  f"torque by hand, `python scripts/arm/lock_arm.py --release --motors {axis.motor_id}`, "
                   "or power down Station.")
         follower.cancel()
         source.release()
+        if rec:
+            rec.close()
+            print(f"saved {rec.path}")
 
     print(f"\ncompleted {machine.reps_completed} of {block.reps}, "
           f"{machine.attempts_abandoned} abandoned, "
@@ -828,7 +839,7 @@ async def run(args) -> int:
     # is pose-dependent (--from-geometry recomputes it from the live pose each run, but a bench
     # measurement does not), so drifting away from home across sessions quietly invalidates
     # whichever one is in use - this is what walks it back, every time, not just when a person
-    # remembers to run scripts/go_home.py.
+    # remembers to run scripts/arm/go_home.py.
     if not args.no_home_check:
         try:
             from lib.station import set_position
@@ -844,11 +855,11 @@ async def run(args) -> int:
             missing = [m for m in home if m not in final]
             if missing:
                 print(f"\ncould not read motor(s) {missing}; not attempting to return home. "
-                      "Run scripts/go_home.py by hand once the bus is reachable.")
+                      "Run scripts/arm/go_home.py by hand once the bus is reachable.")
             elif not is_home(final, home=home):
                 print(f"\nreturning home ({distance_from_home(final, home)} ticks away) ...")
                 print("If a finger is still through the hook, remove it now - Ctrl-C pauses "
-                      "this partway, same as scripts/go_home.py.")
+                      "this partway, same as scripts/arm/go_home.py.")
                 waypoints = home_waypoints(final, home, args.go_home_max_step_ticks)
                 try:
                     for way in waypoints:
@@ -857,7 +868,7 @@ async def run(args) -> int:
                         await asyncio.sleep(args.go_home_settle)
                     print("at home.")
                 except KeyboardInterrupt:
-                    print("\nstopped partway home. Rerun scripts/go_home.py to finish.")
+                    print("\nstopped partway home. Rerun scripts/arm/go_home.py to finish.")
         except SystemExit:
             pass   # no home pose saved yet; nothing to return to
     return 0
@@ -1026,11 +1037,11 @@ def main(argv=None) -> int:
                    help="with --coordinated: drop the z component of the tether direction and "
                         "renormalise, so the pull stays horizontal instead of following the "
                         "gripper's own tilt. ON in the committed profile. The same flag "
-                        "scripts/jog_coordinated.py has; keep the two in agreement")
+                        "scripts/arm/jog_coordinated.py has; keep the two in agreement")
     p.add_argument("--coordinated-speed", type=int, default=tuning.coordinated_speed,
                    help="with --coordinated: raw ST3215 goal-speed units, scaled per joint "
                         "each cycle so all three arrive together. 700 tracked a straight "
-                        "line with no visible wobble on this bench (scripts/jog_coordinated.py "
+                        "line with no visible wobble on this bench (scripts/arm/jog_coordinated.py "
                         "is where to re-tune it if the arm's load changes)")
     p.add_argument("--coordinated-accel", type=int, default=tuning.coordinated_accel,
                    help="with --coordinated: raw ST3215 acceleration units, written once")
@@ -1043,6 +1054,9 @@ def main(argv=None) -> int:
                    help="with --ticks-per-metre: which tick direction lowers the force")
     p.add_argument("--camera", default=None)
     p.add_argument("--calib", default=GAUGE_CALIB)
+    p.add_argument("--record", action="store_true",
+                   help="record a crop around the scale only (same as `gauge_reader run --record`); "
+                        "never the full frame, the camera also sees the patient")
     p.add_argument("--station-host", default=None)
     p.add_argument("--bus-serial", default=None)
     p.add_argument("--max-seconds", type=float, default=180.0)

@@ -95,7 +95,7 @@ plane, and the stroke that is not in it misses. `CoordinatedAxis` refuses fewer 
 refuses a pose that cannot follow the pull to the end.
 
 Measured from NormaCore's URDF at the saved home pose, no simulator and no bench needed.
-`.venv/bin/python scripts/which_motor.py` runs the same geometry against the live pose.
+`.venv/bin/python scripts/arm/which_motor.py` runs the same geometry against the live pose.
 
 ### Two exercise modes
 
@@ -179,21 +179,21 @@ of arms at once. **Simulation only**: none of these policies has moved the real 
 One block, on one finger, against the real arm:
 
 ```bash
-.venv/bin/python scripts/run_session.py --finger index --cap-gf 150 --reps 3
+.venv/bin/python scripts/session/run_session.py --finger index --cap-gf 150 --reps 3
 ```
 
 No tuning flags: the bench-proven profile in `config/session-tuning.json` supplies them, and the
 banner prints the gate's limits on every run. From a clinician's prescription instead:
 
 ```bash
-.venv/bin/python scripts/run_session.py --protocol config/protocols/tendon-repair-active.json
+.venv/bin/python scripts/session/run_session.py --protocol config/protocols/tendon-repair-active.json
 ```
 
 Continuous passive motion, which walks between two saved poses rather than chasing a force:
 
 ```bash
-.venv/bin/python scripts/run_cpm.py --no-camera --reps 1   # check the path, nothing attached
-.venv/bin/python scripts/run_cpm.py --reps 3               # with the finger hooked
+.venv/bin/python scripts/session/run_cpm.py --no-camera --reps 1   # check the path, nothing attached
+.venv/bin/python scripts/session/run_cpm.py --reps 3               # with the finger hooked
 ```
 
 ### Across two machines
@@ -208,7 +208,7 @@ off the network.
 .venv/bin/python -m session.link serve --host 0.0.0.0 --port 8770
 
 # on arm 1's machine, one request over the real socket
-.venv/bin/python scripts/try_remote_hook.py --url ws://<arm2-host>:8770/arm2 --finger index
+.venv/bin/python scripts/session/try_remote_hook.py --url ws://<arm2-host>:8770/arm2 --finger index
 ```
 
 Custody is a **lease with a deadline**, not a flag. A flag set by "you may move" stays set when
@@ -278,7 +278,11 @@ control/          the admittance controller: safety gate, the law, the hardware 
 session/          prescriptions, exercise modes, the rep machine, the two-arm interlock, the two-machine protocol
 gauge_reader/     read the PESOLA scale through a camera
 hand_tracking/    finger flexion angles (MediaPipe on CPU, WiLoR for precision capture)
-scripts/          run a session, bench measurements, jogs, calibration, homing
+scripts/          grouped by what they do to the rig (scripts/README.md)
+  session/        run an exercise with a finger in the hook
+  arm/            move or configure the arm, nothing attached
+  measure/        produce a number the repo then depends on
+  preview/        render or inspect, nothing moves
 dashboard/        the Next.js clinician dashboard (own package.json)
 config/           committed: joint calibration, the tuning profile, example protocols
 ---

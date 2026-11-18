@@ -1,7 +1,7 @@
 """Render the coordinated controller responding to a pull, as a video.
 
-    .venv/bin/python scripts/simulate_session_video.py
-    .venv/bin/python scripts/simulate_session_video.py --cap-gf 200 --pull-mm-s 6
+    .venv/bin/python scripts/preview/simulate_session_video.py
+    .venv/bin/python scripts/preview/simulate_session_video.py --cap-gf 200 --pull-mm-s 6
 
 **Nothing moves and no camera opens.** This is `control.simulate`'s question, asked of the
 coordinated pull and answered in pictures instead of a summary line: a finger pulls away at a
@@ -44,7 +44,7 @@ from lib.kinematics import load_chain, tether_tension_direction  # noqa: E402
 from lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
 
 #: The pose the arm stood in on the bench on 2026-11-15, and the one the geometry in
-#: `scripts/run_session.py --coordinated` was checked against.
+#: `scripts/session/run_session.py --coordinated` was checked against.
 DEFAULT_POSE = {1: 2045, 2: 1468, 3: 2458, 4: 2775, 5: 1877, 6: 1524, 7: 3274}
 
 #: Slack length of the tether at rest, metres. Only sets where the finger is drawn; the force

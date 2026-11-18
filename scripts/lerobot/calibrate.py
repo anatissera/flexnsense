@@ -1,7 +1,7 @@
 """NOT our hardware. Kept in case we ever port to a LeRobot-supported arm (SO-101 etc).
 
 Our arm is the ElRobot, which has no LeRobot support (confirmed upstream: no robot type, no
-driver) and is controlled through NormaCore Station instead - see scripts/calibrate.py (the
+driver) and is controlled through NormaCore Station instead - see scripts/arm/calibrate.py (the
 default, one level up) and docs/elrobot.md. This file is the original SO-101-via-LeRobot
 script, unmodified, parked here rather than deleted.
 

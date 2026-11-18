@@ -1,8 +1,8 @@
 """Which motor moves the gripper along the tether, from NormaCore's URDF and the live pose.
 
-    .venv/bin/python scripts/which_motor.py              # read the pose from Station
-    .venv/bin/python scripts/which_motor.py --check      # verify the URDF against this arm
-    .venv/bin/python scripts/which_motor.py --ticks 1:1970,2:1715,3:2498,4:2755,5:1907,6:1270,7:1282
+    .venv/bin/python scripts/arm/which_motor.py              # read the pose from Station
+    .venv/bin/python scripts/arm/which_motor.py --check      # verify the URDF against this arm
+    .venv/bin/python scripts/arm/which_motor.py --ticks 1:1970,2:1715,3:2498,4:2755,5:1907,6:1270,7:1282
 
 Replaces identifying the motor by jogging one at a time and judging by eye, which is slow and
 cannot reliably tell "moves the gripper along the pull axis" from "swings it sideways". The

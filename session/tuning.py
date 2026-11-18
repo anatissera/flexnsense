@@ -10,7 +10,7 @@ patient change this number?" If yes it belongs in a prescription, if no it belon
 Why a committed file and not argparse defaults. These values were found by debugging against
 the real arm over many sessions, and several of them are not preferences, they are each paying
 for a specific observed failure (the notes below say which). Held only as defaults inside
-`scripts/run_session.py`, they are reachable by one script and invisible to everything else,
+`scripts/session/run_session.py`, they are reachable by one script and invisible to everything else,
 so the dashboard would have had to hardcode its own copy and the two would drift. Held here,
 the CLI and the dashboard read the same numbers, and changing one is a reviewable diff against
 a named profile rather than a flag someone did or did not remember to type.
@@ -159,7 +159,7 @@ class SessionTuning:
     #: horizontal instead of following the gripper's own tilt.
     level: bool = True
     #: Raw ST3215 goal-speed units, scaled per joint each cycle so all joints arrive together.
-    #: Re-tune with scripts/jog_coordinated.py if the arm's load changes.
+    #: Re-tune with scripts/arm/jog_coordinated.py if the arm's load changes.
     coordinated_speed: int = 900
     #: Raw ST3215 acceleration units, written once.
     coordinated_accel: int = 30

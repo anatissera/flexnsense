@@ -7,8 +7,8 @@ per physical arm, and then committed to the repo - see config/calibration/README
 This script only answers "is Station reachable, and does this bus already have a range for
 every motor", which is what you want before trusting any position command.
 
-    python scripts/calibrate.py --bus-serial <SERIAL>
-    python scripts/calibrate.py --bus-serial <SERIAL> --motors 8   # expect 8, warn if fewer respond
+    python scripts/arm/calibrate.py --bus-serial <SERIAL>
+    python scripts/arm/calibrate.py --bus-serial <SERIAL> --motors 8   # expect 8, warn if fewer respond
 
 For the SO-101 via LeRobot instead: scripts/lerobot/calibrate.py.
 """

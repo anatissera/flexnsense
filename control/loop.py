@@ -70,7 +70,7 @@ class CoordinatedAxis:
 
     `motors` must be able to span three dimensions, which takes **three independent joints**:
     two give a rank-2 jacobian whose reachable directions are a plane, so a pull that happens
-    to lie in it works while the return stroke misses by millimetres. `scripts/which_motor.py`
+    to lie in it works while the return stroke misses by millimetres. `scripts/arm/which_motor.py`
     and `lib.kinematics.Chain.jacobian` are how that is checked for a given pose.
 
     `direction` is the tether's axis in the arm's base frame, pointing the way that **increases**
@@ -87,7 +87,7 @@ class CoordinatedAxis:
     max_ticks_per_cycle: int = 60
     #: Raw ST3215 units written to RAM_GOAL_SPEED and RAM_ACC before each cycle's position
     #: command, scaled per joint by `lib.station.scaled_speeds` so the three arrive together.
-    #: Tuned on the bench with `scripts/jog_coordinated.py`, which is also how new values
+    #: Tuned on the bench with `scripts/arm/jog_coordinated.py`, which is also how new values
     #: should be found if the arm's load changes: 700/50 tracked a straight line with no
     #: visible wobble at a pace that kept up with a hand-paced pull; well under that and a
     #: step looks sluggish, well over it and gear noise and overshoot both show up again.
@@ -220,7 +220,7 @@ class PullPlan:
     That is also why this mode can be quicker and smoother than yielding. A yielding arm is
     chasing a signal and its pace is bounded by how promptly it can react to one; a pull is
     executing a path that was decided before it started, so it is bounded only by what the
-    joints can do without wobbling (`scripts/jog_coordinated.py` is where that was found).
+    joints can do without wobbling (`scripts/arm/jog_coordinated.py` is where that was found).
 
     Two rules from `session.modes.PhasePlan.device_driven` are *not* optional and are enforced
     by `ControlLoop`, not here: `control.safety.Decision.may_move` must not gate this motion
@@ -520,7 +520,7 @@ class ControlLoop:
         value it exists to protect, but the arm is nowhere near home and nothing else was
         telling it to keep moving. This is the bounded, position-only stand-in for the
         `Law.PULL`/`Target.REP_START` motion `session/modes.py` specifies and `control/`
-        never implemented (see `scripts/run_session.py`'s module docstring): once there is no
+        never implemented (see `scripts/session/run_session.py`'s module docstring): once there is no
         force reason left to retreat, retrace the remaining `yielded_m` at a slow, fixed
         speed instead of stopping short of it. `0.0` (the default) disables this and keeps
         the original behaviour: the arm stops wherever `recover_velocity` leaves it.
@@ -621,7 +621,7 @@ class ControlLoop:
         against one joint even though several are moving.
 
         Commands every joint in one `sync_write` per register, speed scaled per joint by
-        `lib.station.scaled_speeds`, exactly as `scripts/jog_coordinated.py` does and for the
+        `lib.station.scaled_speeds`, exactly as `scripts/arm/jog_coordinated.py` does and for the
         identical reason: three separate position commands, even dispatched together, can
         land a few milliseconds apart and arrive at different times if sent at the same raw
         speed regardless of how far each has to travel, and either one bends the tip off the

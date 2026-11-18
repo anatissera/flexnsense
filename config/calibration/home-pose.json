@@ -18,5 +18,5 @@
   "directions_tested": "plausible tether axes: each of motors 1-6's own pull direction, out and back (12 directions)",
   "worst_deviation_any_direction_mm": 26.544,
   "source": "set_home_pose.py: placed by hand on the real rig, not searched",
-  "note": "Chosen on the physical arm, with the rig, cables and the other arm in place, rather than from URDF geometry alone. Re-run scripts/measure_ticks_per_metre.py in this pose before trusting it for ticks_per_metre or yield_sign, since both are pose-dependent."
+  "note": "Chosen on the physical arm, with the rig, cables and the other arm in place, rather than from URDF geometry alone. Re-run scripts/measure/measure_ticks_per_metre.py in this pose before trusting it for ticks_per_metre or yield_sign, since both are pose-dependent."
 }

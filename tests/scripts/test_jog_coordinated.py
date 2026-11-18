@@ -1,8 +1,8 @@
-"""What `scripts/jog_coordinated.py` has to share with the real controller.
+"""What `scripts/arm/jog_coordinated.py` has to share with the real controller.
 
 The levelling arithmetic itself lives in `lib.kinematics.level_direction` and is tested in
 `tests/lib/test_kinematics.py`. What is worth asserting here is the thing that file cannot:
-that this script and `scripts/run_session.py` both reach for that one implementation. The
+that this script and `scripts/session/run_session.py` both reach for that one implementation. The
 jog exists to answer "does this pull track straight on the real arm" and the session then
 runs that same pull under force control, so the moment the two compute the direction
 differently the jog stops being evidence about the session at all, which is a failure that
@@ -22,8 +22,16 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+#: Where each script lives under `scripts/`, now that they are grouped by what they do.
+SCRIPT_DIR = {"jog_coordinated": "arm", "run_session": "session"}
+
+
+def script_path(name: str) -> Path:
+    return REPO_ROOT / "scripts" / SCRIPT_DIR[name] / f"{name}.py"
+
+
 def load(name: str):
-    spec = importlib.util.spec_from_file_location(name, REPO_ROOT / f"scripts/{name}.py")
+    spec = importlib.util.spec_from_file_location(name, script_path(name))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -42,7 +50,7 @@ def test_the_session_uses_the_same_shared_levelling():
     import lib.kinematics
 
     run_session = load("run_session")
-    source = Path(REPO_ROOT / "scripts/run_session.py").read_text()
+    source = Path(REPO_ROOT / "scripts/session/run_session.py").read_text()
     assert "level_direction" in source
     assert "from lib.kinematics import" in source
     assert lib.kinematics.level_direction is not None
@@ -54,5 +62,5 @@ def test_both_scripts_offer_the_flag_that_reaches_it():
     have to expose levelling, because the bench workflow is to jog with it and then run the
     session with it."""
     for name in ("jog_coordinated", "run_session"):
-        source = (REPO_ROOT / f"scripts/{name}.py").read_text()
+        source = script_path(name).read_text()
         assert '"--level"' in source, f"{name} has no --level flag"

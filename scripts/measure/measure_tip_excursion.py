@@ -15,8 +15,8 @@ are in `--jsonl` only, hence passing it explicitly above.
 
 Then fit the excursion:
 
-    python scripts/measure_tip_excursion.py data/excursion-middle.jsonl --finger middle
-    python scripts/measure_tip_excursion.py data/excursion-middle.jsonl           # all 5, one file
+    python scripts/measure/measure_tip_excursion.py data/excursion-middle.jsonl --finger middle
+    python scripts/measure/measure_tip_excursion.py data/excursion-middle.jsonl           # all 5, one file
 
 Why this isn't just "distance between the two end frames": MediaPipe's `world` landmarks are
 hand-centred, so their origin drifts a little as the hand's overall pose shifts during the
