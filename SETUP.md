@@ -14,7 +14,7 @@ dependencies, so this isn't adding weight - it's one less environment to keep st
 ## 1. Python environment
 
 ```bash
-cd ~/Documents/leukerbad-hackathon
+cd ~/Documents/flexnsense
 uv venv --python 3.12 .venv
 ```
 
@@ -113,7 +113,7 @@ Zero external dependencies - it only needs the repo on `PYTHONPATH` and generate
 Works in the `.venv` from step 1, or any other Python >= 3.10 environment already in use.
 
 ```bash
-cd ~/Documents/leukerbad-hackathon   # or wherever, this clone is independent of the repo
+cd ~/Documents/flexnsense   # or wherever, this clone is independent of the repo
 
 git clone --depth 1 --filter=blob:none --sparse https://github.com/norma-core/norma-core.git
 cd norma-core

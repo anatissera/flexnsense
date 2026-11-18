@@ -269,7 +269,7 @@ two ends apart scores both orientations identically on this rig. Not yet fixed.
 ## Setup
 
 ```bash
-git clone https://github.com/anatissera/leukerbad-hackathon.git && cd leukerbad-hackathon
+git clone https://github.com/anatissera/flexnsense.git && cd flexnsense
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python -m pytest -q          # 1168 tests, no camera, robot or Station needed
 ```

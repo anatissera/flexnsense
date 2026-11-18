@@ -846,8 +846,8 @@ modo remoto (4.3). Todo se hace en el portátil.
 **1. Código** (una vez, y `git pull` cada vez que cambie la rama):
 
 ```bash
-git clone https://github.com/anatissera/leukerbad-hackathon.git      # si aún no lo tienes
-cd leukerbad-hackathon && git checkout feature/robot-training && git pull
+git clone https://github.com/anatissera/flexnsense.git      # si aún no lo tienes
+cd flexnsense && git pull
 cd robot_training
 ```
 
