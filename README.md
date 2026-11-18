@@ -170,9 +170,20 @@ pulling on a finger the hook is not attached to.
 
 ### Both arms in simulation
 
-The bench is rebuilt in NVIDIA Isaac Sim and both arms trained together in Isaac Lab, thousands
-of arms at once. **Simulation only**: none of these policies has moved the real arm.
+The bench is rebuilt in NVIDIA Isaac Sim, with the scale as a real physical object rather than
+a scripted constraint, and both arms are trained together in Isaac Lab across thousands of
+tables at once. **Simulation only**: none of these policies has moved the real arm.
 [`isaac-sim/`](./isaac-sim/)
+
+![Isaac Sim: the pull arm giving way, seen from the bench, the overhead camera that reads the scale, and the camera on the move arm. The force is printed on the frame.](docs/images/isaac-sim.gif)
+
+The force on the frame is the simulator's own, so it shows directly whether a policy stayed
+under the 1.96 N limit, which a video of the arm alone cannot.
+
+![Isaac Lab: one table before training, with the share of tables over the force limit and the share with the loop on its target finger printed on the frame](docs/images/isaac-lab.gif)
+
+Before training, 47.6% of tables are over the force limit and none has the loop on its target
+finger. Those two numbers are the reward, and watching them is how a training run is judged.
 
 ## Running a session
 
@@ -224,8 +235,11 @@ pnpm dev                        # bench build: probes 127.0.0.1 for the gauge an
 NEXT_PUBLIC_DEMO=1 pnpm dev     # demonstration build: nothing attached, and it says so
 ```
 
-A 3D MyoHand in MuJoCo WebAssembly, hand tracking on the laptop camera, the repetition machine,
-and a text/voice assistant that answers from the results. `NEXT_PUBLIC_DEMO` is the only
+![The dashboard: a 3D hand with the flexor tendons tinted by estimated recovery, the repetition machine on the left, the patient's record and per-finger recovery curves on the right](docs/images/dashboard.gif)
+
+A 3D MyoHand in MuJoCo WebAssembly with the flexor tendons tinted by estimated recovery, hand
+tracking on the laptop camera, the repetition machine, and a text/voice assistant that answers
+from the results. `NEXT_PUBLIC_DEMO` is the only
 difference between the public build and the one that runs beside the rig: with it set nothing is
 probed, and every panel carries a badge saying where its numbers come from.
 
