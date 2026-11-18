@@ -7,7 +7,7 @@ is a number in a prescription; it is not something a policy is trained to contem
 what lets a clinician change it without retraining anything, and what lets the sequencing be
 unit tested.
 
-Units, per AGENTS.md: the clinician sets a cap in grams because that is what the PESOLA reads,
+Units, per docs/contributing.md: the clinician sets a cap in grams because that is what the PESOLA reads,
 and `Block.cap_n` stores it in newtons because that is what the control math runs on. Use
 `Block.from_grams` to build one from a clinician's number so the conversion happens in one
 place.

@@ -328,7 +328,7 @@ Orden recomendado siempre: `selftest.py` → `--dry-run` → `--max-ticks 30` �
 
 ### A.5 Reglas del repo que afectan a esta carpeta
 
-Ver [`AGENTS.md`](../AGENTS.md) en la raíz: una rama por tarea y PR a `main` (esta carpeta vive en
+Ver [`docs/contributing.md`](../docs/contributing.md) en la raíz: una rama por tarea y PR a `main` (esta carpeta vive en
 `feature/robot-training`), **sin atribución a herramientas de IA** en commits, PRs ni documentos,
 y **sin rayas largas** (U+2014) en ningún fichero ni mensaje: lo comprueba el CI.
 

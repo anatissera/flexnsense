@@ -39,7 +39,7 @@ u_hat = (P - G) / |P - G|            direction the robot yields along
 
 Two consequences follow directly. The controller never needs to know where anything is in space - it only needs `T`, so if the hand shifts a little, `d` changes, `T` changes, and the force loop absorbs it without remapping anything. But the PESOLA gives a scalar: `|T|`, never `u_hat`. Direction has to come from somewhere else, and it is the central vulnerability of the design (see "The direction problem" below).
 
-**Units** (see AGENTS.md "Units"): every `F`, `T`, `F_threshold`, `F_target`, `F_max`, `F_home` in this doc and in the controller is in **newtons**. Grams only ever appear where a human reads the PESOLA directly, e.g. setting up a known weight or reading the clinician's displayed cap; anything the controller computes with is already past the `lib/units.py` boundary.
+**Units** (see contributing.md "Units"): every `F`, `T`, `F_threshold`, `F_target`, `F_max`, `F_home` in this doc and in the controller is in **newtons**. Grams only ever appear where a human reads the PESOLA directly, e.g. setting up a known weight or reading the clinician's displayed cap; anything the controller computes with is already past the `lib/units.py` boundary.
 
 ## Mode is chosen by the operator, not inferred
 

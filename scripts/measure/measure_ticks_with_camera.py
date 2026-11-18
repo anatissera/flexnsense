@@ -8,7 +8,7 @@ operator rigs the tether once and watches; the script does the rest.
 
 Why this exists alongside `measure_ticks_per_metre.py`, which uses a ruler: that one is the
 more accurate of the two and stays the reference. The tether's hysteresis (6 mm worst case,
-`data/tether_stiffness.csv`) is a floor on any displacement inferred from force, which is why
+`config/measurements/tether_stiffness.csv`) is a floor on any displacement inferred from force, which is why
 the ruler method was chosen originally. This one trades that accuracy for not needing a person
 to measure and type a reading at every step, which matters when Station is dropping commands
 and a run has to be repeated several times.

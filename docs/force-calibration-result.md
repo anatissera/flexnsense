@@ -68,5 +68,5 @@ whole safety case rests on.
 
 ## Raw data
 
-Committed alongside this doc: `data/calib_up.csv`, `data/calib_down.csv` (13 lines each,
-header + 12 points). Re-fit with `python scripts/measure/log_force_calibration.py --fit data/calib_up.csv`.
+Committed alongside this doc: `config/measurements/calib_up.csv`, `config/measurements/calib_down.csv` (13 lines each,
+header + 12 points). Re-fit with `python scripts/measure/log_force_calibration.py --fit config/measurements/calib_up.csv`.

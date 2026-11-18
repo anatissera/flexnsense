@@ -22,7 +22,7 @@ tuning: a wrong one makes the arm jerky, or slow, or quick to abandon a repetiti
 safety layer is still between all of them and the patient. So defaults are not only allowed
 here, shipping them is the entire point.
 
-Units follow AGENTS.md, with the boundary in the same place as everywhere else: the fields a
+Units follow docs/contributing.md, with the boundary in the same place as everywhere else: the fields a
 person reads off an instrument or types at a prompt stay in grams-force and millimetres, and
 the conversion to newtons and metres happens where the control code reads them. The field
 names say which, so `v_max_mm_s` is millimetres and `deadband_n` is newtons.
@@ -38,7 +38,7 @@ __all__ = ["SessionTuning", "SafetyTuning", "load_tuning", "DEFAULT_TUNING_PATH"
 
 #: The committed profile every entry point reads unless told otherwise. Lives next to
 #: `config/calibration/`, which is committed for the same reason: it describes the shared rig,
-#: not one person's machine (AGENTS.md).
+#: not one person's machine (docs/contributing.md).
 DEFAULT_TUNING_PATH = Path(__file__).resolve().parent.parent / "config" / "session-tuning.json"
 
 

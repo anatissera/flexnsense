@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class AdmittanceParams:
-    """Units: newtons, metres, seconds (AGENTS.md).
+    """Units: newtons, metres, seconds (docs/contributing.md).
 
     `damping_n_s_per_m` is the virtual damping B in `v = (F - F_threshold) / B`: larger means
     the arm gives way more slowly for the same overshoot. Start large (over-damped) and lower

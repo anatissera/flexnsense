@@ -12,7 +12,7 @@ and the repo's test suite has to keep running on a machine with no GPU at all. S
 **What this is for, and what it is not for.** Use it to see the arm move, to try a pose before
 commanding it, and for a closed-loop simulation rig (see isaac-sim/), where contact and
 dynamics genuinely matter. Do **not** use it to answer "which motor moves the gripper along the
-tether": `scripts/which_motor.py` answers that exactly, from the same URDF, in milliseconds,
+tether": `scripts/arm/which_motor.py` answers that exactly, from the same URDF, in milliseconds,
 with no GPU and no install, because that question is pure geometry.
 
 The joint order ManiSkill uses is the URDF's active-joint order, which for this arm is
@@ -103,7 +103,7 @@ def main(argv=None) -> int:
             "This module needs its own environment:\n\n"
             "    ./sim/setup_env.sh && source sim/venv/bin/activate\n\n"
             "See sim/README.md. For the geometry question (which motor moves the gripper "
-            "along the tether) use scripts/which_motor.py instead: no GPU, no install."
+            "along the tether) use scripts/arm/which_motor.py instead: no GPU, no install."
         ) from None
 
     import tyro

@@ -9,7 +9,7 @@ by hand and rejects anything else, so once `session/` lands the switch to
 `config/calibration/` is already the committed home for calibration code consumes (the arm's
 joint-range calibration, `follower-<serial>.json`), so the bench constants live there too,
 alongside `bench.md` documenting them - not in `data/`, which holds raw sweeps
-(`data/tether_stiffness.csv`) rather than fitted constants.
+(`config/measurements/tether_stiffness.csv`) rather than fitted constants.
 """
 from __future__ import annotations
 

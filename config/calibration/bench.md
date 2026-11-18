@@ -11,7 +11,7 @@ A `null` means **not measured yet**, never zero and never a default: asking for 
 Measured 2026-11-15 by hand-pulling the PESOLA against a fixed anchor through 50 to 500 gf and
 back, reading the distance between a fixed and a moving reference mark at each level
 (`scripts/measure/measure_tether_stiffness.py`, fit by `lib.stiffness.fit_stiffness`). Raw sweep in
-`data/tether_stiffness.csv`.
+`config/measurements/tether_stiffness.csv`.
 
 | Sweep | k | r2 | Worst residual |
 |---|---|---|---|

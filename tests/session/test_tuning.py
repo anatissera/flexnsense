@@ -36,7 +36,7 @@ def run_session():
 
 # ------------------------------------------------------------------ the committed profile
 def test_the_committed_profile_exists_and_parses():
-    """It is committed on purpose (AGENTS.md): it describes the shared rig, not one laptop."""
+    """It is committed on purpose (docs/contributing.md): it describes the shared rig, not one laptop."""
     assert DEFAULT_TUNING_PATH.exists(), (
         f"{DEFAULT_TUNING_PATH} is missing. It is meant to be committed, so that the CLI and "
         "the dashboard run the same numbers."

@@ -333,7 +333,7 @@ def test_the_supervisor_has_no_way_to_change_a_step(run_cpm):
 
 
 def test_a_reading_renders_as_grams_for_the_operator(run_cpm):
-    """Grams is what a person reads off the PESOLA, per AGENTS.md's units rule."""
+    """Grams is what a person reads off the PESOLA, per docs/contributing.md's units rule."""
     from lib.units import grams_force_to_newtons
 
     s = supervisor_for(run_cpm, [grams_force_to_newtons(123)])

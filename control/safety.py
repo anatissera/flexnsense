@@ -3,7 +3,7 @@
 Pure and side-effect free, so every branch is unit-tested without a camera or a robot (see
 tests/control/test_safety.py). Nothing here commands anything; it returns a decision and the
 caller acts on it. That split is deliberate: the rule "a missing or low-confidence reading
-leads to release and stop, never to a guess" (AGENTS.md) is the one thing in this project that
+leads to release and stop, never to a guess" (docs/contributing.md) is the one thing in this project that
 must be verifiable by reading a single function.
 
 Design background: docs/admittance-design.md. The camera is the only force sensor on this arm
@@ -36,7 +36,7 @@ class Decision:
 
 @dataclass(frozen=True)
 class SafetyLimits:
-    """Everything that can stop the arm. Units are newtons, seconds and metres (AGENTS.md)."""
+    """Everything that can stop the arm. Units are newtons, seconds and metres (docs/contributing.md)."""
 
     f_threshold_n: float      # the clinician's cap; the plateau the exercise holds at
     f_max_n: float            # hard ceiling; above this it releases, no grace

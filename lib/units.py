@@ -1,6 +1,6 @@
 """The one place the gram-force <-> newton conversion constant lives.
 
-Convention for this repo (see AGENTS.md "Units"): the PESOLA is graduated in grams-force, and that is
+Convention for this repo (see docs/contributing.md "Units"): the PESOLA is graduated in grams-force, and that is
 what a human reads off it, what the gauge reader calibrates against, and what the clinician-facing
 numbers use, because that is the unit hand-therapy literature and dynamometers already use. Everything
 past that boundary, control math, thresholds, logged values consumed by the controller, any force or

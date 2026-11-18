@@ -10,7 +10,7 @@ finger from it, so the script requires a separate, explicit confirmation of that
 bus serial or Station connection is even asked for, independent of the per-move 'yes' prompts.
 
 Why a ruler, not the camera (`dx = dF / k`, no ruler needed): tempting, but the tether's own
-hysteresis (`lib.stiffness.compare_directions`, `data/tether_stiffness.csv`: 6 mm worst case) is
+hysteresis (`lib.stiffness.compare_directions`, `config/measurements/tether_stiffness.csv`: 6 mm worst case) is
 a floor on how well any force-inferred displacement can be known, and it dominates at every
 tick delta small enough to stay under the force cap - even a 60 mm move, most of the tether's
 usable travel, is only good to 10%. A ruler reading is good to about its own precision

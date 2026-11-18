@@ -67,5 +67,5 @@ Next:
   python -m sim.elrobot_agent
 
 For "which motor moves the gripper along the tether", do NOT use this: run
-scripts/which_motor.py in the normal .venv. Same URDF, exact answer, no GPU.
+scripts/arm/which_motor.py in the normal .venv. Same URDF, exact answer, no GPU.
 EOF

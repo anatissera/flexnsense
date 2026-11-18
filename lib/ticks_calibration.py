@@ -5,7 +5,7 @@ Both are read with the arm, not inferred from a force reading. An earlier versio
 measurement planned to get the displacement from the camera (`dx = dF / k`, using
 `lib.stiffness`), which needs no ruler on the arm. That turned out not to hold up: the tether's
 own hysteresis (`lib.stiffness.compare_directions`) sets a floor on how well any force-inferred
-displacement can be known, and on this tether that floor (6 mm, `data/tether_stiffness.csv`) is
+displacement can be known, and on this tether that floor (6 mm, `config/measurements/tether_stiffness.csv`) is
 larger than either builder assumed. It dominates error at every tick delta small enough to keep
 the force under the therapy cap: even a 60 mm move, most of the tether's usable travel, is only
 good to 10%. A ruler reading is good to about its own precision (roughly 1 mm) regardless of how

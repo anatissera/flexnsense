@@ -15,9 +15,9 @@ answered exactly by the URDF's joint axes plus the arm's current pose, with no s
 GPU and no install:
 
 ```bash
-.venv/bin/python scripts/which_motor.py             # reads the live pose from Station
-.venv/bin/python scripts/which_motor.py --plot      # same, with a 3D drawing
-.venv/bin/python scripts/which_motor.py --check     # verify the URDF against this arm
+.venv/bin/python scripts/arm/which_motor.py             # reads the live pose from Station
+.venv/bin/python scripts/arm/which_motor.py --plot      # same, with a 3D drawing
+.venv/bin/python scripts/arm/which_motor.py --check     # verify the URDF against this arm
 ```
 
 That runs in the repo's normal `.venv` in milliseconds. Reach for ManiSkill when the question

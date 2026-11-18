@@ -4,7 +4,7 @@ Device-agnostic on purpose: this is least squares on a line, and it is used both
 as a whole (spring plus cord plus attachments, which is the number the controller needs) and for
 anything else elastic that gets measured the same way.
 
-Units, per AGENTS.md: the measurement is entered in the units a human reads, grams-force off the
+Units, per docs/contributing.md: the measurement is entered in the units a human reads, grams-force off the
 PESOLA and millimetres off a ruler, and everything this module *returns* is SI, so `k` comes out
 in N/m ready for the control math. The conversion happens here and nowhere else.
 

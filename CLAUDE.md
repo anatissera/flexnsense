@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-Instructions for Claude Code in this repository. The full workflow, layout and rules are in AGENTS.md:
+Instructions for Claude Code in this repository. The full workflow, layout and rules are in docs/contributing.md:
 
-@AGENTS.md
+@docs/contributing.md
 
 ## Most important
 

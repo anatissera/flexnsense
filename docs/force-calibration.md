@@ -10,7 +10,7 @@ Goal: find out whether arm B's servo current can stand in for a force sensor, an
 
 Do this **first**. The admittance controller's force signal comes from here, and if the answer is no, the whole force path has to move onto the camera instead - better to know on day one.
 
-**Units** (see AGENTS.md "Units"): you read and enter **grams** throughout this procedure, because that is what the PESOLA shows and what a human can weigh things in. The fit at the end reports both grams and **newtons**; the controller reads the newtons figure. 200 gf, the cap used throughout this doc, is **1.96 N**.
+**Units** (see contributing.md "Units"): you read and enter **grams** throughout this procedure, because that is what the PESOLA shows and what a human can weigh things in. The fit at the end reports both grams and **newtons**; the controller reads the newtons figure. 200 gf, the cap used throughout this doc, is **1.96 N**.
 
 This goes through [NormaCore Station](./elrobot.md), not LeRobot - there is no LeRobot support for the ElRobot. `scripts/measure/log_force_calibration.py` subscribes to Station's `st3215/inference` queue and reads `current_ma` per motor; it does not read `Present_Load`, because Station's own examples don't expose that field, only current, temperature, voltage and position.
 
@@ -63,11 +63,11 @@ python scripts/measure/log_force_calibration.py --probe          # confirm curre
 python scripts/measure/log_force_calibration.py --tare
 
 # 2. sweep up, then back down
-python scripts/measure/log_force_calibration.py --out data/calib_up.csv
-python scripts/measure/log_force_calibration.py --out data/calib_down.csv --direction down
+python scripts/measure/log_force_calibration.py --out config/measurements/calib_up.csv
+python scripts/measure/log_force_calibration.py --out config/measurements/calib_down.csv --direction down
 
 # 3. fit (prints both the g/mA and the N/mA line; the controller reads the N one)
-python scripts/measure/log_force_calibration.py --fit data/calib_up.csv
+python scripts/measure/log_force_calibration.py --fit config/measurements/calib_up.csv
 ```
 
 In the logging mode the script prompts for the grams currently applied (what you read off the PESOLA), samples for a couple of seconds, and writes the mean and spread of current per motor. Workflow per point: hang the weight, let it settle, read the PESOLA, type that number, press Enter.

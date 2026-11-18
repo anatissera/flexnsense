@@ -24,7 +24,7 @@ reading can ever be known.
 
     python scripts/measure/measure_tether_stiffness.py                  # prompt through both sweeps, log, fit
     python scripts/measure/measure_tether_stiffness.py --grams 50,100,200,300,400
-    python scripts/measure/measure_tether_stiffness.py --fit data/tether_stiffness.csv   # re-fit a log
+    python scripts/measure/measure_tether_stiffness.py --fit config/measurements/tether_stiffness.csv   # re-fit a log
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ from lib.stiffness import Point, compare_directions, fit_stiffness  # noqa: E402
 from lib.units import newtons_to_grams_force  # noqa: E402
 
 DEFAULT_GRAMS = [50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0]
-DEFAULT_OUT = "data/tether_stiffness.csv"
+DEFAULT_OUT = "config/measurements/tether_stiffness.csv"
 FIELDS = ["direction", "grams", "mm", "timestamp"]
 
 

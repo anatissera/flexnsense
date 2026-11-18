@@ -102,10 +102,10 @@ moved or the needle was not settled when you read it.
 ### What it writes
 
 `tether_n_per_m` and `displacement_uncertainty_m` into `config/calibration/bench.json`, and the
-raw sweep into `data/tether_stiffness.csv`. To re-fit an existing sweep without measuring again:
+raw sweep into `config/measurements/tether_stiffness.csv`. To re-fit an existing sweep without measuring again:
 
 ```bash
-.venv/bin/python scripts/measure/measure_tether_stiffness.py --fit data/tether_stiffness.csv
+.venv/bin/python scripts/measure/measure_tether_stiffness.py --fit config/measurements/tether_stiffness.csv
 ```
 
 ---

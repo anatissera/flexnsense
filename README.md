@@ -358,7 +358,7 @@ Which physical arm is which, bus serials, voltages:
 | [docs/hand-tracking.md](./docs/hand-tracking.md) | MediaPipe and WiLoR, the flexion angle, the VRAM question |
 | [docs/force-calibration-result.md](./docs/force-calibration-result.md) | Why servo current cannot stand in for a force sensor |
 | [docs/dashboard-demo.md](./docs/dashboard-demo.md) | The two dashboard builds, what is real in each |
-| [AGENTS.md](./AGENTS.md) | Git workflow, units, rules for contributors and coding agents |
+| [docs/contributing.md](./docs/contributing.md) | Git workflow, units, rules for contributors and coding agents |
 
 `main` is protected: work on a branch and open a PR.
 

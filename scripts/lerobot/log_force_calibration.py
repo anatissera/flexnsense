@@ -11,8 +11,8 @@ See docs/force-calibration.md for the rig and the procedure.
 
     python scripts/lerobot/log_force_calibration.py --probe
     python scripts/lerobot/log_force_calibration.py --tare
-    python scripts/lerobot/log_force_calibration.py --out data/calib_up.csv
-    python scripts/lerobot/log_force_calibration.py --fit data/calib_up.csv
+    python scripts/lerobot/log_force_calibration.py --out config/measurements/calib_up.csv
+    python scripts/lerobot/log_force_calibration.py --fit config/measurements/calib_up.csv
 
 Register names are discovered at runtime rather than assumed, since they vary
 across lerobot versions. Run --probe first to see what this arm exposes.
@@ -196,7 +196,7 @@ def run_fit(path):
     if results:
         r2, channel, slope, intercept = max(results)
         # grams = slope * counts + intercept is linear, so the N fit is the same line rescaled
-        # (see lib/units.py and AGENTS.md "Units": control code reads newtons, not grams).
+        # (see lib/units.py and docs/contributing.md "Units": control code reads newtons, not grams).
         slope_n = grams_force_to_newtons(slope)
         intercept_n = grams_force_to_newtons(intercept)
         print(

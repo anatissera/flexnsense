@@ -6,8 +6,8 @@ what Station is and how to set up its Python client.
 
     python scripts/measure/log_force_calibration.py --probe --bus-serial <SERIAL>
     python scripts/measure/log_force_calibration.py --tare --bus-serial <SERIAL>
-    python scripts/measure/log_force_calibration.py --out data/calib_up.csv --bus-serial <SERIAL>
-    python scripts/measure/log_force_calibration.py --fit data/calib_up.csv
+    python scripts/measure/log_force_calibration.py --out config/measurements/calib_up.csv --bus-serial <SERIAL>
+    python scripts/measure/log_force_calibration.py --fit config/measurements/calib_up.csv
 
 `--fit` reads a CSV and does not need Station or the norma-core client at all.
 Everything else is async, because Station's client is.
@@ -178,7 +178,7 @@ def run_fit(path):
     if results:
         r2, channel, slope, intercept = max(results)
         # grams = slope * mA + intercept is linear, so the N fit is the same line rescaled
-        # (see lib/units.py and AGENTS.md "Units": control code reads newtons, not grams).
+        # (see lib/units.py and docs/contributing.md "Units": control code reads newtons, not grams).
         slope_n = grams_force_to_newtons(slope)
         intercept_n = grams_force_to_newtons(intercept)
         print(

@@ -65,7 +65,7 @@ HOW_TO_MEASURE: dict[str, str] = {
         "~1 mm ruler reading is a fixed error that a longer move divides down (3 % over 30 mm). "
         "Valid only for the pose it was measured in.\n\n"
         "    Do NOT use dx = dF / k for this, which an earlier version of these instructions "
-        "recommended. The measured tether hysteresis is 6 mm (data/tether_stiffness.csv), and "
+        "recommended. The measured tether hysteresis is 6 mm (config/measurements/tether_stiffness.csv), and "
         "any displacement inferred from a force reading inherits that as a floor: 40 % error "
         "over a 15 mm move, and 10 % even over 60 mm, which is most of the tether's ~110 mm of "
         "usable travel. A ruler at 30 mm beats the force method at 100 mm by an order of "
