@@ -16,7 +16,7 @@ animates both, side by side, so the difference is visible rather than asserted.
 
 Geometry only, from NormaCore's URDF: no contact, no dynamics, no GPU, nothing installed
 beyond matplotlib. The physics-level simulator (`sim/`, ManiSkill) is for the closed-loop
-question in ROADMAP.md item 4, which is a different question from "is the path straight".
+question isaac-sim/ exists for, which is a different question from "is the path straight".
 """
 from __future__ import annotations
 

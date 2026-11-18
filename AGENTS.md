@@ -17,11 +17,11 @@
 
 ## Branch naming
 
-One branch per subtask in [ROADMAP.md](./ROADMAP.md), using the name given there - `feature/force-calibration`, `feature/gauge-reader`, and so on. For anything outside the roadmap: `fix/...` or `docs/...`.
+`feature/...` for new capability, `fix/...` for a defect, `docs/...` for documentation. Name the branch after the thing, not the ticket: `feature/coordinated-pull`, `fix/lease-clock`.
 
 ## Scope
 
-Keep a branch to one roadmap item so PRs stay reviewable and two people can work in parallel without colliding.
+Keep a branch to one piece of work so PRs stay reviewable and two people can work in parallel without colliding.
 
 ## No AI attribution
 
@@ -59,7 +59,7 @@ Grams-force (gf) below the boundary, newtons (N, SI) above it:
 
 # Guide for coding agents
 
-Read [README.md](./README.md) (the idea, safety rules, code layout) and [ROADMAP.md](./ROADMAP.md) (the subtasks) first.
+Read [README.md](./README.md) (the idea, the safety rules, the code layout) and [docs/machines.md](./docs/machines.md) (which machine runs what) first.
 
 ## Repository layout
 

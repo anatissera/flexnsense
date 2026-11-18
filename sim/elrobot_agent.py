@@ -10,7 +10,7 @@ and the repo's test suite has to keep running on a machine with no GPU at all. S
 `robot_training/` already uses for its LeRobot environment.
 
 **What this is for, and what it is not for.** Use it to see the arm move, to try a pose before
-commanding it, and for the closed-loop simulation rig in ROADMAP.md item 4, where contact and
+commanding it, and for a closed-loop simulation rig (see isaac-sim/), where contact and
 dynamics genuinely matter. Do **not** use it to answer "which motor moves the gripper along the
 tether": `scripts/which_motor.py` answers that exactly, from the same URDF, in milliseconds,
 with no GPU and no install, because that question is pure geometry.

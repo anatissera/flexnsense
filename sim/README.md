@@ -22,7 +22,7 @@ GPU and no install:
 
 That runs in the repo's normal `.venv` in milliseconds. Reach for ManiSkill when the question
 involves **contact, dynamics or rendering**: the closed-loop simulation rig in
-[ROADMAP.md](../ROADMAP.md) item 4, trying a trajectory before commanding it, or generating
+a closed-loop rig ([isaac-sim/](../isaac-sim/)), trying a trajectory before commanding it, or generating
 images.
 
 ## What the URDF already told us

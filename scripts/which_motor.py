@@ -112,7 +112,7 @@ def plot(chain, ticks: dict[int, float], axis: np.ndarray | None) -> None:
     matplotlib rather than a simulator: the question is geometric, and this is already a
     dependency. A full physics simulator (ManiSkill, SAPIEN, MuJoCo) would add gigabytes and a
     GPU dependency to draw the same arrows, and would answer the same question no better,
-    because nothing here needs contact, dynamics or rendering. The simulation rig in ROADMAP.md
+    because nothing here needs contact, dynamics or rendering. The simulation rig in isaac-sim/
     item 4 is a separate question (closed-loop behaviour), and that is where a real simulator
     earns its place.
     """
