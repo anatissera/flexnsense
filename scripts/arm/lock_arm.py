@@ -41,7 +41,7 @@ def load_env(path=".env"):
 
 
 async def read_positions(client, bus_serial: str, motor_ids: set[int], seconds: float) -> dict[int, int]:
-    from lib.station import follow_motor_state
+    from arm1.lib.station import follow_motor_state
 
     positions: dict[int, int] = {}
     deadline = time.monotonic() + seconds
@@ -54,7 +54,7 @@ async def read_positions(client, bus_serial: str, motor_ids: set[int], seconds: 
 
 
 async def lock(host: str, bus_serial: str, motor_ids: list[int], seconds: float):
-    from lib.station import connect, set_position, set_torque
+    from arm1.lib.station import connect, set_position, set_torque
 
     print(f"connecting to Station at {host} ...")
     client = await connect(host)
@@ -74,7 +74,7 @@ async def lock(host: str, bus_serial: str, motor_ids: list[int], seconds: float)
 
 
 async def release(host: str, bus_serial: str, motor_ids: list[int]):
-    from lib.station import connect, set_torque
+    from arm1.lib.station import connect, set_torque
 
     print(f"connecting to Station at {host} ...")
     client = await connect(host)

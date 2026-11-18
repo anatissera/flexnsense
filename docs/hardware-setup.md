@@ -41,8 +41,8 @@ valid for the pose they were measured in.
 
 - **Follower 1** - bus serial `5B8E114979`. This is "arm B" in the README's diagram: the
   PESOLA dynamometer is hooked to its gripper, pulling along the therapy axis. It is the
-  arm `control/loop.py` drives: camera reading -> `control/safety.py` gate ->
-  `control/admittance.py` law -> `lib/station.py.set_position` on this bus. Joint range
+  arm `arm1/control/loop.py` drives: camera reading -> `arm1/control/safety.py` gate ->
+  `arm1/control/admittance.py` law -> `arm1/lib/station.py.set_position` on this bus. Joint range
   calibration confirmed and recorded in
   [`config/calibration/follower-5B8E114979.json`](../config/calibration/follower-5B8E114979.json).
 - **Leader 1** - bus serial not yet logged here. Used to teleoperate Follower 1 by hand
@@ -62,7 +62,7 @@ trained, and nothing here depends on recorded demonstrations.
 - **Leader 2** - bus serial `5B61034827`, runs at about 7.4 V. The teleoperation side for
   Follower 2's demonstrations.
 
-Both serials come from `data_collection/README.md` on the `data_collection` branch (not yet
+Both serials come from `arm2/data_collection/README.md` on the `data_collection` branch (not yet
 merged), which is the recording pipeline for this pair. The demonstrations go to the Hugging
 Face dataset `JustoDario/flexnsense_skill1`, one Parquet file per episode in Station's own
 schema (**not** a `LeRobotDataset`), with the task stored as a plain language string, for
@@ -74,7 +74,7 @@ is not yet recorded under `config/calibration/`.
 ## Why this split matters
 
 The two followers must not be confused in scripts or config. Anything that reads
-`FOLLOWER_BUS_SERIAL` from `lib/env.py` or a `config/calibration/*.json` file should resolve
+`FOLLOWER_BUS_SERIAL` from `arm1/lib/env.py` or a `config/calibration/*.json` file should resolve
 to **Follower 1** (`5B8E114979`) when the work is the admittance controller - that is the
 only bus this repo's `control/` package is meant to drive. Follower 2 belongs to the
 separate imitation-learning task and has no code in this repo yet.

@@ -1,7 +1,7 @@
-"""Tests for the scale reader CLI (gauge_reader.cli) and overlays (gauge_reader.overlay). No camera, no windows.
+"""Tests for the scale reader CLI (arm1.gauge_reader.cli) and overlays (arm1.gauge_reader.overlay). No camera, no windows.
 
-The end-to-end tests need gauge_reader.detector / calibration / smoothing (fixed mode) and gauge_reader.stickers +
-gauge_reader.calibration.StickerCalibration (sticker mode); they are skipped until those exist.
+The end-to-end tests need arm1.gauge_reader.detector / calibration / smoothing (fixed mode) and arm1.gauge_reader.stickers +
+arm1.gauge_reader.calibration.StickerCalibration (sticker mode); they are skipped until those exist.
 """
 from __future__ import annotations
 
@@ -14,26 +14,26 @@ import cv2
 import numpy as np
 import pytest
 
-from gauge_reader import overlay
-from lib.geometry import Axis
-from gauge_reader.synthetic.still import make_video, sweep
+from arm1.gauge_reader import overlay
+from arm1.lib.geometry import Axis
+from arm1.gauge_reader.synthetic.still import make_video, sweep
 
 REPO = Path(__file__).resolve().parents[2]   # tests/gauge_reader/test_cli.py -> repo root
 N_FRAMES = 72
 
 
 def _need_modules():
-    pytest.importorskip("gauge_reader.detector")
-    pytest.importorskip("gauge_reader.calibration")
-    pytest.importorskip("lib.filters")
+    pytest.importorskip("arm1.gauge_reader.detector")
+    pytest.importorskip("arm1.gauge_reader.calibration")
+    pytest.importorskip("arm1.lib.filters")
 
 
 def _need_sticker_modules():
     _need_modules()
-    pytest.importorskip("gauge_reader.stickers")
-    vc = pytest.importorskip("gauge_reader.calibration")
+    pytest.importorskip("arm1.gauge_reader.stickers")
+    vc = pytest.importorskip("arm1.gauge_reader.calibration")
     if not (hasattr(vc, "StickerCalibration") and hasattr(vc, "load_calibration")):
-        pytest.skip("gauge_reader.calibration.StickerCalibration / load_calibration not there yet")
+        pytest.skip("arm1.gauge_reader.calibration.StickerCalibration / load_calibration not there yet")
 
 
 @pytest.fixture(scope="module")
@@ -45,8 +45,8 @@ def video(tmp_path_factory) -> Path:
 @pytest.fixture()
 def calib_file(video, tmp_path) -> Path:
     _need_modules()
-    from gauge_reader.calibration import Calibration
-    from gauge_reader.cli import read_truth
+    from arm1.gauge_reader.calibration import Calibration
+    from arm1.gauge_reader.cli import read_truth
     axis, _ = read_truth(video.with_suffix(".truth.csv"))
     p = tmp_path / "calib.json"
     Calibration.from_clicks(axis.p0, axis.p1).save(p)
@@ -84,7 +84,7 @@ def test_status_colors():
 
 
 def test_parser_has_commands():
-    from gauge_reader.cli import build_parser
+    from arm1.gauge_reader.cli import build_parser
     ap = build_parser()
     a = ap.parse_args(["calibrate", "--p0", "10,20", "--p1", "10.5,620", "--camera", "1"])
     assert a.p0 == (10.0, 20.0) and a.p1 == (10.5, 620.0) and a.camera == 1
@@ -95,7 +95,7 @@ def test_parser_has_commands():
 
 
 def test_parser_mode():
-    from gauge_reader.cli import build_parser
+    from arm1.gauge_reader.cli import build_parser
     ap = build_parser()
     assert ap.parse_args(["calibrate"]).mode == "stickers"                      # default
     assert ap.parse_args(["calibrate", "--mode", "fixed"]).mode == "fixed"
@@ -109,7 +109,7 @@ def test_parser_mode():
 
 def test_evaluate_passes_on_synthetic_video(video):
     _need_modules()
-    from gauge_reader.cli import evaluate
+    from arm1.gauge_reader.cli import evaluate
     m = evaluate(video)
     assert m["frames"] == N_FRAMES
     assert m["detection_rate"] >= 0.95
@@ -119,7 +119,7 @@ def test_evaluate_passes_on_synthetic_video(video):
 
 def test_evaluate_cli_exit_codes(video, tmp_path):
     _need_modules()
-    cmd = [sys.executable, "-m", "gauge_reader", "evaluate", "--video", str(video)]
+    cmd = [sys.executable, "-m", "arm1.gauge_reader", "evaluate", "--video", str(video)]
     ok = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True, timeout=120)
     assert ok.returncode == 0, ok.stdout + ok.stderr
     assert "detection rate" in ok.stdout and "PASS" in ok.stdout
@@ -139,9 +139,9 @@ def test_evaluate_cli_exit_codes(video, tmp_path):
 
 def test_run_headless_writes_csv_and_strip_only(video, calib_file, tmp_path, monkeypatch, capsys):
     _need_modules()
-    from gauge_reader.cli import CSV_COLUMNS, main
+    from arm1.gauge_reader.cli import CSV_COLUMNS, main
     monkeypatch.chdir(tmp_path)     # recordings/ goes to tmp
-    out = tmp_path / "session.csv"
+    out = tmp_path / "arm1.session.csv"
     rc = main(["run", "--video", str(video), "--calib", str(calib_file), "--csv", str(out), "--headless", "--record"])
     assert rc == 0
     assert "fps" in capsys.readouterr().out          # at least one status line
@@ -167,7 +167,7 @@ def test_run_headless_writes_csv_and_strip_only(video, calib_file, tmp_path, mon
 
 def test_run_max_frames_and_default_csv(video, calib_file, tmp_path, monkeypatch):
     _need_modules()
-    from gauge_reader.cli import main
+    from arm1.gauge_reader.cli import main
     monkeypatch.chdir(tmp_path)
     assert main(["run", "--video", str(video), "--calib", str(calib_file), "--headless", "--max-frames", "10"]) == 0
     csvs = list((tmp_path / "recordings").glob("session-*.csv"))
@@ -177,16 +177,16 @@ def test_run_max_frames_and_default_csv(video, calib_file, tmp_path, monkeypatch
 
 def test_run_without_calibration_explains(tmp_path, video):
     _need_modules()
-    from gauge_reader.cli import main
+    from arm1.gauge_reader.cli import main
     with pytest.raises(SystemExit, match="calibrate"):
         main(["run", "--video", str(video), "--calib", str(tmp_path / "missing.json"), "--headless"])
 
 
 def test_pipeline_tare_and_known_weight(video):
     _need_modules()
-    from gauge_reader.calibration import Calibration
-    from gauge_reader.cli import Pipeline, read_truth
-    from gauge_reader.synthetic.still import render_scale_frame
+    from arm1.gauge_reader.calibration import Calibration
+    from arm1.gauge_reader.cli import Pipeline, read_truth
+    from arm1.gauge_reader.synthetic.still import render_scale_frame
     axis, _ = read_truth(video.with_suffix(".truth.csv"))
     # deliberately bad clicks: p0 4 px too far down the axis
     calib = Calibration.from_clicks(axis.point_at(4.0), axis.p1)
@@ -237,8 +237,8 @@ class FakeGUI:
 
 def test_run_window_keys(video, calib_file, tmp_path, monkeypatch):
     _need_modules()
-    from gauge_reader.calibration import Calibration
-    from gauge_reader.cli import main
+    from arm1.gauge_reader.calibration import Calibration
+    from arm1.gauge_reader.cli import main
     monkeypatch.chdir(tmp_path)
     gui = FakeGUI(monkeypatch, [None] * 5 + ["m", None, " ", None, " ", "z", "s", "q"])
     assert main(["run", "--video", str(video), "--calib", str(calib_file), "--csv", str(tmp_path / "s.csv")]) == 0
@@ -248,8 +248,8 @@ def test_run_window_keys(video, calib_file, tmp_path, monkeypatch):
 
 def test_calibrate_clicks_tare_weight_save(video, tmp_path, monkeypatch):
     _need_modules()
-    from gauge_reader.calibration import Calibration
-    from gauge_reader.cli import main, read_truth
+    from arm1.gauge_reader.calibration import Calibration
+    from arm1.gauge_reader.cli import main, read_truth
     axis, _ = read_truth(video.with_suffix(".truth.csv"))
     out = tmp_path / "cal.json"
     monkeypatch.setattr("builtins.input", lambda prompt="": "0")
@@ -265,8 +265,8 @@ def test_calibrate_clicks_tare_weight_save(video, tmp_path, monkeypatch):
 
 def test_calibrate_warns_before_quitting_unsaved(video, tmp_path, monkeypatch, capsys):
     _need_modules()
-    from gauge_reader.cli import main
-    from gauge_reader.cli import read_truth
+    from arm1.gauge_reader.cli import main
+    from arm1.gauge_reader.cli import read_truth
     axis, _ = read_truth(video.with_suffix(".truth.csv"))
     p0, p1 = (f"{v[0]},{v[1]}" for v in (axis.p0, axis.p1))
     FakeGUI(monkeypatch, [None, None, "q", None, "q"])
@@ -278,7 +278,7 @@ def test_calibrate_warns_before_quitting_unsaved(video, tmp_path, monkeypatch, c
 
 def test_run_headless_fixed_csv_has_sticker_columns_empty(video, calib_file, tmp_path):
     _need_modules()
-    from gauge_reader.cli import main
+    from arm1.gauge_reader.cli import main
     out = tmp_path / "s.csv"
     assert main(["run", "--video", str(video), "--calib", str(calib_file), "--csv", str(out), "--headless",
                  "--max-frames", "5"]) == 0
@@ -294,7 +294,7 @@ MOVING_FRAMES = 120
 
 @pytest.fixture(scope="module")
 def moving_video(tmp_path_factory) -> Path:
-    from gauge_reader.synthetic.moving import make_moving_video
+    from arm1.gauge_reader.synthetic.moving import make_moving_video
     d = tmp_path_factory.mktemp("mov")
     return make_moving_video(d / "moving.mp4", MOVING_FRAMES, seed=1, speed=2.0, occlude_every=30)
 
@@ -310,7 +310,7 @@ def _xy(row, k):
 @pytest.fixture()
 def sticker_calib_file(moving_video, tmp_path) -> Path:
     _need_sticker_modules()
-    from gauge_reader.calibration import StickerCalibration
+    from arm1.gauge_reader.calibration import StickerCalibration
     r0 = _truth_rows(moving_video)[0]
     p = tmp_path / "stickers.json"
     StickerCalibration.from_clicks(_xy(r0, "s1"), _xy(r0, "s2"), _xy(r0, "p0"), _xy(r0, "p1")).save(p)
@@ -339,7 +339,7 @@ def test_sticker_overlay_functions_draw_on_blank_frame():
 
 
 def test_sticker_crop_is_only_the_scale():
-    from gauge_reader.cli import CROP_SIZE, sticker_crop
+    from arm1.gauge_reader.cli import CROP_SIZE, sticker_crop
     frame = np.zeros((720, 1280, 3), np.uint8)
     cv2.circle(frame, (400, 360), 10, (0, 0, 255), -1)
     crop = sticker_crop(frame, (400.0, 360.0), (900.0, 300.0))
@@ -353,13 +353,13 @@ def test_sticker_crop_is_only_the_scale():
 def test_make_tracker_sat_strong_defaults_off(monkeypatch):
     """Without GAUGE_SAT_STRONG set, behaviour is unchanged: the knob stays at the detector's default (off).
 
-    Patches gauge_reader.cli.env_get directly rather than the environment: env_get also falls
+    Patches arm1.gauge_reader.cli.env_get directly rather than the environment: env_get also falls
     back to reading a real `.env` in the repo root, and a developer's own machine may well have
     GAUGE_SAT_STRONG set there for their own camera - the test must not depend on that file.
     """
     _need_sticker_modules()
-    from gauge_reader import cli
-    from gauge_reader.calibration import StickerCalibration
+    from arm1.gauge_reader import cli
+    from arm1.gauge_reader.calibration import StickerCalibration
     monkeypatch.setattr(cli, "env_get", lambda key, default=None: default)
     calib = StickerCalibration.from_clicks((100.0, 0.0), (900.0, 0.0), (200.0, 0.0), (800.0, 0.0))
     tracker = cli.StickerPipeline.make_tracker(calib)
@@ -374,8 +374,8 @@ def test_make_tracker_sat_strong_from_env(monkeypatch):
     - setting it between those two groups keeps a hand out without touching the hue range).
     Same reason as above for patching env_get directly instead of the environment."""
     _need_sticker_modules()
-    from gauge_reader import cli
-    from gauge_reader.calibration import StickerCalibration
+    from arm1.gauge_reader import cli
+    from arm1.gauge_reader.calibration import StickerCalibration
     monkeypatch.setattr(cli, "env_get", lambda key, default=None: "150" if key == "GAUGE_SAT_STRONG" else default)
     calib = StickerCalibration.from_clicks((100.0, 0.0), (900.0, 0.0), (200.0, 0.0), (800.0, 0.0))
     tracker = cli.StickerPipeline.make_tracker(calib)
@@ -384,7 +384,7 @@ def test_make_tracker_sat_strong_from_env(monkeypatch):
 
 def test_evaluate_stickers_passes_on_moving_video(moving_video):
     _need_sticker_modules()
-    from gauge_reader.cli import evaluate, truth_is_stickers
+    from arm1.gauge_reader.cli import evaluate, truth_is_stickers
     assert truth_is_stickers(moving_video.with_suffix(".truth.csv"))
     m = evaluate(moving_video)
     assert m["mode"] == "stickers" and m["frames"] == MOVING_FRAMES
@@ -397,7 +397,7 @@ def test_evaluate_stickers_passes_on_moving_video(moving_video):
 
 def test_evaluate_stickers_cli_fails_on_wrong_truth(moving_video, tmp_path):
     _need_sticker_modules()
-    cmd = [sys.executable, "-m", "gauge_reader", "evaluate", "--video", str(moving_video)]
+    cmd = [sys.executable, "-m", "arm1.gauge_reader", "evaluate", "--video", str(moving_video)]
     ok = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True, timeout=180)
     assert ok.returncode == 0, ok.stdout + ok.stderr
     assert "stickers mode" in ok.stdout and "wrong readings 0" in ok.stdout and "PASS" in ok.stdout
@@ -417,9 +417,9 @@ def test_evaluate_stickers_cli_fails_on_wrong_truth(moving_video, tmp_path):
 def test_run_headless_stickers_writes_new_columns_and_crop(moving_video, sticker_calib_file, tmp_path, monkeypatch,
                                                            capsys):
     _need_sticker_modules()
-    from gauge_reader.cli import CROP_SIZE, CSV_COLUMNS, main
+    from arm1.gauge_reader.cli import CROP_SIZE, CSV_COLUMNS, main
     monkeypatch.chdir(tmp_path)
-    out = tmp_path / "session.csv"
+    out = tmp_path / "arm1.session.csv"
     assert main(["run", "--video", str(moving_video), "--calib", str(sticker_calib_file), "--csv", str(out),
                  "--headless", "--record"]) == 0
     assert "stickers mode" in capsys.readouterr().out
@@ -452,8 +452,8 @@ def test_run_headless_stickers_writes_new_columns_and_crop(moving_video, sticker
 
 def test_run_window_keys_stickers(moving_video, sticker_calib_file, tmp_path, monkeypatch):
     _need_sticker_modules()
-    from gauge_reader.calibration import load_calibration
-    from gauge_reader.cli import main
+    from arm1.gauge_reader.calibration import load_calibration
+    from arm1.gauge_reader.cli import main
     monkeypatch.chdir(tmp_path)
     gui = FakeGUI(monkeypatch, [None] * 5 + ["m", None, " ", None, " ", "z", "s"] + [None] * 70 + ["q"])
     assert main(["run", "--video", str(moving_video), "--calib", str(sticker_calib_file),
@@ -465,8 +465,8 @@ def test_run_window_keys_stickers(moving_video, sticker_calib_file, tmp_path, mo
 
 def test_calibrate_stickers_found_automatically(moving_video, tmp_path, monkeypatch):
     _need_sticker_modules()
-    from gauge_reader.calibration import StickerCalibration, load_calibration
-    from gauge_reader.cli import main
+    from arm1.gauge_reader.calibration import StickerCalibration, load_calibration
+    from arm1.gauge_reader.cli import main
     r1 = _truth_rows(moving_video)[1]           # SPACE freezes frame 1 (frame 0 is shown with no key)
     out = tmp_path / "cal.json"
     monkeypatch.setattr("builtins.input", lambda prompt="": "0")
@@ -484,10 +484,10 @@ def test_calibrate_stickers_found_automatically(moving_video, tmp_path, monkeypa
 
 def test_calibrate_stickers_clicked_by_hand(moving_video, tmp_path, monkeypatch):
     _need_sticker_modules()
-    import gauge_reader.stickers
-    from gauge_reader.calibration import load_calibration
-    from gauge_reader.cli import main
-    monkeypatch.setattr(gauge_reader.stickers, "find_stickers_near_line", lambda *a, **k: None)
+    import arm1.gauge_reader.stickers
+    from arm1.gauge_reader.calibration import load_calibration
+    from arm1.gauge_reader.cli import main
+    monkeypatch.setattr(arm1.gauge_reader.stickers, "find_stickers_near_line", lambda *a, **k: None)
     r1 = _truth_rows(moving_video)[1]
     s1, s2 = (tuple(map(round, _xy(r1, k))) for k in ("s1", "s2"))
     out = tmp_path / "cal.json"
@@ -504,8 +504,8 @@ def test_calibrate_stickers_clicked_by_hand(moving_video, tmp_path, monkeypatch)
 
 def test_calibrate_stickers_from_args(moving_video, tmp_path, monkeypatch, capsys):
     _need_sticker_modules()
-    from gauge_reader.calibration import load_calibration
-    from gauge_reader.cli import main
+    from arm1.gauge_reader.calibration import load_calibration
+    from arm1.gauge_reader.cli import main
     r0 = _truth_rows(moving_video)[0]
     p0, p1 = (f"{x},{y}" for x, y in (_xy(r0, "p0"), _xy(r0, "p1")))
     out = tmp_path / "cal.json"
@@ -523,9 +523,9 @@ def test_calibrate_stickers_from_args(moving_video, tmp_path, monkeypatch, capsy
 
 # ---------------------------------------------------------------- make_pipeline's filt override
 def test_make_pipeline_defaults_to_the_readers_own_filter():
-    from gauge_reader.calibration import Calibration
-    from gauge_reader.cli import make_pipeline
-    from lib.filters import ReadingFilter
+    from arm1.gauge_reader.calibration import Calibration
+    from arm1.gauge_reader.cli import make_pipeline
+    from arm1.lib.filters import ReadingFilter
 
     calib = Calibration.from_clicks((0, 0), (100, 0))
     pipeline = make_pipeline(calib)
@@ -534,9 +534,9 @@ def test_make_pipeline_defaults_to_the_readers_own_filter():
 
 
 def test_make_pipeline_accepts_an_explicit_filter_for_fixed_mode():
-    from gauge_reader.calibration import Calibration
-    from gauge_reader.cli import make_pipeline
-    from lib.filters import ReadingFilter
+    from arm1.gauge_reader.calibration import Calibration
+    from arm1.gauge_reader.cli import make_pipeline
+    from arm1.lib.filters import ReadingFilter
 
     calib = Calibration.from_clicks((0, 0), (100, 0))
     custom = ReadingFilter(outlier_persist=7)
@@ -545,9 +545,9 @@ def test_make_pipeline_accepts_an_explicit_filter_for_fixed_mode():
 
 
 def test_make_pipeline_accepts_an_explicit_filter_for_sticker_mode():
-    from gauge_reader.calibration import StickerCalibration
-    from gauge_reader.cli import make_pipeline
-    from lib.filters import ReadingFilter
+    from arm1.gauge_reader.calibration import StickerCalibration
+    from arm1.gauge_reader.cli import make_pipeline
+    from arm1.lib.filters import ReadingFilter
 
     calib = StickerCalibration.from_clicks((0, 0), (100, 0), (0, 10), (100, 10))
     custom = ReadingFilter(outlier_persist=7)

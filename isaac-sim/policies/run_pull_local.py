@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 """The simulation-trained pull policy on the real arm, through the team's existing control loop.
 
-It reuses robot_training/inference (branch feature/robot-training): control.py, station_io.py and safety.py do the
+It reuses arm2/training/inference (branch feature/robot-training): control.py, station_io.py and safety.py do the
 reading, the goal limits and the writing. This file only supplies the policy. The options of that loop all apply:
 --dry-run, --max-ticks, --station, --bus-serial, --max-step-ticks, ...
 
-    # in the environment that has norma-core's station_py (see robot_training/README.md), from the repository root
+    # in the environment that has norma-core's station_py (see arm2/training/README.md), from the repository root
     python isaac-sim/policies/run_pull_local.py --policy isaac-sim/policies/pull_bench_v1 \\
         --force-camera 0 --calib config/scale_calib.json --camera-order side,gripper,table --dry-run
     ... then --max-ticks 30, then without a limit.
@@ -32,14 +32,14 @@ def main() -> None:
     p.add_argument("--force-camera", required=True, help="the camera that looks at the scale: a number or part of its name")
     p.add_argument("--calib", default="config/scale_calib.json", help="the scale's calibration file on this machine")
     p.add_argument("--robot-training", default=None,
-                   help="path to robot_training/inference (default: found from the repository root)")
+                   help="path to arm2/training/inference (default: found from the repository root)")
     pre, _ = p.parse_known_args()
     inference = Path(pre.robot_training) if pre.robot_training else next(
         (r / "robot_training" / "inference" for r in HERE.parents if (r / "robot_training" / "inference").exists()), None)
     if inference is None:
-        sys.exit("robot_training/inference not found: check out or merge feature/robot-training, or pass --robot-training")
+        sys.exit("arm2/training/inference not found: check out or merge feature/robot-training, or pass --robot-training")
     sys.path.insert(0, str(inference))
-    from control import add_robot_args, run_control
+    from arm1.control import add_robot_args, run_control
 
     repo = next((r for r in HERE.parents if (r / "gauge_reader").is_dir() and (r / "lib").is_dir()), None)
     if repo is None:

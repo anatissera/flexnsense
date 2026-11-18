@@ -80,11 +80,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.env import env_get  # noqa: E402
-from lib.kinematics import ARM_MOTORS  # noqa: E402
-from lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
-from session.home_pose import CPM_START_POSE_PATH, NAMED_POSES  # noqa: E402
-from session.tuning import DEFAULT_TUNING_PATH, load_tuning  # noqa: E402
+from arm1.lib.env import env_get  # noqa: E402
+from arm1.lib.kinematics import ARM_MOTORS  # noqa: E402
+from arm1.lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
+from arm1.session.home_pose import CPM_START_POSE_PATH, NAMED_POSES  # noqa: E402
+from arm1.session.tuning import DEFAULT_TUNING_PATH, load_tuning  # noqa: E402
 
 GAUGE_CALIB = "config/scale_calib.json"
 
@@ -113,8 +113,8 @@ def build_pipeline(calib_path: str, outlier_persist: int = 5):
     package and importing one script from another by path is worse than two lines. If a third
     caller appears, this belongs in `gauge_reader/` instead.
     """
-    from gauge_reader.cli import _load_calibration, make_pipeline
-    from lib.filters import ReadingFilter
+    from arm1.gauge_reader.cli import _load_calibration, make_pipeline
+    from arm1.lib.filters import ReadingFilter
 
     if not Path(calib_path).is_file():
         raise SystemExit(
@@ -163,7 +163,7 @@ async def read_pose(client, bus_serial: str, seconds: float) -> dict[int, float]
     `follow_motor_state` yields one tuple per motor across every bus, so filtering to this
     bus is the caller's job.
     """
-    from lib.station import follow_motor_state
+    from arm1.lib.station import follow_motor_state
 
     found: dict[int, float] = {}
 
@@ -254,8 +254,8 @@ class ForceSupervisor:
 async def run(args) -> int:
     import numpy as np
 
-    from lib.kinematics import load_chain, load_tick_ranges, tether_tension_direction
-    from lib.station import (
+    from arm1.lib.kinematics import load_chain, load_tick_ranges, tether_tension_direction
+    from arm1.lib.station import (
         RAM_ACC,
         RAM_GOAL_POSITION,
         RAM_GOAL_SPEED,
@@ -264,7 +264,7 @@ async def run(args) -> int:
         set_position,
         sync_write,
     )
-    from session.home_pose import NAMED_POSES, home_waypoints, load_home_pose
+    from arm1.session.home_pose import NAMED_POSES, home_waypoints, load_home_pose
 
     tuning = load_tuning(getattr(args, "tuning", None))
     chain = load_chain()
@@ -515,7 +515,7 @@ async def run(args) -> int:
         return 0
 
     if not args.no_camera:
-        from lib.camera import open_source
+        from arm1.lib.camera import open_source
 
         source_cam = open_source(args.camera)
         pipeline = build_pipeline(args.calib, outlier_persist=args.outlier_persist)

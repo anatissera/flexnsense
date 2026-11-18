@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import pytest
 
-from hand_tracking.frame import FLEXION_JOINTS
-from hand_tracking.mediapipe_source import build_frame, handedness_of, to_points
+from arm1.hand_tracking.frame import FLEXION_JOINTS
+from arm1.hand_tracking.mediapipe_source import build_frame, handedness_of, to_points
 
 from tests.hand_tracking.test_pose import straight_hand
 

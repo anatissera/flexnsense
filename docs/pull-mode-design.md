@@ -11,7 +11,7 @@
 > code currently handles more weakly than this doc specifies. Three places where this is ahead of
 > `session/` and `control/`, all unimplemented:
 >
-> 1. **The inverted monotonicity guard.** `session/modes.py` says the guard in
+> 1. **The inverted monotonicity guard.** `arm1/session/modes.py` says the guard in
 >    `control.loop.ControlLoop._check_yield_direction` simply does not apply while the arm pulls,
 >    and that the range-of-motion target plus the cap replace it. This doc has the better answer:
 >    invert it. While pulling, the force *must rise*, and a commanded motion that does not raise
@@ -39,7 +39,7 @@ u_hat = (P - G) / |P - G|            direction the robot yields along
 
 Two consequences follow directly. The controller never needs to know where anything is in space - it only needs `T`, so if the hand shifts a little, `d` changes, `T` changes, and the force loop absorbs it without remapping anything. But the PESOLA gives a scalar: `|T|`, never `u_hat`. Direction has to come from somewhere else, and it is the central vulnerability of the design (see "The direction problem" below).
 
-**Units** (see contributing.md "Units"): every `F`, `T`, `F_threshold`, `F_target`, `F_max`, `F_home` in this doc and in the controller is in **newtons**. Grams only ever appear where a human reads the PESOLA directly, e.g. setting up a known weight or reading the clinician's displayed cap; anything the controller computes with is already past the `lib/units.py` boundary.
+**Units** (see contributing.md "Units"): every `F`, `T`, `F_threshold`, `F_target`, `F_max`, `F_home` in this doc and in the controller is in **newtons**. Grams only ever appear where a human reads the PESOLA directly, e.g. setting up a known weight or reading the clinician's displayed cap; anything the controller computes with is already past the `arm1/lib/units.py` boundary.
 
 ## Mode is chosen by the operator, not inferred
 

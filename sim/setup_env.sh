@@ -3,7 +3,7 @@
 #
 # Separate from the repo's .venv on purpose: ManiSkill pulls in torch, SAPIEN and a Vulkan
 # runtime, several gigabytes, and the test suite has to keep running on a machine with no GPU.
-# Same split robot_training/ uses for its LeRobot environment.
+# Same split arm2/training/ uses for its LeRobot environment.
 #
 #   ./sim/setup_env.sh
 #   source sim/venv/bin/activate

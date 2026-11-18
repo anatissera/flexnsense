@@ -31,7 +31,7 @@ when the loop is placed and both are penalised when the move fails.
 | The scale's force on the pull arm (the datasheet's spring) | **Fingers as obstacles.** A loop carried lower than 4 cm above its resting height between the two fingers has hit one |
 | | **The camera reading.** The marker's place between the two reference stickers in whole camera pixels, with noise, and no reading while the move arm's gripper covers the marker |
 
-The team's own scale reader (`gauge_reader/stickers.py`) was run on the rendered overhead camera in the films: it found
+The team's own scale reader (`arm1/gauge_reader/stickers.py`) was run on the rendered overhead camera in the films: it found
 the two stickers and the marker in 87 to 95 % of pictures and its reading was within 2.5 to 3.9 gf (one standard
 deviation) of the true force, worst case about 17 gf. It has no reading while the move arm covers a sticker, as on the
 real bench. That check is what the camera model in training is based on; the reader itself does not run during

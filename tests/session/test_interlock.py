@@ -8,8 +8,8 @@ import itertools
 
 import pytest
 
-from lib.units import grams_force_to_newtons
-from session.interlock import (
+from arm1.lib.units import grams_force_to_newtons
+from arm1.session.interlock import (
     ArmOneStatus,
     Custody,
     Interlock,

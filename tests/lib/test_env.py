@@ -1,4 +1,4 @@
-from lib.env import env_get, load_env
+from arm1.lib.env import env_get, load_env
 
 
 def test_load_env_parses_and_skips(tmp_path):

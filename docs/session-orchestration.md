@@ -13,11 +13,11 @@ Verified by reading the code, not assumed:
 
 | Where | What it does | Why it is not enough |
 |---|---|---|
-| `control/safety.py`, `control/admittance.py`, `control/loop.py` | Per cycle force loop: HOLD / YIELD / RELEASE plus the admittance law | Covers one of the two modes below. No notion of a repetition, a mode, a finger, or who asked it to start |
+| `arm1/control/safety.py`, `arm1/control/admittance.py`, `arm1/control/loop.py` | Per cycle force loop: HOLD / YIELD / RELEASE plus the admittance law | Covers one of the two modes below. No notion of a repetition, a mode, a finger, or who asked it to start |
 | `dashboard/app/components/GuideHand.tsx` | Cues the patient: 3D hand animates a flex, voice says "Flex" and "Release", rep counter and progress bar | Driven by `performance.now()` on hardcoded constants (`REPS = 5`, `HOLD_S = 3`, `RELEASE_S = 3`). Does not know the finger, the force, or the robot, and never waits for the patient |
 | `dashboard/app/lib/curlsim/live.ts` (`LiveAnalyzer`) | Detects phases from the measured signal: `baseline -> rest -> flexion -> hold -> extension`, counts `repsDone`, computes per rep metrics including hysteresis | Observes only, commands nothing, and runs in the browser on simulated or tracked data |
 | `dashboard/app/lib/curlsim/types.ts` | `Finger` (five of them), `TestKind` (`full` or `fds`), `Trial` carrying finger, hand, session and trial index | The vocabulary exists, but only inside the dashboard, in TypeScript |
-| `data_collection/` (branch `data_collection`) | Records teleoperated episodes for arm 2, task stored as a language string | Its own README: "training and running a policy on the arm are not covered here". There is nothing an orchestrator can call |
+| `arm2/data_collection/` (branch `data_collection`) | Records teleoperated episodes for arm 2, task stored as a language string | Its own README: "training and running a policy on the arm are not covered here". There is nothing an orchestrator can call |
 | `colab_train/` (branch `training`) | Links to the SmolVLA and ACT Colab notebooks | Those notebooks consume a `LeRobotDataset`; the recordings are Station Parquet. Nobody owns that conversion yet |
 
 Two things fall out of that table. First, **there are already two disagreeing models of a
@@ -242,7 +242,7 @@ same time, and the orchestrator must have arm 1 released and at zero tension bef
 control to arm 2. A hook being moved while something is still pulling on a finger is the worst
 state this machine has. It is one mutual exclusion rule, it is cheap to enforce, and it is easy
 to test exhaustively, which is exactly the shape of thing that belongs in a pure module next to
-`control/safety.py`.
+`arm1/control/safety.py`.
 
 **Arm 2 sits behind one interface**, with three implementations: the trained policy, a replayed
 teleoperated trajectory, or a human moving the hook by hand and confirming on the dashboard.
@@ -408,7 +408,7 @@ up.
 
 ## In the browser: a rehearsal copy of the rep machine
 
-`dashboard/app/lib/session/` holds TypeScript ports of `session/modes.py`, `instructions.py`,
+`dashboard/app/lib/session/` holds TypeScript ports of `arm1/session/modes.py`, `instructions.py`,
 `fingers.py`, `protocol.py` and `reps.py`, plus `dashboard/app/lib/units.ts` for the gram-force
 to newton conversion. They exist so the dashboard can rehearse and simulate a session, for
 example driving the guide hand from hand-tracking angles when no arm is attached.

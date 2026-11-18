@@ -69,8 +69,8 @@ else:
     move(v * dt, direction_that_reduces_F)  # dt from real frame timestamps
 ```
 
-`control/safety.py` is the gate (HOLD / YIELD / RELEASE), `control/admittance.py` the law,
-`control/loop.py` the only part that touches hardware. The first two are pure and exhaustively
+`arm1/control/safety.py` is the gate (HOLD / YIELD / RELEASE), `arm1/control/admittance.py` the law,
+`arm1/control/loop.py` the only part that touches hardware. The first two are pure and exhaustively
 tested. Why `B` is bounded by the gap between cap and ceiling:
 [docs/admittance-design.md](./docs/admittance-design.md).
 
@@ -141,7 +141,7 @@ Fixed control law, hand-tuned constants, exhaustively tested gate. Nothing about
 because the thing it does (bound a force on a healing finger) is a specification, not a pattern
 to be inferred from data. The constants live in
 [`config/session-tuning.json`](./config/session-tuning.json), each one annotated in
-[`session/tuning.py`](./session/tuning.py) with the bench failure it is paying for.
+[`arm1/session/tuning.py`](./arm1/session/tuning.py) with the bench failure it is paying for.
 
 ### Arm 2, the hook mover: behaviour cloning from teleoperation
 
@@ -149,12 +149,12 @@ Moving the scale's hook from one finger to the next is fiddly, contact-rich, and
 analytic solution. So it is learned, from demonstrations:
 
 1. **Record.** A human teleoperates arm 2 through the move with a leader arm, while Station
-   records joints and three cameras. [`data_collection/`](./data_collection/)
+   records joints and three cameras. [`arm2/data_collection/`](./arm2/data_collection/)
 2. **Augment.** WiLoR runs on the side camera and writes 21 hand keypoints into every frame, so
    the policy sees where the fingers actually are, not just where the arm is.
 3. **Train.** ACT on the resulting LeRobot dataset, one multi-task model covering all three
    finger-to-finger moves, selected by a `--task` phrase.
-   [`robot_training/`](./robot_training/)
+   [`arm2/training/`](./arm2/training/)
 4. **Run.** The policy drives the arm through Station, with its own goal-rate limits, abort rule
    and stalled-motor hold. It does **not** implement this project's safety layer and must not be
    used near a patient's hand.
@@ -216,7 +216,7 @@ off the network.
 
 ```bash
 # on arm 2's machine
-.venv/bin/python -m session.link serve --host 0.0.0.0 --port 8770
+.venv/bin/python -m arm1.session.link serve --host 0.0.0.0 --port 8770
 
 # on arm 1's machine, one request over the real socket
 .venv/bin/python scripts/session/try_remote_hook.py --url ws://<arm2-host>:8770/arm2 --finger index
@@ -243,7 +243,7 @@ from the results. `NEXT_PUBLIC_DEMO` is the only
 difference between the public build and the one that runs beside the rig: with it set nothing is
 probed, and every panel carries a badge saying where its numbers come from.
 
-When a real session is running, `python -m session.snapshot_server` streams it and the panel
+When a real session is running, `python -m arm1.session.snapshot_server` streams it and the panel
 shows the arm instead of the simulation, badged `live session`.
 [docs/dashboard-demo.md](./docs/dashboard-demo.md)
 
@@ -263,7 +263,7 @@ Nothing here has touched a patient. Against the **bench**, with a finger in the 
 
 **Known fault:** the gauge reader occasionally swaps the two reference stickers, which inverts
 the whole scale (`g` reads as `570 - g`) and stays inverted until tracking breaks. Diagnosed to
-the orientation tiebreak in `gauge_reader/stickers.py`; the profile that is supposed to tell the
+the orientation tiebreak in `arm1/gauge_reader/stickers.py`; the profile that is supposed to tell the
 two ends apart scores both orientations identically on this rig. Not yet fixed.
 
 ## Setup
@@ -279,38 +279,40 @@ There is **no LeRobot support for the ElRobot**, so every path to the arm goes t
 NormaCore's Station: [docs/elrobot.md](./docs/elrobot.md).
 
 ```bash
-.venv/bin/python -m gauge_reader.launcher     # camera, calibrate, run
-.venv/bin/python -m gauge_reader.server       # live force for the dashboard
-.venv/bin/python -m hand_tracking run         # finger flexion angles
+.venv/bin/python -m arm1.gauge_reader.launcher     # camera, calibrate, run
+.venv/bin/python -m arm1.gauge_reader.server       # live force for the dashboard
+.venv/bin/python -m arm1.hand_tracking run         # finger flexion angles
 ```
 
 ## Repository layout
 
 ```
-lib/              shared helpers, no device knowledge: camera, .env, Kalman filter, geometry, kinematics, Station client
-control/          the admittance controller: safety gate, the law, the hardware loop, simulation
-session/          prescriptions, exercise modes, the rep machine, the two-arm interlock, the two-machine protocol
-gauge_reader/     read the PESOLA scale through a camera
-hand_tracking/    finger flexion angles (MediaPipe on CPU, WiLoR for precision capture)
+arm1/             the tether arm: inverse kinematics and a fixed control law, nothing learned
+  lib/            shared helpers, no device knowledge: camera, .env, Kalman filter, geometry, kinematics, Station client
+  control/        the admittance controller: safety gate, the law, the hardware loop, simulation
+  session/        prescriptions, exercise modes, the rep machine, the interlock, the two-machine protocol
+  gauge_reader/   read the PESOLA scale through a camera
+  hand_tracking/  finger flexion angles (MediaPipe on CPU, WiLoR for precision capture)
+arm2/             the hook mover: teleoperated recordings and the policy trained on them
+  data_collection/  record episodes through Station, with hand keypoints in every frame
+  training/         Station Parquet to LeRobot, ACT training, inference on the arm
 scripts/          grouped by what they do to the rig (scripts/README.md)
   session/        run an exercise with a finger in the hook
   arm/            move or configure the arm, nothing attached
   measure/        produce a number the repo then depends on
   preview/        render or inspect, nothing moves
+config/           committed: joint calibration, bench measurements, tuning profile, example protocols
 dashboard/        the Next.js clinician dashboard (own package.json)
-config/           committed: joint calibration, the tuning profile, example protocols
----
-data_collection/  arm 2: record teleoperated episodes with hand keypoints
-robot_training/   arm 2: Station Parquet to LeRobot, ACT training, inference on the arm
 isaac-sim/        both arms in Isaac Sim and Isaac Lab (simulation only)
 sim/              URDF-level checks that need no simulator
 tests/            one directory per package above
-docs/             guides, the design documents and the pitch deck
+docs/             guides, design documents, the contributor guide and the pitch deck
 ```
 
-The line divides the two arms. Everything above it is arm 1, where nothing is learned;
-everything between the line and `tests/` is arm 2 and simulation, where everything is. They
-share only `lib/` and Station.
+`arm1/` and `arm2/` is the division the two halves of this project actually have: the tether
+arm is solved with inverse kinematics and a control law nobody trained, and the hook mover is a
+policy cloned from teleoperation. They share `lib/` and Station, and nothing else.
+
 
 ## Configuration, and which machine holds what
 

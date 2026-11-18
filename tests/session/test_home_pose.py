@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from session.home_pose import (
+from arm1.session.home_pose import (
     HOME_POSE_PATH,
     distance_from_home,
     home_pose_metadata,
@@ -69,7 +69,7 @@ def test_it_pulls_straight_along_the_directions_a_tether_plausibly_runs_in():
     hand-placed pose is not a regression just for being measurably different from a blind
     search's answer.
     """
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain(URDF)
     home = load_home_pose()

@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from session.arm2 import HookResult
-from session.wire import (
+from arm1.session.arm2 import HookResult
+from arm1.session.wire import (
     SCHEMA_VERSION,
     Lease,
     MessageKind,

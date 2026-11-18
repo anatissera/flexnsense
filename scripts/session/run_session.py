@@ -141,17 +141,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from control.admittance import AdmittanceParams  # noqa: E402
-from control.loop import AxisCalibration, ControlLoop, CoordinatedAxis, PullPlan  # noqa: E402
-from control.safety import Action, SafetyGate, SafetyLimits  # noqa: E402
-from lib.env import env_get  # noqa: E402
-from lib.kinematics import ARM_MOTORS  # noqa: E402
-from lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
-from session.calibration import BenchCalibration, NotMeasured  # noqa: E402
-from session.modes import MODES, Law, Target  # noqa: E402
-from session.protocol import Block, Protocol  # noqa: E402
-from session.reps import RepInput, RepLimits, RepMachine  # noqa: E402
-from session.tuning import DEFAULT_TUNING_PATH, load_tuning  # noqa: E402
+from arm1.control.admittance import AdmittanceParams  # noqa: E402
+from arm1.control.loop import AxisCalibration, ControlLoop, CoordinatedAxis, PullPlan  # noqa: E402
+from arm1.control.safety import Action, SafetyGate, SafetyLimits  # noqa: E402
+from arm1.lib.env import env_get  # noqa: E402
+from arm1.lib.kinematics import ARM_MOTORS  # noqa: E402
+from arm1.lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
+from arm1.session.calibration import BenchCalibration, NotMeasured  # noqa: E402
+from arm1.session.modes import MODES, Law, Target  # noqa: E402
+from arm1.session.protocol import Block, Protocol  # noqa: E402
+from arm1.session.reps import RepInput, RepLimits, RepMachine  # noqa: E402
+from arm1.session.tuning import DEFAULT_TUNING_PATH, load_tuning  # noqa: E402
 
 BENCH_CALIB = "config/calibration/bench.json"
 GAUGE_CALIB = "config/scale_calib.json"
@@ -175,8 +175,8 @@ def build_pipeline(calib_path: str, outlier_persist: int = 3):
     and recovery resumed. Raising the default here does not change
     `python -m gauge_reader run`'s own tuning.
     """
-    from gauge_reader.cli import _load_calibration, make_pipeline
-    from lib.filters import ReadingFilter
+    from arm1.gauge_reader.cli import _load_calibration, make_pipeline
+    from arm1.lib.filters import ReadingFilter
 
     if not Path(calib_path).is_file():
         raise SystemExit(
@@ -203,7 +203,7 @@ def ticks_per_metre_from_geometry(motor_id: int, pose_ticks: dict[int, float]) -
     `scripts/measure/measure_ticks_per_metre.py` for the real number: only a measurement catches
     backlash, belt stretch and anything else the model does not know about.
     """
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     return 1.0 / load_chain().tip_speed_per_tick(motor_id, pose_ticks)
 
@@ -225,7 +225,7 @@ def resolve_coordinated(args, pose_ticks: dict[int, float],
     """
     import numpy as np
 
-    from lib.kinematics import (
+    from arm1.lib.kinematics import (
         level_direction,
         load_chain,
         load_tick_ranges,
@@ -374,7 +374,7 @@ async def read_pose(client, bus_serial: str, seconds: float,
     this pose follows to 0.3 mm into one it cannot follow at all. The caller gets whatever
     arrived and is expected to check it; `missing_joints` is the check.
     """
-    from lib.station import follow_motor_state
+    from arm1.lib.station import follow_motor_state
 
     found: dict[int, float] = {}
 
@@ -446,7 +446,7 @@ async def read_positions(client, bus_serial: str, motor_id: int, state: dict) ->
     is what refuses to use the pose once any coordinated joint's entry is too old; this only
     records the timestamps it needs to do that.
     """
-    from lib.station import follow_motor_state
+    from arm1.lib.station import follow_motor_state
 
     async for bus, mid, motor in follow_motor_state(client):
         if bus == bus_serial and motor.position is not None:
@@ -565,7 +565,7 @@ def _default_of(args, name: str):
 
 
 async def run(args) -> int:
-    from lib.station import connect
+    from arm1.lib.station import connect
 
     # Re-read rather than threaded down from main(): every number from it has already become
     # an `args` field by now, so this is only for the profile's own name in the banner, and
@@ -674,12 +674,12 @@ async def run(args) -> int:
         print("aborted; nothing moved.")
         return 1
 
-    from lib.camera import open_source
+    from arm1.lib.camera import open_source
 
     source = open_source(camera=args.camera)
     rec = None
     if args.record:
-        from gauge_reader.cli import RECORDINGS_DIR, StripRecorder, _stamp
+        from arm1.gauge_reader.cli import RECORDINGS_DIR, StripRecorder, _stamp
         rec_name = "strip" if pipeline.mode == "fixed" else "crop"
         rec = StripRecorder(RECORDINGS_DIR / f"{rec_name}-{_stamp()}.mp4", source.fps)
         print(f"recording the scale {rec_name} to {rec.path} (crop only, never the full frame)")
@@ -842,8 +842,8 @@ async def run(args) -> int:
     # remembers to run scripts/arm/go_home.py.
     if not args.no_home_check:
         try:
-            from lib.station import set_position
-            from session.home_pose import (
+            from arm1.lib.station import set_position
+            from arm1.session.home_pose import (
                 distance_from_home,
                 home_waypoints,
                 is_home,
@@ -936,7 +936,7 @@ def main(argv=None) -> int:
                    help="a SEPARATE, stricter tolerance: how long a device-driven phase "
                         "(the --recover walk back, or a passive-mode pull) may go without a "
                         "usable reading before the repetition is abandoned. This is "
-                        "session.reps.RepMachine's own deadman, not the gate's; raising "
+                        "arm1.session.reps.RepMachine's own deadman, not the gate's; raising "
                         "--max-dropouts alone does not touch it. Default 0.3s is "
                         "conservative because a lost reading here leaves the arm moving the "
                         "finger with no idea how hard")

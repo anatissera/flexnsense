@@ -1,6 +1,6 @@
 import pytest
 
-from control.safety import Action, SafetyGate, SafetyLimits
+from arm1.control.safety import Action, SafetyGate, SafetyLimits
 
 THRESHOLD = 1.96   # 200 gf, the clinical cap used throughout the docs
 CEILING = 3.0

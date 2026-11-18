@@ -134,7 +134,7 @@ No robot, no tether, no tension. You are only being filmed.
 The order matters and the first step is easy to get wrong.
 
 ```bash
-.venv/bin/python -m hand_tracking run --jsonl data/excursion-middle.jsonl
+.venv/bin/python -m arm1.hand_tracking run --jsonl data/excursion-middle.jsonl
 ```
 
 **The `--jsonl` flag is required.** Without it the command still runs and still writes a file,
@@ -323,10 +323,10 @@ arm and a person watching, and none of them is scripted yet:
 - that yielding actually loosens the tether in the real rig, confirming `yield_sign` in practice
   rather than on paper;
 - that covering the camera mid-pull stops the arm advancing **on the first frame**, which is the
-  single most important behaviour to confirm by hand (`session/reps.py`, the device-driven
+  single most important behaviour to confirm by hand (`arm1/session/reps.py`, the device-driven
   deadman);
 - that the two-arm interlock refuses a hook move while the tether is still loaded
-  (`session/interlock.py`);
+  (`arm1/session/interlock.py`);
 - a first finger session at a deliberately low cap, 50 gf or so, in each exercise mode.
 
 Details of what each one is checking: [docs/session-orchestration.md](./session-orchestration.md).

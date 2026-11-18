@@ -26,11 +26,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.env import env_get  # noqa: E402
+from arm1.lib.env import env_get  # noqa: E402
 
 
 async def run(args) -> int:
-    from lib.station import connect, follow_motor_state, set_position
+    from arm1.lib.station import connect, follow_motor_state, set_position
 
     bus_serial = args.bus_serial or env_get("FOLLOWER_BUS_SERIAL")
     if not bus_serial:

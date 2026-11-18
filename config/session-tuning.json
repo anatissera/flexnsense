@@ -1,6 +1,6 @@
 {
   "profile": "bench-2026-11-16",
-  "note": "First flag set that completed a whole set end to end on the real arm: 3 of 3 active-mode reps on the index finger, 0 abandoned, returned home. Several values are not preferences, they each pay for a specific observed failure; session/tuning.py says which. Change one at a time and re-run a full set. Measured against follower 5B8E114979 at the home pose in config/calibration/home-pose.json.",
+  "note": "First flag set that completed a whole set end to end on the real arm: 3 of 3 active-mode reps on the index finger, 0 abandoned, returned home. Several values are not preferences, they each pay for a specific observed failure; arm1/session/tuning.py says which. Change one at a time and re-run a full set. Measured against follower 5B8E114979 at the home pose in config/calibration/home-pose.json.",
 
   "damping_n_s_per_m": 10.0,
   "v_max_mm_s": 35.0,

@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from lib.units import grams_force_to_newtons
-from session.calibration import BenchCalibration
-from session.protocol import Block, Protocol
+from arm1.lib.units import grams_force_to_newtons
+from arm1.session.calibration import BenchCalibration
+from arm1.session.protocol import Block, Protocol
 
 CAP_N = grams_force_to_newtons(200)
 CEILING_N = grams_force_to_newtons(300)

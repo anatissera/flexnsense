@@ -38,12 +38,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.env import env_get  # noqa: E402
+from arm1.lib.env import env_get  # noqa: E402
 
 
 async def count_updates(client, bus_serial: str, seconds: float) -> tuple[int, set[int]]:
     """Position updates received in `seconds`, and which motor ids they covered."""
-    from lib.station import follow_motor_state
+    from arm1.lib.station import follow_motor_state
 
     count = 0
     seen: set[int] = set()
@@ -63,7 +63,7 @@ async def count_updates(client, bus_serial: str, seconds: float) -> tuple[int, s
 
 
 async def run(args) -> int:
-    from lib.station import connect
+    from arm1.lib.station import connect
 
     bus_serial = args.bus_serial or env_get("FOLLOWER_BUS_SERIAL")
     if not bus_serial:
@@ -80,7 +80,7 @@ async def run(args) -> int:
           f"   -> {alone / args.seconds:.0f} per second\n")
 
     print(f"2. Station with the camera open and streaming ({args.seconds:.0f} s) ...")
-    from lib.camera import open_source
+    from arm1.lib.camera import open_source
 
     source = open_source(camera=args.camera)
     frames = 0

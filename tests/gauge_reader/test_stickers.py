@@ -6,8 +6,8 @@ import time
 import numpy as np
 import pytest
 
-from gauge_reader.stickers import StickerConfig, StickerTracker, find_stickers_near_line
-from gauge_reader.synthetic.moving import U0, U1, hand_held_poses, pull_profile, render_moving_frame
+from arm1.gauge_reader.stickers import StickerConfig, StickerTracker, find_stickers_near_line
+from arm1.gauge_reader.synthetic.moving import U0, U1, hand_held_poses, pull_profile, render_moving_frame
 
 G_PER_U = 600.0 / (U1 - U0)
 APP_CFG = dict(u_range=(U0 - 0.05, U1 + 0.05))   # what the app sets from calibration
@@ -207,13 +207,13 @@ def _band_scale(shift=(0, 0), scale=1.0, far_dot=True, marker_u=0.3):
 
 
 def test_generic_rules_reject_band_and_small_mark():
-    from gauge_reader.stickers import StickerTracker
+    from arm1.gauge_reader.stickers import StickerTracker
     img, *_ = _band_scale()
     assert not StickerTracker().detect(img).found
 
 
 def test_profile_finds_band_and_small_mark():
-    from gauge_reader.stickers import StickerConfig, StickerTracker, measure_profile
+    from arm1.gauge_reader.stickers import StickerConfig, StickerTracker, measure_profile
     img, band, far, marker = _band_scale()
     measured = measure_profile(img, band + 5, far - 4)          # clicks a few pixels off the marks
     assert measured is not None
@@ -227,7 +227,7 @@ def test_profile_finds_band_and_small_mark():
 
 
 def test_profile_never_guesses_a_hidden_reference():
-    from gauge_reader.stickers import StickerConfig, StickerTracker, measure_profile
+    from arm1.gauge_reader.stickers import StickerConfig, StickerTracker, measure_profile
     img, band, far, _ = _band_scale()
     prof, *_ = measure_profile(img, band, far)
     hidden, *_ = _band_scale(far_dot=False)
@@ -236,7 +236,7 @@ def test_profile_never_guesses_a_hidden_reference():
 
 
 def test_measure_profile_needs_a_red_mark_under_each_click():
-    from gauge_reader.stickers import measure_profile
+    from arm1.gauge_reader.stickers import measure_profile
     img, band, far, _ = _band_scale()
     assert measure_profile(img, band, (200, 100)) is None        # second click on bare background
     assert measure_profile(img, band, band + 3) is None          # both clicks on the same mark

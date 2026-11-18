@@ -7,7 +7,7 @@ should not need a GPU, a simulator or several gigabytes of install to verify.
 import numpy as np
 import pytest
 
-from lib.kinematics import CENTRE_TICKS, ticks_to_radians
+from arm1.lib.kinematics import CENTRE_TICKS, ticks_to_radians
 from sim.elrobot_agent import ARM_MOTORS, parse_ticks, qpos_from_ticks
 
 

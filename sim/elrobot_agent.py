@@ -7,7 +7,7 @@
 Runs in its **own virtual environment** (`sim/venv`, made by `sim/setup_env.sh`), not the
 repo's `.venv`. ManiSkill pulls in torch, SAPIEN and a Vulkan runtime, several gigabytes of it,
 and the repo's test suite has to keep running on a machine with no GPU at all. Same split
-`robot_training/` already uses for its LeRobot environment.
+`arm2/training/` already uses for its LeRobot environment.
 
 **What this is for, and what it is not for.** Use it to see the arm move, to try a pose before
 commanding it, and for a closed-loop simulation rig (see isaac-sim/), where contact and
@@ -30,7 +30,7 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from lib.kinematics import CENTRE_TICKS, ticks_to_radians  # noqa: E402
+from arm1.lib.kinematics import CENTRE_TICKS, ticks_to_radians  # noqa: E402
 
 URDF_PATH = REPO_ROOT / "norma-core/hardware/elrobot/simulation/elrobot_follower.urdf"
 

@@ -34,8 +34,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for `hand_tracking`
 
-from lib import bench_calibration_io  # noqa: E402
-from hand_tracking.excursion import FINGERTIP_BY_NAME, fit_excursion, tip_minus_wrist  # noqa: E402
+from arm1.lib import bench_calibration_io  # noqa: E402
+from arm1.hand_tracking.excursion import FINGERTIP_BY_NAME, fit_excursion, tip_minus_wrist  # noqa: E402
 
 #: Below this, the fitted axis is not trustworthy enough to report as a clean excursion.
 MIN_VARIANCE_EXPLAINED = 0.8

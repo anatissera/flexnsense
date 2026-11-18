@@ -44,12 +44,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.env import env_get  # noqa: E402
-from lib.kinematics import ARM_MOTORS, level_direction  # noqa: E402
+from arm1.lib.env import env_get  # noqa: E402
+from arm1.lib.kinematics import ARM_MOTORS, level_direction  # noqa: E402
 
 
 async def read_pose(client, bus_serial: str, seconds: float) -> dict[int, float]:
-    from lib.station import follow_motor_state
+    from arm1.lib.station import follow_motor_state
 
     found: dict[int, float] = {}
 
@@ -70,8 +70,8 @@ async def read_pose(client, bus_serial: str, seconds: float) -> dict[int, float]
 async def run(args) -> int:
     import numpy as np
 
-    from lib.kinematics import load_chain, load_tick_ranges, tether_tension_direction
-    from lib.station import (
+    from arm1.lib.kinematics import load_chain, load_tick_ranges, tether_tension_direction
+    from arm1.lib.station import (
         RAM_ACC,
         RAM_GOAL_POSITION,
         RAM_GOAL_SPEED,
@@ -107,7 +107,7 @@ async def run(args) -> int:
         # from config/calibration/home-pose.json, the actual reference, with nothing in this
         # script's own bookkeeping able to notice it because it never looks at that file.
         try:
-            from session.home_pose import distance_from_home, load_home_pose
+            from arm1.session.home_pose import distance_from_home, load_home_pose
 
             gap = distance_from_home(pose, load_home_pose())
             if gap > 20:

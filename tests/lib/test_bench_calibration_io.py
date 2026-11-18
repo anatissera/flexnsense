@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from lib import bench_calibration_io as io
+from arm1.lib import bench_calibration_io as io
 
 
 def test_known_keys_matches_session_calibration_bench_calibration():

@@ -37,7 +37,7 @@ def load_env(path=".env"):
 
 
 async def check(host, bus_serial, expected_motors, seconds):
-    from lib.station import connect, follow_motor_state
+    from arm1.lib.station import connect, follow_motor_state
 
     print(f"connecting to Station at {host} ...")
     client = await connect(host)

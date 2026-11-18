@@ -1,6 +1,6 @@
 import pytest
 
-from session.calibration import (
+from arm1.session.calibration import (
     HOW_TO_MEASURE,
     UNMEASURED_TETHER_ESTIMATE_N_PER_M,
     BenchCalibration,
@@ -40,7 +40,7 @@ def test_the_error_carries_the_procedure_not_just_the_name():
         BenchCalibration().require_tether_n_per_m()
     message = str(exc.value)
     assert "PESOLA is the force reference" in message
-    assert "lib.stiffness.fit_stiffness" in message
+    assert "arm1.lib.stiffness.fit_stiffness" in message
 
 
 def test_the_axis_reports_both_missing_fields_at_once():
@@ -181,7 +181,7 @@ def test_a_full_range_rep_exceeds_the_default_travel_limit():
     """
     from pathlib import Path
 
-    from lib.units import grams_force_to_newtons
+    from arm1.lib.units import grams_force_to_newtons
 
     c = BenchCalibration.load(Path(__file__).resolve().parents[2] / "config/calibration/bench.json")
     cap = grams_force_to_newtons(200)

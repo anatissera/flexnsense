@@ -10,9 +10,9 @@ from typing import Any
 
 import pytest
 
-from session.arm2 import HookMover, HookResult
-from session.remote_arm2 import ActuatorSide, RemoteHookMover
-from session.wire import MessageKind, decode
+from arm1.session.arm2 import HookMover, HookResult
+from arm1.session.remote_arm2 import ActuatorSide, RemoteHookMover
+from arm1.session.wire import MessageKind, decode
 
 
 class FakeLink:
@@ -219,7 +219,7 @@ def test_a_late_report_cannot_answer_the_current_move():
 def test_a_report_with_nothing_in_flight_is_dropped():
     link = FakeLink()
     mover = RemoteHookMover(link)
-    from session.wire import encode_hook_report
+    from arm1.session.wire import encode_hook_report
 
     link.inbox.append(encode_hook_report(1, HookResult.CONFIRMED, "index"))
     assert mover.poll(now=100.0) is None
@@ -342,7 +342,7 @@ def test_a_heartbeat_for_another_move_authorises_nothing():
     wire.deliver()
     actuator.step(now=100.1)
 
-    from session.wire import Lease, encode_heartbeat
+    from arm1.session.wire import Lease, encode_heartbeat
 
     wire.actuator.inbox.append(encode_heartbeat(Lease(move_id=99, issued_at=100.9,
                                                       period_s=0.5)))
@@ -412,10 +412,10 @@ def test_the_orchestrator_drives_a_remote_arm_with_no_changes_to_itself():
     If this ever needs the orchestrator to know about a link, the seam has moved and
     docs/two-machine-session.md is wrong.
     """
-    from lib.units import grams_force_to_newtons
-    from session.interlock import ArmOneStatus
-    from session.orchestrator import Command, Orchestrator
-    from session.protocol import Block, Protocol
+    from arm1.lib.units import grams_force_to_newtons
+    from arm1.session.interlock import ArmOneStatus
+    from arm1.session.orchestrator import Command, Orchestrator
+    from arm1.session.protocol import Block, Protocol
 
     wire = Loopback()
     mover = RemoteHookMover(wire.brain)
@@ -462,7 +462,7 @@ def test_the_actuator_moves_even_when_the_brain_booted_much_later():
     `issued_at` would make it look valid for hours."""
     wire = Loopback()
     actuator = ActuatorSide(wire.actuator)
-    from session.wire import Lease, encode_hook_request
+    from arm1.session.wire import Lease, encode_hook_request
 
     # Brain at 900000 s of uptime, actuator at 10 s. Both legitimate.
     wire.actuator.inbox.append(
@@ -478,7 +478,7 @@ def test_the_actuator_moves_even_when_the_brain_booted_much_earlier():
     bench: the lease looked long expired and the arm refused to move at all."""
     wire = Loopback()
     actuator = ActuatorSide(wire.actuator)
-    from session.wire import Lease, encode_hook_request
+    from arm1.session.wire import Lease, encode_hook_request
 
     wire.actuator.inbox.append(
         encode_hook_request("index", Lease(move_id=1, issued_at=0.0, period_s=5.0))
@@ -492,7 +492,7 @@ def test_a_lease_expires_period_s_after_it_arrived_whatever_the_brain_stamped():
     """The property that replaces clock comparison: the actuator counts from receipt."""
     wire = Loopback()
     actuator = ActuatorSide(wire.actuator)
-    from session.wire import Lease, encode_hook_request
+    from arm1.session.wire import Lease, encode_hook_request
 
     wire.actuator.inbox.append(
         encode_hook_request("index", Lease(move_id=1, issued_at=-5_000.0, period_s=0.4))
@@ -507,7 +507,7 @@ def test_a_heartbeat_restarts_the_clock_on_the_actuators_own_time():
     behind could never renew anything."""
     wire = Loopback()
     actuator = ActuatorSide(wire.actuator)
-    from session.wire import Lease, encode_heartbeat, encode_hook_request
+    from arm1.session.wire import Lease, encode_heartbeat, encode_hook_request
 
     lease = Lease(move_id=1, issued_at=0.0, period_s=0.5)
     wire.actuator.inbox.append(encode_hook_request("index", lease))
@@ -522,7 +522,7 @@ def test_a_heartbeat_restarts_the_clock_on_the_actuators_own_time():
 def test_issued_at_is_an_identifier_not_a_deadline_for_the_receiver():
     """Stated as a property so it cannot quietly go back to being a deadline: two leases that
     differ ONLY in `issued_at` must behave identically at the actuator."""
-    from session.wire import Lease, encode_hook_request
+    from arm1.session.wire import Lease, encode_hook_request
 
     seen = []
     for issued_at in (0.0, 1e6):
@@ -537,7 +537,7 @@ def test_issued_at_is_an_identifier_not_a_deadline_for_the_receiver():
 
 def test_the_issuers_own_expiry_is_still_available_to_the_brain():
     """The brain reasons about its own leases on its own clock, which is unaffected."""
-    from session.wire import Lease
+    from arm1.session.wire import Lease
 
     lease = Lease(move_id=1, issued_at=100.0, period_s=0.5)
     assert lease.expires_at == 100.5

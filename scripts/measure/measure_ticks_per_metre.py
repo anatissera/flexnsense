@@ -47,9 +47,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for `lib`
 
-from lib import bench_calibration_io  # noqa: E402
-from lib.ticks_calibration import fit_ticks_per_metre, infer_yield_sign  # noqa: E402
-from lib.units import grams_force_to_newtons  # noqa: E402
+from arm1.lib import bench_calibration_io  # noqa: E402
+from arm1.lib.ticks_calibration import fit_ticks_per_metre, infer_yield_sign  # noqa: E402
+from arm1.lib.units import grams_force_to_newtons  # noqa: E402
 
 DEFAULT_TICKS = [30, 60, 90, -30, -60, -90]
 #: Order-of-magnitude only, for the force-change preview before a move - not used in the fit.
@@ -83,7 +83,7 @@ async def read_settled_state(client, bus_serial: str, motor_id: int, seconds: fl
     so this keeps whatever arrived last in the window, which is the settled value if `seconds`
     was long enough to cover the move.
     """
-    from lib.station import follow_motor_state
+    from arm1.lib.station import follow_motor_state
 
     latest = None
     deadline = time.monotonic() + seconds
@@ -113,7 +113,7 @@ async def safe_return_to_baseline(client, bus_serial: str, motor_id: int, baseli
     unknown position, still under tension, with the process about to exit. Print something a
     person standing at the bench can act on by hand, not a traceback.
     """
-    from lib.station import set_position
+    from arm1.lib.station import set_position
 
     try:
         await set_position(client, bus_serial, motor_id, baseline_position)
@@ -127,7 +127,7 @@ async def safe_return_to_baseline(client, bus_serial: str, motor_id: int, baseli
 
 
 async def run(args) -> int:
-    from lib.station import connect, set_position
+    from arm1.lib.station import connect, set_position
 
     print("This measurement moves the arm under tension with --max-grams allowed up to "
           f"{args.max_grams:g} gf, well above the clinical cap - that ceiling is only safe "

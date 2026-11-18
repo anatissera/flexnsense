@@ -31,8 +31,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.env import env_get  # noqa: E402
-from lib.kinematics import (  # noqa: E402
+from arm1.lib.env import env_get  # noqa: E402
+from arm1.lib.kinematics import (  # noqa: E402
     CENTRE_TICKS,
     check_against_calibration,
     load_chain,
@@ -51,7 +51,7 @@ def parse_ticks(text: str) -> dict[int, float]:
 
 async def read_pose(host: str, bus_serial: str, motor_ids: list[int], seconds: float) -> dict[int, float]:
     """Current tick reading per motor, from Station's state stream."""
-    from lib.station import connect, follow_motor_state
+    from arm1.lib.station import connect, follow_motor_state
 
     client = await connect(host=host)
     found: dict[int, float] = {}

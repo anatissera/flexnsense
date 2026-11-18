@@ -49,7 +49,7 @@ mechanism's travel, so it legitimately differs.
 
 Every calibrated range is also centred on tick 2048, which is what makes "tick 2048 is the
 URDF's zero angle" a measured fact rather than a guess. Both conventions live in
-`lib/kinematics.py` and are pinned by `tests/lib/test_kinematics.py`.
+`arm1/lib/kinematics.py` and are pinned by `tests/lib/test_kinematics.py`.
 
 The geometry was then checked against the arm itself. Predicted motion directions match what
 the arm was observed to do when each motor was jogged by hand, including the detail that
@@ -61,7 +61,7 @@ and is the strongest single confirmation that this URDF describes our arm.
 
 Its own environment, separate from the repo's `.venv`, because ManiSkill pulls in torch,
 SAPIEN and a Vulkan runtime and the test suite has to keep running on machines with no GPU.
-Same split `robot_training/` uses.
+Same split `arm2/training/` uses.
 
 ```bash
 ./sim/setup_env.sh
@@ -99,7 +99,7 @@ python -m sim.elrobot_agent --ticks 1:1976,2:1719,3:2526,4:2755,5:1907,6:1270,7:
 
 `sim/elrobot_agent.py` registers the arm as a ManiSkill agent with uid `elrobot_follower`, and
 `qpos_from_ticks()` converts a Station tick reading into ManiSkill's joint vector, reusing the
-tick convention from `lib/kinematics.py` rather than restating it. The joint order is the
+tick convention from `arm1/lib/kinematics.py` rather than restating it. The joint order is the
 URDF's active joints: `rev_motor_01` through `rev_motor_08`, then the two gripper jaws.
 
 That conversion is tested in the repo's normal `.venv` (`tests/sim/`), because it is ordinary

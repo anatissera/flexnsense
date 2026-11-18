@@ -10,8 +10,8 @@ import math
 import numpy as np
 import pytest
 
-from hand_tracking.frame import FLEXION_JOINTS
-from hand_tracking.wilor_source import (
+from arm1.hand_tracking.frame import FLEXION_JOINTS
+from arm1.hand_tracking.wilor_source import (
     build_frame,
     project_to_normalized,
     rotation_matrix_to_axis_angle,

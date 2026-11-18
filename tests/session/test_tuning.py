@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from session.tuning import (
+from arm1.session.tuning import (
     DEFAULT_TUNING_PATH,
     SafetyTuning,
     SessionTuning,

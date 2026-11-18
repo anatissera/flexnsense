@@ -48,7 +48,7 @@ def load_ranges(path: Path) -> tuple[str, dict[int, tuple[int, int]]]:
 
 
 async def restore(host: str, bus_serial: str, ranges: dict[int, tuple[int, int]], seconds: float):
-    from lib.station import connect, follow_motor_state, freeze_calibration
+    from arm1.lib.station import connect, follow_motor_state, freeze_calibration
 
     print(f"connecting to Station at {host} ...")
     client = await connect(host)

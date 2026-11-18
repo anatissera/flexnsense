@@ -1,4 +1,4 @@
-from lib.units import STANDARD_GRAVITY_M_S2, grams_force_to_newtons, newtons_to_grams_force
+from arm1.lib.units import STANDARD_GRAVITY_M_S2, grams_force_to_newtons, newtons_to_grams_force
 
 
 def test_known_value():

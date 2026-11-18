@@ -36,9 +36,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for `lib`
 
-from lib import bench_calibration_io  # noqa: E402
-from lib.stiffness import Point, compare_directions, fit_stiffness  # noqa: E402
-from lib.units import newtons_to_grams_force  # noqa: E402
+from arm1.lib import bench_calibration_io  # noqa: E402
+from arm1.lib.stiffness import Point, compare_directions, fit_stiffness  # noqa: E402
+from arm1.lib.units import newtons_to_grams_force  # noqa: E402
 
 DEFAULT_GRAMS = [50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0]
 DEFAULT_OUT = "config/measurements/tether_stiffness.csv"

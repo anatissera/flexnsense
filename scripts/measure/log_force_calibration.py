@@ -24,7 +24,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, for `lib`
-from lib.units import grams_force_to_newtons  # noqa: E402
+from arm1.lib.units import grams_force_to_newtons  # noqa: E402
 
 
 def load_env(path=".env"):
@@ -41,7 +41,7 @@ def load_env(path=".env"):
 
 async def probe(client, bus_serial, seconds=3.0):
     """List the motor ids this bus reports, with one current/temperature reading each."""
-    from lib.station import follow_motor_state
+    from arm1.lib.station import follow_motor_state
 
     seen = {}
     deadline = time.monotonic() + seconds
@@ -59,7 +59,7 @@ async def probe(client, bus_serial, seconds=3.0):
 
 async def sample(client, bus_serial, seconds, hz):
     """Collect readings for `seconds`, returned as {motor_id: {'current_ma': [...], ...}}."""
-    from lib.station import follow_motor_state
+    from arm1.lib.station import follow_motor_state
 
     series: dict[int, dict[str, list]] = {}
     deadline = time.monotonic() + seconds
@@ -193,7 +193,7 @@ def run_fit(path):
 
 
 async def main_async(args):
-    from lib.station import connect
+    from arm1.lib.station import connect
 
     load_env()
     host = args.station_host or os.environ.get("STATION_HOST", "localhost")

@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from hand_tracking.landmarks import (
+from arm1.hand_tracking.landmarks import (
     FINGERS,
     INDEX,
     all_flexion_deg,

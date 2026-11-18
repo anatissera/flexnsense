@@ -4,8 +4,8 @@ import math
 import numpy as np
 import pytest
 
-from gauge_reader.calibration import DEFAULT_CALIB_PATH, Calibration, FitReport
-from lib.geometry import Axis
+from arm1.gauge_reader.calibration import DEFAULT_CALIB_PATH, Calibration, FitReport
+from arm1.lib.geometry import Axis
 
 P0 = (100.0, 400.0)
 P1 = (130.0, 40.0)   # slightly tilted axis, length = hypot(30, 360)

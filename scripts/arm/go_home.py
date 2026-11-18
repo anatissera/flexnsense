@@ -37,8 +37,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.env import env_get  # noqa: E402
-from session.home_pose import (  # noqa: E402
+from arm1.lib.env import env_get  # noqa: E402
+from arm1.session.home_pose import (  # noqa: E402
     NAMED_POSES,
     distance_from_home,
     home_pose_metadata,
@@ -49,7 +49,7 @@ from session.home_pose import (  # noqa: E402
 
 
 async def read_pose(client, bus_serial: str, motor_ids: list[int], seconds: float) -> dict:
-    from lib.station import follow_motor_state
+    from arm1.lib.station import follow_motor_state
 
     found: dict[int, float] = {}
 
@@ -68,7 +68,7 @@ async def read_pose(client, bus_serial: str, motor_ids: list[int], seconds: floa
 
 
 async def run(args) -> int:
-    from lib.station import connect, set_position
+    from arm1.lib.station import connect, set_position
 
     # args.to is already one of NAMED_POSES's keys (argparse enforces it via choices), so
     # this lookup cannot miss.

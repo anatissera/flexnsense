@@ -23,7 +23,7 @@ rather: `source .venv/bin/activate`.
 
 ## 2. System dependencies
 
-The Python packages are the same on macOS and Linux. `lib/camera.py` detects the operating system
+The Python packages are the same on macOS and Linux. `arm1/lib/camera.py` detects the operating system
 and picks the camera backend: AVFoundation on macOS, V4L2 on Linux.
 
 ### Linux (Ubuntu)
@@ -39,11 +39,11 @@ sudo usermod -aG video $USER      # then log out and in again
 - `v4l-utils`: optional. The code does not use it, but `v4l2-ctl --list-devices` and
   `v4l2-ctl -d /dev/video0 --list-formats-ext` help when a camera misbehaves.
 - The `video` group lets your user read `/dev/video*`. Check with `ls -l /dev/video*` and `groups`.
-- The control panel (`python -m gauge_reader.launcher`) uses Tk. The Python that `uv` or conda installs
+- The control panel (`python -m arm1.gauge_reader.launcher`) uses Tk. The Python that `uv` or conda installs
   includes it. With the system Python, also install `python3-tk`.
 
 Cameras are numbered as the kernel numbers them: camera `N` is `/dev/videoN`. List them with
-`.venv/bin/python -m gauge_reader cameras`. The names come from `/sys/class/video4linux`, so no extra
+`.venv/bin/python -m arm1.gauge_reader cameras`. The names come from `/sys/class/video4linux`, so no extra
 tool is needed. One USB camera often creates two devices (picture and metadata); only the picture one
 is listed, so the numbers can skip (0, 2, 4, ...).
 
@@ -138,7 +138,7 @@ cd ..
 ```
 
 (The check import path differs slightly from NormaCore's own README example - theirs checks
-`software.station.shared.station_py`; `lib/station.py` in this repo imports from `station_py`
+`software.station.shared.station_py`; `arm1/lib/station.py` in this repo imports from `station_py`
 directly, since that's what ends up on `sys.path` after the sparse checkout. If the check
 fails, try both.)
 

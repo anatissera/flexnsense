@@ -34,7 +34,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.kinematics import load_chain  # noqa: E402
+from arm1.lib.kinematics import load_chain  # noqa: E402
 
 CALIB_DIR = Path("config/calibration")
 HOME_PATH = CALIB_DIR / "home-pose.json"

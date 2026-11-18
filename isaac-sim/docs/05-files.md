@@ -8,7 +8,7 @@ isaac-sim/
 ├── policies/
 │   ├── README.md                   get the policies, upload them, put the pull policy on the robot
 │   ├── pull_bench_v1/              the pull policy prepared for the robot (full bench, 10 decisions a second)
-│   ├── sim_pull_runner.py          makes it a runner for robot_training/inference/control.py
+│   ├── sim_pull_runner.py          makes it a runner for arm2/training/inference/control.py
 │   ├── run_pull_local.py           starts that control loop with it (dry run first)
 │   ├── selftest_pull.py            the whole chain against a stand-in arm and scale, no robot
 │   ├── check_directions.py         what each motor should do, to check directions by hand

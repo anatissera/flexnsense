@@ -17,8 +17,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from session.link import connect_to_actuator  # noqa: E402
-from session.remote_arm2 import RemoteHookMover  # noqa: E402
+from arm1.session.link import connect_to_actuator  # noqa: E402
+from arm1.session.remote_arm2 import RemoteHookMover  # noqa: E402
 
 
 async def run(args: argparse.Namespace) -> int:

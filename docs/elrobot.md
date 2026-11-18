@@ -21,7 +21,7 @@ to train on data Station recorded, after converting Station's own Parquet format
 - Station Python client (verified against the actual source):
   [`software/station/shared/station_py/`](https://github.com/norma-core/norma-core/tree/main/software/station/shared/station_py)
   - `client.py`, `example_follow.py`, `example_commands.py` is where
-  [`lib/station.py`](../lib/station.py) comes from, line for line on the protocol parts.
+  [`arm1/lib/station.py`](../arm1/lib/station.py) comes from, line for line on the protocol parts.
 - ElRobot hardware (BOM, STL/STEP, manuals, URDF):
   [`hardware/elrobot/`](https://github.com/norma-core/norma-core/tree/main/hardware/elrobot)
   - Assembly manuals, one per arm, which is what to read before taking one apart:
@@ -47,7 +47,7 @@ example, which cites `protocol/memory.rs`):
 
 | Field | Offset | Size | Notes |
 |---|---|---|---|
-| Position | `0x38` | 2 bytes | sign bit flags direction; `lib/station.py` unwraps it |
+| Position | `0x38` | 2 bytes | sign bit flags direction; `arm1/lib/station.py` unwraps it |
 | Current | `0x45` | 2 bytes | **milliamps directly** - Station has already decoded it, no `x6.5` scaling needed |
 | Temperature | `0x3F` | 1 byte | degrees C |
 | Voltage | `0x3E` | 1 byte | 0.1 V units |

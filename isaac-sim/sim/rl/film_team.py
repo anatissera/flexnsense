@@ -83,7 +83,7 @@ def main():
 
         sys.path.insert(0, os.path.expanduser(args_cli.repo))
         try:
-            from gauge_reader.stickers import StickerConfig, StickerTracker
+            from arm1.gauge_reader.stickers import StickerConfig, StickerTracker
 
             from flex_tasks.bench_draw import U0, U1
 

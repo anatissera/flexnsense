@@ -27,7 +27,7 @@ rate, so a dropped packet becomes a safety event thirty times a second, and the 
 firing on network jitter rather than on anything about the patient.
 
 The cameras do not argue for the other arrangement, which is worth saying because it looks like
-they might. In `gauge_reader/server.py` and `hand_tracking/server.py` the **browser** owns the
+they might. In `arm1/gauge_reader/server.py` and `arm1/hand_tracking/server.py` the **browser** owns the
 camera and ships frames to Python over the same WebSocket. So "whose machine has three cameras
 plugged into it" is not what decides where code runs. What decides it is the USB bus each arm's
 Station talks to, because that cannot be moved.
@@ -48,7 +48,7 @@ payoff lands here: **`session.remote_arm2.RemoteHookMover` is a fourth implement
 alongside `ManualHookMover`, and nothing above it changes.** No async refactor, no second code path, and the orchestrator's
 existing tests still cover the sequencing.
 
-`session/snapshot.py` is the other half, and it is already a wire format: a frozen dataclass
+`arm1/session/snapshot.py` is the other half, and it is already a wire format: a frozen dataclass
 with `to_dict()`, a `SCHEMA_VERSION`, a matching TypeScript type in
 `dashboard/app/lib/sessionSnapshot.ts`, and a differential test keeping the two honest
 (`tests/session/test_snapshot_parity.py`). The dashboard subscribes to a stream of these from
@@ -102,7 +102,7 @@ session state and decides nothing; it executes and reports.
 ## Running it
 
 The transport needs three packages the rest of the repo does not, the same way
-`gauge_reader/server.py` and `hand_tracking/server.py` do, so they are an extra install rather
+`arm1/gauge_reader/server.py` and `arm1/hand_tracking/server.py` do, so they are an extra install rather
 than part of `requirements.txt`:
 
 ```bash
@@ -112,7 +112,7 @@ uv pip install --python .venv/bin/python fastapi uvicorn websockets
 On arm 2's machine:
 
 ```bash
-.venv/bin/python -m session.link serve --host 0.0.0.0 --port 8770
+.venv/bin/python -m arm1.session.link serve --host 0.0.0.0 --port 8770
 ```
 
 By default it asks a person to move the hook by hand, then report whether it seated. This mode
@@ -145,7 +145,7 @@ prescription. `session.orchestrator` remains a Python state machine without a ru
 
 Four messages, and no others (`session.wire.MessageKind`). Every one is JSON, one object per
 WebSocket text frame, on the `/arm2` route. These are the literal bytes, produced by
-`session/wire.py` rather than transcribed by hand:
+`arm1/session/wire.py` rather than transcribed by hand:
 
 **Brain to actuator: move the hook.** This is the whole command. There is no "run this script"
 and no shell: the actuator is told *which finger*, and it owns how that happens on its own
@@ -224,7 +224,7 @@ behave identically at the actuator.
 
 ```bash
 # one terminal: the actuator, which is what Justo's laptop runs
-.venv/bin/python -m session.link serve --port 8770
+.venv/bin/python -m arm1.session.link serve --port 8770
 
 # another: the four messages, by hand
 .venv/bin/python - <<'EOF'
@@ -253,7 +253,7 @@ Each of these is a branch and a PR, and the order is by what the next one needs.
    the example protocols. Everything below assumes `Law.PULL` exists, because a session with a
    device-driven mode is the thing being distributed. **Done, awaiting review.**
 2. **`feature/two-machine-session`**. The message schema, the lease, both ends of the link and
-   the WebSocket under them (`session/wire.py`, `session/remote_arm2.py`, `session/link.py`).
+   the WebSocket under them (`arm1/session/wire.py`, `session/remote_arm2.py`, `arm1/session/link.py`).
    The four rules above get their tests here, against a fake link and a fake clock, which is
    the only way the timing failures are reproducible on demand. **Done, awaiting review.**
 3. **`feature/snapshot-stream`**. The brain serving `SessionSnapshot` over a WebSocket, and the

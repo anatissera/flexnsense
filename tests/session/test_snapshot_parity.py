@@ -7,11 +7,11 @@ because nothing else in this repo type-checks the two against each other.
 import re
 from pathlib import Path
 
-from lib.units import grams_force_to_newtons
-from session.instructions import INSTRUCTIONS, SHARED
-from session.modes import MODES, Driver, Law, Phase
-from session.protocol import FINGERS, Block
-from session.snapshot import SCHEMA_VERSION, SessionSnapshot
+from arm1.lib.units import grams_force_to_newtons
+from arm1.session.instructions import INSTRUCTIONS, SHARED
+from arm1.session.modes import MODES, Driver, Law, Phase
+from arm1.session.protocol import FINGERS, Block
+from arm1.session.snapshot import SCHEMA_VERSION, SessionSnapshot
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SNAPSHOT_TS = REPO_ROOT / "dashboard" / "app" / "lib" / "sessionSnapshot.ts"

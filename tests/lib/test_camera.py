@@ -1,9 +1,9 @@
-"""lib.camera without a real camera: name resolution, defaults and the video-file source."""
+"""arm1.lib.camera without a real camera: name resolution, defaults and the video-file source."""
 import cv2
 import numpy as np
 import pytest
 
-from lib import camera
+from arm1.lib import camera
 
 
 def test_resolve_camera_passthrough():

@@ -31,16 +31,16 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.env import env_get  # noqa: E402
-from lib.kinematics import load_chain  # noqa: E402
-from session.home_pose import NAMED_POSES  # noqa: E402
+from arm1.lib.env import env_get  # noqa: E402
+from arm1.lib.kinematics import load_chain  # noqa: E402
+from arm1.session.home_pose import NAMED_POSES  # noqa: E402
 
 CALIB_DIR = Path("config/calibration")
 HOME_PATH = CALIB_DIR / "home-pose.json"
 
 
 async def read_pose(host: str, bus_serial: str, motor_ids: list[int], seconds: float) -> dict:
-    from lib.station import connect, follow_motor_state
+    from arm1.lib.station import connect, follow_motor_state
 
     client = await connect(host=host)
     found: dict[int, float] = {}

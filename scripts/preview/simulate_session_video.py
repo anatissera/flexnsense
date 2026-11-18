@@ -36,12 +36,12 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from control.admittance import AdmittanceParams, step_from_velocity, yield_velocity  # noqa: E402
-from control.loop import CoordinatedAxis  # noqa: E402
-from control.safety import Action, SafetyGate, SafetyLimits  # noqa: E402
-from control.simulate import SPRING_N_PER_M  # noqa: E402
-from lib.kinematics import load_chain, tether_tension_direction  # noqa: E402
-from lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
+from arm1.control.admittance import AdmittanceParams, step_from_velocity, yield_velocity  # noqa: E402
+from arm1.control.loop import CoordinatedAxis  # noqa: E402
+from arm1.control.safety import Action, SafetyGate, SafetyLimits  # noqa: E402
+from arm1.control.simulate import SPRING_N_PER_M  # noqa: E402
+from arm1.lib.kinematics import load_chain, tether_tension_direction  # noqa: E402
+from arm1.lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
 
 #: The pose the arm stood in on the bench on 2026-11-15, and the one the geometry in
 #: `scripts/session/run_session.py --coordinated` was checked against.
@@ -175,7 +175,7 @@ def render(sim: Sim, out: Path, cap_gf: float, ceiling_gf: float, fps: float,
     from matplotlib.animation import FFMpegWriter, FuncAnimation
     from matplotlib.collections import PolyCollection
 
-    from lib.meshes import load_visuals, posed_triangles
+    from arm1.lib.meshes import load_visuals, posed_triangles
 
     chain = load_chain()
     visuals = load_visuals(cell_m=cell_m)

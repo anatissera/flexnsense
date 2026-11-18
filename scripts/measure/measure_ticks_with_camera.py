@@ -38,17 +38,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib import bench_calibration_io  # noqa: E402
-from lib.env import env_get  # noqa: E402
-from lib.ticks_calibration import fit_ticks_per_metre, infer_yield_sign  # noqa: E402
-from lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
+from arm1.lib import bench_calibration_io  # noqa: E402
+from arm1.lib.env import env_get  # noqa: E402
+from arm1.lib.ticks_calibration import fit_ticks_per_metre, infer_yield_sign  # noqa: E402
+from arm1.lib.units import grams_force_to_newtons, newtons_to_grams_force  # noqa: E402
 
 GAUGE_CALIB = "config/scale_calib.json"
 
 
 async def read_position(client, bus_serial: str, motor_id: int, seconds: float):
     """Latest settled position for one motor, or None if the stream stays quiet."""
-    from lib.station import follow_motor_state
+    from arm1.lib.station import follow_motor_state
 
     latest = None
     deadline = time.monotonic() + seconds
@@ -69,7 +69,7 @@ async def command_with_retry(client, bus_serial: str, motor_id: int, target: int
     milliseconds. Retrying is safe here because the goal is absolute, not relative: sending
     the same target twice asks for the same position, never for twice the motion.
     """
-    from lib.station import set_position
+    from arm1.lib.station import set_position
 
     for attempt in range(1, attempts + 1):
         try:
@@ -107,8 +107,8 @@ def read_force_n(pipeline, source, samples: int, settle_s: float) -> float | Non
 
 
 async def run(args) -> int:
-    from lib.camera import open_source
-    from lib.station import connect
+    from arm1.lib.camera import open_source
+    from arm1.lib.station import connect
 
     calib = bench_calibration_io.load()
     k_n_per_m = calib.get("tether_n_per_m")
@@ -136,7 +136,7 @@ async def run(args) -> int:
         print("aborted; nothing moved.")
         return 1
 
-    from gauge_reader.cli import _load_calibration, make_pipeline
+    from arm1.gauge_reader.cli import _load_calibration, make_pipeline
 
     pipeline = make_pipeline(_load_calibration(args.calib))
     source = open_source(camera=args.camera)

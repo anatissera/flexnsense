@@ -51,7 +51,7 @@ Grams-force (gf) below the boundary, newtons (N, SI) above it:
   safety layer reads, any force or torque equation, is in newtons. `FilteredReading.newtons` and
   `FrameResult.newtons` / `StickerFrameResult.newtons` (and the CSV's `newtons` column) already do the
   conversion; read those, not `grams`, from control code.
-- The conversion lives in exactly one place, `lib/units.py` (`grams_force_to_newtons`,
+- The conversion lives in exactly one place, `arm1/lib/units.py` (`grams_force_to_newtons`,
   `newtons_to_grams_force`, `STANDARD_GRAVITY_M_S2`). Never hardcode `9.80665`, `9.81` or `/ 1000`
   anywhere else; import from there.
 - When writing a new doc or script that states a force value, give the newton figure first (it's what
@@ -59,7 +59,7 @@ Grams-force (gf) below the boundary, newtons (N, SI) above it:
 
 # Guide for coding agents
 
-Read [README.md](./README.md) (the idea, the safety rules, the code layout) and [docs/machines.md](./docs/machines.md) (which machine runs what) first.
+Read [README.md](./README.md) (the idea, the safety rules, the code layout) and [hardware-setup.md](./hardware-setup.md) (which machine runs what) first.
 
 ## Repository layout
 
@@ -70,8 +70,8 @@ lib/              shared helpers with no knowledge of any one device; use them f
   filters.py      1D Kalman filter with outlier gate and "steady" flag
   geometry.py     line maths (Axis)
   station.py      the NormaCore Station client: connect, follow motor state, send position commands
-gauge_reader/     roadmap item 2: read the PESOLA spring scale through a camera (python -m gauge_reader)
-hand_tracking/    roadmap item 5: finger flexion angles through a camera (python -m hand_tracking)
+gauge_reader/     roadmap item 2: read the PESOLA spring scale through a camera (python -m arm1.gauge_reader)
+hand_tracking/    roadmap item 5: finger flexion angles through a camera (python -m arm1.hand_tracking)
   landmarks.py    pure geometry on MediaPipe's 21 landmarks; no mediapipe/cv2 import, so it is unit-testable
 session/          the session layer: prescriptions, modes, repetitions, two arms
   protocol.py     a clinician's prescription as data (finger, mode, reps, cap, hold, stretch)
@@ -91,12 +91,12 @@ control/          roadmap item 3: the admittance controller
 dashboard/        Next.js web dashboard (own package.json; run pnpm from here)
 scripts/          robot and calibration scripts (e.g. force calibration), against Station
 scripts/lerobot/  NOT our hardware: original SO-101-via-LeRobot scripts, parked in case we ever port
-robot_training/   ElRobot policy training: NormaCore Parquet -> LeRobotDataset, ACT training, HF upload, inference through Station (own README; needs its own LeRobot env, see robot_training/setup_env.sh)
-tests/lib/, tests/gauge_reader/, tests/hand_tracking/, tests/control/, tests/robot_training/
+arm2/training/   ElRobot policy training: NormaCore Parquet -> LeRobotDataset, ACT training, HF upload, inference through Station (own README; needs its own LeRobot env, see arm2/training/setup_env.sh)
+tests/lib/, tests/gauge_reader/, tests/hand_tracking/, tests/control/, tests/arm2/
 docs/             user-facing guides (docs/elrobot.md, docs/scale-reader.md, docs/force-calibration.md, docs/hand-tracking.md, docs/admittance-design.md)
 ```
 
-- Code that any script could reuse (camera, filtering, settings, maths) goes in `lib/`. Keep `lib/` free of device-specific logic, with one deliberate exception: `lib/station.py` is where the Station client lives, so no script reimplements the wire protocol.
+- Code that any script could reuse (camera, filtering, settings, maths) goes in `lib/`. Keep `lib/` free of device-specific logic, with one deliberate exception: `arm1/lib/station.py` is where the Station client lives, so no script reimplements the wire protocol.
 - Each roadmap item gets its own package or script folder, named after it, with its tests under `tests/<name>/`.
 
 ## Setup and commands
@@ -104,10 +104,10 @@ docs/             user-facing guides (docs/elrobot.md, docs/scale-reader.md, doc
 ```bash
 uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python -m pytest -q                 # all tests; must pass before every commit
-.venv/bin/python -m gauge_reader --help        # gauge reader CLI (cameras, calibrate, run, evaluate)
-.venv/bin/python -m gauge_reader.launcher      # gauge reader control panel
-.venv/bin/python -m hand_tracking run           # finger flexion angles, live window
-.venv/bin/python -m lib.camera                 # list cameras (macOS and Linux)
+.venv/bin/python -m arm1.gauge_reader --help        # gauge reader CLI (cameras, calibrate, run, evaluate)
+.venv/bin/python -m arm1.gauge_reader.launcher      # gauge reader control panel
+.venv/bin/python -m arm1.hand_tracking run           # finger flexion angles, live window
+.venv/bin/python -m arm1.lib.camera                 # list cameras (macOS and Linux)
 ```
 
 ## The arm: NormaCore Station, not LeRobot
@@ -115,10 +115,10 @@ uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requi
 Our hardware is the **NormaCore ElRobot** (7 joints + gripper, 8 Feetech ST3215). **There is
 no LeRobot support for it** - no robot type, no driver, confirmed against upstream. Every
 script that talks to the arm goes through NormaCore's own binary, Station, over the protocol
-in `lib/station.py`. Full setup: [SETUP.md](./SETUP.md). Background, what's verified and
+in `arm1/lib/station.py`. Full setup: [SETUP.md](./SETUP.md). Background, what's verified and
 what isn't: [docs/elrobot.md](./docs/elrobot.md).
 
-- Never write a new path to the arm outside `lib/station.py`. If a script needs to read motor
+- Never write a new path to the arm outside `arm1/lib/station.py`. If a script needs to read motor
   state or send a position, it imports from there.
 - `scripts/lerobot/` holds the original SO-101-via-LeRobot scripts, unused, kept only in case
   the project ever ports to a LeRobot-supported arm. Don't extend them; don't assume they run.
@@ -132,7 +132,7 @@ what isn't: [docs/elrobot.md](./docs/elrobot.md).
 - **Safety first:** a missing or low-confidence force reading must lead to "release and stop", never to a guess. Do not weaken safety limits to make a test pass.
 - **Never commit** `.env`, `config/scale_calib.json`, `recordings/` or `internal-docs/` (all git-ignored): they are per machine or private.
 - **Do commit** `config/calibration/*.json`: the arm's joint-range calibration lives in the servo firmware and the bench constants describe the physical rig, so neither is per machine and the team shares both. Never hand-edit the numbers; re-measure and commit the result. The procedures are in [docs/bench-measurements.md](./docs/bench-measurements.md).
-- **Do commit** `config/session-tuning.json` and `config/protocols/*.json`: the tuning profile is what the bench proved about the shared rig, and the protocols are the shared clinical intent, so both belong to the team and both are read by the CLI and the dashboard alike. Changing a tuning number is a reviewable diff, not a flag somebody did or did not type: see `session/tuning.py` for what each one is paying for, and change one at a time.
+- **Do commit** `config/session-tuning.json` and `config/protocols/*.json`: the tuning profile is what the bench proved about the shared rig, and the protocols are the shared clinical intent, so both belong to the team and both are read by the CLI and the dashboard alike. Changing a tuning number is a reviewable diff, not a flag somebody did or did not type: see `arm1/session/tuning.py` for what each one is paying for, and change one at a time.
 - **Privacy:** never save full camera frames of a patient; log numbers, or crops of the device only.
 - **Docs:** when behaviour or commands change, update the README and the guide in `docs/` in the same PR.
 

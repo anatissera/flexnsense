@@ -8,9 +8,9 @@ accepts both and speaks the clinical one.
 """
 import pytest
 
-from session.calibration import BenchCalibration
-from session.fingers import FINGERS, normalise, normalise_keys
-from session.protocol import Block
+from arm1.session.calibration import BenchCalibration
+from arm1.session.fingers import FINGERS, normalise, normalise_keys
+from arm1.session.protocol import Block
 
 
 def test_the_canonical_names_match_the_dashboards_clinical_type():
@@ -82,7 +82,7 @@ def test_a_block_round_trips_without_reintroducing_an_alias():
 def test_the_tracking_side_really_does_say_pinky():
     """If `landmarks.FINGERS` is ever renamed, the alias here becomes dead weight and the
     measurement path changes vocabulary silently. This is the tripwire for that."""
-    from hand_tracking.landmarks import FINGERS as TRACKER_FINGERS
+    from arm1.hand_tracking.landmarks import FINGERS as TRACKER_FINGERS
 
     assert "pinky" in TRACKER_FINGERS
     assert "little" not in TRACKER_FINGERS

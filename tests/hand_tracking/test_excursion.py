@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from hand_tracking.excursion import fit_excursion, tip_minus_wrist
+from arm1.hand_tracking.excursion import fit_excursion, tip_minus_wrist
 
 
 def make_21(tip: tuple[float, float, float], wrist: tuple[float, float, float] = (0.0, 0.0, 0.0)):

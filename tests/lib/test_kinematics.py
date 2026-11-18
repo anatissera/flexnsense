@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from lib.kinematics import (
+from arm1.lib.kinematics import (
     CENTRE_TICKS,
     TICKS_PER_TURN,
     check_against_calibration,
@@ -440,7 +440,7 @@ def test_the_gripper_axis_turns_with_the_arm(chain):
 def test_the_tension_direction_opposes_the_gripper_axis(chain):
     """The finger sits out along the gripper's axis, so travelling that way closes the gap and
     slackens the line. Tension increases on the way back."""
-    from lib.kinematics import tether_tension_direction
+    from arm1.lib.kinematics import tether_tension_direction
 
     assert np.allclose(tether_tension_direction(chain, OBSERVED_POSE),
                        -chain.gripper_axis(OBSERVED_POSE))
@@ -450,7 +450,7 @@ def test_the_tension_direction_agrees_with_the_measured_yield_sign(chain):
     """The one bench fact behind all of this. The camera run found that negative ticks on
     motor 4 lowered the force at MEASURED_POSE; the geometry has to say the same thing, or the
     sense of the whole coordinated pull is backwards and yielding would tighten the tether."""
-    from lib.kinematics import tether_tension_direction
+    from arm1.lib.kinematics import tether_tension_direction
 
     direction = tether_tension_direction(chain, MEASURED_POSE)
     assert chain.yield_sign(4, MEASURED_POSE, direction) == MEASURED_YIELD_SIGN_MOTOR_4
@@ -529,7 +529,7 @@ def test_tracking_motor_7_is_never_chosen(chain):
 
 
 def test_arm_motors_excludes_the_gripper_jaws():
-    from lib.kinematics import ARM_MOTORS
+    from arm1.lib.kinematics import ARM_MOTORS
 
     assert ARM_MOTORS == (1, 2, 3, 4, 5, 6, 7)
     assert 8 not in ARM_MOTORS
@@ -604,7 +604,7 @@ def test_load_tick_ranges_refuses_a_missing_file(tmp_path):
 
 # ---------------------------------------------------------------- levelling a pull direction
 def test_levelling_zeroes_the_z_component():
-    from lib.kinematics import level_direction
+    from arm1.lib.kinematics import level_direction
 
     assert level_direction([0.2, 0.9, 0.12])[2] == 0.0
 
@@ -612,20 +612,20 @@ def test_levelling_zeroes_the_z_component():
 def test_levelling_keeps_the_xy_bearing():
     """Dropping z and renormalising must not change the compass direction of the pull, only
     its length: a levelled pull that also turned sideways would be a different line."""
-    from lib.kinematics import level_direction
+    from arm1.lib.kinematics import level_direction
 
     levelled = level_direction([0.2, 0.9, 0.12])
     assert np.isclose(levelled[0] / levelled[1], 0.2 / 0.9)
 
 
 def test_a_levelled_direction_is_still_a_unit_vector():
-    from lib.kinematics import level_direction
+    from arm1.lib.kinematics import level_direction
 
     assert np.isclose(np.linalg.norm(level_direction([0.2, 0.9, 0.12])), 1.0)
 
 
 def test_an_already_horizontal_direction_is_unchanged():
-    from lib.kinematics import level_direction
+    from arm1.lib.kinematics import level_direction
 
     assert np.allclose(level_direction([0.3, 0.9539392, 0.0]), [0.3, 0.9539392, 0.0])
 
@@ -633,7 +633,7 @@ def test_an_already_horizontal_direction_is_unchanged():
 def test_a_vertical_direction_cannot_be_levelled():
     """Nothing is left in the horizontal plane to renormalise. Returning a zero vector would
     hand a degenerate pull to `choose_pull_motors` instead of refusing."""
-    from lib.kinematics import level_direction
+    from arm1.lib.kinematics import level_direction
 
     with pytest.raises(ValueError, match="vertical"):
         level_direction([0.0, 0.0, 1.0])
@@ -645,7 +645,7 @@ def test_levelling_the_real_gripper_axis_removes_a_real_tilt(chain):
     """Why this exists at all, on this arm's own numbers: the gripper's axis at the bench
     pose is tilted about 0.11 out of horizontal, which is millimetres of climb over a long
     pull, and is what made a session wander upward where the jog had tracked straight."""
-    from lib.kinematics import level_direction, tether_tension_direction
+    from arm1.lib.kinematics import level_direction, tether_tension_direction
 
     pose = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275}
     tension = tether_tension_direction(chain, pose)

@@ -2,7 +2,7 @@
 
 Design notes for roadmap item 3, written after the force-calibration result came back negative
 ([force-calibration-result.md](./force-calibration-result.md)). The clinical behaviour is
-unchanged from [admittance-control.md](./admittance-control.md); what changes is that there is
+unchanged from the original design; what changes is that there is
 exactly one force signal, it arrives at ~30 Hz, and it can disappear for a frame at a time.
 
 ## The loop
@@ -15,7 +15,7 @@ camera frame
        -> StickerFrameResult: .newtons | None, .stable, .found, .reason
   -> safety gate                                       # new, this item
   -> admittance law                                    # new, this item
-  -> lib.station.set_position(bus, motor, ticks)        # existing, hardware-verified
+  -> arm1.lib.station.set_position(bus, motor, ticks)        # existing, hardware-verified
 ```
 
 `StickerPipeline` already does the hard part: red-blob detection, the sticker-relative fraction

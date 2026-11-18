@@ -1,6 +1,6 @@
 """What `scripts/arm/jog_coordinated.py` has to share with the real controller.
 
-The levelling arithmetic itself lives in `lib.kinematics.level_direction` and is tested in
+The levelling arithmetic itself lives in `arm1.lib.kinematics.level_direction` and is tested in
 `tests/lib/test_kinematics.py`. What is worth asserting here is the thing that file cannot:
 that this script and `scripts/session/run_session.py` both reach for that one implementation. The
 jog exists to answer "does this pull track straight on the real arm" and the session then
@@ -38,22 +38,22 @@ def load(name: str):
 
 
 def test_the_jog_uses_the_shared_levelling_not_its_own_copy():
-    import lib.kinematics
+    import arm1.lib.kinematics
 
-    assert load("jog_coordinated").level_direction is lib.kinematics.level_direction
+    assert load("jog_coordinated").level_direction is arm1.lib.kinematics.level_direction
 
 
 def test_the_session_uses_the_same_shared_levelling():
     """Imported inside `resolve_coordinated` rather than at module scope, so this reaches for
     it the way that function does: if the session ever grew a private copy, the jog's
     straight-line result would stop predicting the session's."""
-    import lib.kinematics
+    import arm1.lib.kinematics
 
     run_session = load("run_session")
     source = Path(REPO_ROOT / "scripts/session/run_session.py").read_text()
     assert "level_direction" in source
-    assert "from lib.kinematics import" in source
-    assert lib.kinematics.level_direction is not None
+    assert "from arm1.lib.kinematics import" in source
+    assert arm1.lib.kinematics.level_direction is not None
     del run_session
 
 

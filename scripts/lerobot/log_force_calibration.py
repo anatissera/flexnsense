@@ -27,7 +27,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # repo root, for `lib`
-from lib.units import grams_force_to_newtons  # noqa: E402
+from arm1.lib.units import grams_force_to_newtons  # noqa: E402
 
 # Names seen across lerobot/Feetech control tables, most useful first.
 CANDIDATE_REGISTERS = [

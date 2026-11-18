@@ -1,6 +1,6 @@
-"""The simulation-trained pull policy as a runner for robot_training/inference/control.py.
+"""The simulation-trained pull policy as a runner for arm2/training/inference/control.py.
 
-It has the same surface as the runners in robot_training/inference/policy_runner.py: `predict_from_jpegs(state,
+It has the same surface as the runners in arm2/training/inference/policy_runner.py: `predict_from_jpegs(state,
 jpeg_by_view, task, prev)` takes the eight `position_norm` values of a Station frame and returns goals as
 `goal_norm`, so the existing control loop, its Station code and its tick-level safety layer are used unchanged.
 Station's camera pictures are ignored; the force comes from gauge_reader reading the scale's own camera (CameraForce).
@@ -110,8 +110,8 @@ class CameraForce:
 
     def __init__(self, camera: int | str, calib: str = "config/scale_calib.json", stale_s: float = 0.3):
         try:
-            from gauge_reader.cli import _load_calibration, make_pipeline
-            from lib.camera import open_camera
+            from arm1.gauge_reader.cli import _load_calibration, make_pipeline
+            from arm1.lib.camera import open_camera
 
             self.pipe = make_pipeline(_load_calibration(calib))
             self.source = open_camera(int(camera) if str(camera).lstrip("-").isdigit() else camera)

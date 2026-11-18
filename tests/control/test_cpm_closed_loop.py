@@ -29,12 +29,12 @@ from pathlib import Path
 
 import pytest
 
-from control.admittance import AdmittanceParams
-from control.loop import AxisCalibration, ControlLoop
-from control.safety import Action, SafetyGate, SafetyLimits
-from lib.units import grams_force_to_newtons
-from session.protocol import Block
-from session.reps import RepInput, RepLimits, RepMachine
+from arm1.control.admittance import AdmittanceParams
+from arm1.control.loop import AxisCalibration, ControlLoop
+from arm1.control.safety import Action, SafetyGate, SafetyLimits
+from arm1.lib.units import grams_force_to_newtons
+from arm1.session.protocol import Block
+from arm1.session.reps import RepInput, RepLimits, RepMachine
 
 REPO = Path(__file__).resolve().parents[2]
 URDF = REPO / "norma-core/hardware/elrobot/simulation/elrobot_follower.urdf"
@@ -258,7 +258,7 @@ def test_the_geometry_at_the_real_pose_can_follow_the_stroke():
     pytest.importorskip("numpy")
     if not URDF.is_file():
         pytest.skip("needs the norma-core clone (hardware/elrobot/simulation); see SETUP.md")
-    from lib.kinematics import load_chain, tether_tension_direction
+    from arm1.lib.kinematics import load_chain, tether_tension_direction
 
     chain = load_chain(URDF)
     direction = tether_tension_direction(chain, POSE)

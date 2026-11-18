@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-from lib.filters import FilteredReading, ReadingFilter
+from arm1.lib.filters import FilteredReading, ReadingFilter
 
 FPS = 30.0
 DT = 1.0 / FPS
@@ -138,7 +138,7 @@ def test_reset():
 
 def test_stable_drops_on_first_frames_of_a_ramp():
     """Regression: a resting load starts ramping at 300 g/s; no frame may be 'stable' while it lags > 3 g."""
-    from lib.filters import ReadingFilter
+    from arm1.lib.filters import ReadingFilter
 
     f = ReadingFilter()
     fps = 30.0
@@ -155,8 +155,8 @@ def test_stable_drops_on_first_frames_of_a_ramp():
 
 def test_newtons_matches_grams_conversion():
     """FilteredReading.newtons is the gf -> N boundary conversion (lib/units.py), additive to .grams."""
-    from lib.filters import ReadingFilter
-    from lib.units import grams_force_to_newtons
+    from arm1.lib.filters import ReadingFilter
+    from arm1.lib.units import grams_force_to_newtons
 
     f = ReadingFilter()
     r = f.update(200.0, 0.0)

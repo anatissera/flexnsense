@@ -2,8 +2,8 @@ import math
 
 import pytest
 
-from lib.stiffness import compare_directions, fit_stiffness
-from lib.units import grams_force_to_newtons
+from arm1.lib.stiffness import compare_directions, fit_stiffness
+from arm1.lib.units import grams_force_to_newtons
 
 
 def span_for(grams: float, k_n_per_m: float, x0_mm: float = 20.0) -> float:
