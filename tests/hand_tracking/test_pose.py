@@ -5,8 +5,8 @@ import math
 
 import pytest
 
-from hand_tracking.frame import FLEXION_JOINTS
-from hand_tracking.pose import bend, landmarks_to_pose, tip_wrist_mm
+from arm1.hand_tracking.frame import FLEXION_JOINTS
+from arm1.hand_tracking.pose import bend, landmarks_to_pose, tip_wrist_mm
 
 # Each finger's base landmark index and the direction it radiates in, roughly hand shaped.
 FINGER_DIRS = {

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from hand_tracking.frame import (
+from arm1.hand_tracking.frame import (
     ANGLE_PLACES,
     FINGERTIPS,
     FLEXION_JOINTS,

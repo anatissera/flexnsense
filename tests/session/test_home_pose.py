@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from session.home_pose import (
+from arm1.session.home_pose import (
     HOME_POSE_PATH,
     distance_from_home,
     home_pose_metadata,
@@ -25,7 +25,7 @@ CALIB = REPO_ROOT / "config/calibration/follower-5B8E114979.json"
 URDF = REPO_ROOT / "norma-core/hardware/elrobot/simulation/elrobot_follower.urdf"
 
 pytestmark = pytest.mark.skipif(not HOME_FILE.is_file(),
-                                reason="no home pose saved; run scripts/find_home_pose.py --save")
+                                reason="no home pose saved; run scripts/arm/find_home_pose.py --save")
 
 
 def test_it_names_every_arm_joint():
@@ -69,7 +69,7 @@ def test_it_pulls_straight_along_the_directions_a_tether_plausibly_runs_in():
     hand-placed pose is not a regression just for being measurably different from a blind
     search's answer.
     """
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain(URDF)
     home = load_home_pose()

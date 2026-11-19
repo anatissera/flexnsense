@@ -7,12 +7,12 @@
 Runs in its **own virtual environment** (`sim/venv`, made by `sim/setup_env.sh`), not the
 repo's `.venv`. ManiSkill pulls in torch, SAPIEN and a Vulkan runtime, several gigabytes of it,
 and the repo's test suite has to keep running on a machine with no GPU at all. Same split
-`robot_training/` already uses for its LeRobot environment.
+`arm2/training/` already uses for its LeRobot environment.
 
 **What this is for, and what it is not for.** Use it to see the arm move, to try a pose before
-commanding it, and for the closed-loop simulation rig in ROADMAP.md item 4, where contact and
+commanding it, and for a closed-loop simulation rig (see isaac-sim/), where contact and
 dynamics genuinely matter. Do **not** use it to answer "which motor moves the gripper along the
-tether": `scripts/which_motor.py` answers that exactly, from the same URDF, in milliseconds,
+tether": `scripts/arm/which_motor.py` answers that exactly, from the same URDF, in milliseconds,
 with no GPU and no install, because that question is pure geometry.
 
 The joint order ManiSkill uses is the URDF's active-joint order, which for this arm is
@@ -30,7 +30,7 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from lib.kinematics import CENTRE_TICKS, ticks_to_radians  # noqa: E402
+from arm1.lib.kinematics import CENTRE_TICKS, ticks_to_radians  # noqa: E402
 
 URDF_PATH = REPO_ROOT / "norma-core/hardware/elrobot/simulation/elrobot_follower.urdf"
 
@@ -103,7 +103,7 @@ def main(argv=None) -> int:
             "This module needs its own environment:\n\n"
             "    ./sim/setup_env.sh && source sim/venv/bin/activate\n\n"
             "See sim/README.md. For the geometry question (which motor moves the gripper "
-            "along the tether) use scripts/which_motor.py instead: no GPU, no install."
+            "along the tether) use scripts/arm/which_motor.py instead: no GPU, no install."
         ) from None
 
     import tyro

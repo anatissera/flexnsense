@@ -1,7 +1,7 @@
 """The CPM runner: a fixed path, and a camera that supervises rather than drives.
 
 The properties worth testing without hardware are the ones that make this a different kind of
-thing from `scripts/run_session.py`:
+thing from `scripts/session/run_session.py`:
 
 - the path is computed once and is the same every repetition, which is what "the same motion
   every time" actually means;
@@ -26,7 +26,7 @@ POSE = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275, 8: 1301}
 
 @pytest.fixture(scope="module")
 def run_cpm():
-    spec = importlib.util.spec_from_file_location("run_cpm", REPO / "scripts" / "run_cpm.py")
+    spec = importlib.util.spec_from_file_location("run_cpm", REPO / "scripts" / "session" / "run_cpm.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -55,10 +55,10 @@ def build_args(run_cpm, argv):
 
 
 def build_jog_args(argv):
-    """scripts/jog_coordinated.py's own parser, so a test can compare against its real
+    """scripts/arm/jog_coordinated.py's own parser, so a test can compare against its real
     defaults rather than a second copy of 700/50 that could drift from the original."""
     spec = importlib.util.spec_from_file_location(
-        "jog_coordinated", REPO / "scripts" / "jog_coordinated.py"
+        "jog_coordinated", REPO / "scripts" / "arm" / "jog_coordinated.py"
     )
     jog = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(jog)
@@ -105,13 +105,13 @@ def test_it_starts_from_its_own_pose_not_the_session_home(run_cpm):
 
 
 def test_the_camera_can_be_turned_off_entirely_for_a_dry_path_check(run_cpm):
-    """The same way scripts/jog_coordinated.py is used: confirm the line with nothing
+    """The same way scripts/arm/jog_coordinated.py is used: confirm the line with nothing
     attached before putting a finger anywhere near it."""
     assert build_args(run_cpm, ["--no-camera"]).no_camera is True
 
 
 def test_the_ceiling_comes_from_the_tuning_profile(run_cpm):
-    from session.tuning import load_tuning
+    from arm1.session.tuning import load_tuning
 
     t = load_tuning()
     args = build_args(run_cpm, [])
@@ -124,10 +124,10 @@ def test_speed_and_accel_come_from_jog_coordinated_not_the_tuning_profile(run_cp
     coordinated_speed/accel (900/30) borrows a profile tuned for the admittance loop's
     continuous small corrections, not for this open-loop waypoint walk. With a low accel and
     a short settle, the servo never finished ramping up before the next 1 mm waypoint
-    overwrote its goal, so every step looked like a jerky restart. scripts/jog_coordinated.py
+    overwrote its goal, so every step looked like a jerky restart. scripts/arm/jog_coordinated.py
     tunes exactly this kind of motion and found 700/50 smooth; this has to use that, not the
     other script's number, on purpose."""
-    from session.tuning import load_tuning
+    from arm1.session.tuning import load_tuning
 
     t = load_tuning()
     args = build_args(run_cpm, [])
@@ -137,7 +137,7 @@ def test_speed_and_accel_come_from_jog_coordinated_not_the_tuning_profile(run_cp
 
 def test_the_proven_profile_matches_jog_coordinated_py_exactly(run_cpm):
     """Not a coincidence this test can check: both should read as the same two numbers,
-    because scripts/jog_coordinated.py is where 700/50 was found to be smooth, and the whole
+    because scripts/arm/jog_coordinated.py is where 700/50 was found to be smooth, and the whole
     point of borrowing it is to get that same proven motion here."""
     jog_defaults = build_jog_args([])
     assert run_cpm.JOG_PROVEN_SPEED == jog_defaults.speed
@@ -178,7 +178,7 @@ def test_a_missing_start_pose_says_how_to_make_one(run_cpm, tmp_path):
 def test_the_round_trip_returns_to_exactly_where_it_began():
     """Not approximately: the return visits the same waypoints in reverse and ends on the
     start pose itself, so a repetition cannot drift from the line that was checked."""
-    from lib.kinematics import load_chain, tether_tension_direction
+    from arm1.lib.kinematics import load_chain, tether_tension_direction
 
     chain = load_chain(URDF)
     direction = tether_tension_direction(chain, POSE)
@@ -193,7 +193,7 @@ def test_the_round_trip_returns_to_exactly_where_it_began():
 def test_every_repetition_follows_the_identical_path():
     """The property that distinguishes this mode from an admittance session, where the path
     is whatever the patient and the camera produced between them."""
-    from lib.kinematics import load_chain, tether_tension_direction
+    from arm1.lib.kinematics import load_chain, tether_tension_direction
 
     chain = load_chain(URDF)
     direction = tether_tension_direction(chain, POSE)
@@ -211,7 +211,7 @@ def test_the_stroke_stays_on_the_tether_line():
     actually defaults to, not at the 90 mm a full session needs."""
     import numpy as np
 
-    from lib.kinematics import load_chain, tether_tension_direction
+    from arm1.lib.kinematics import load_chain, tether_tension_direction
 
     chain = load_chain(URDF)
     direction = tether_tension_direction(chain, POSE)
@@ -257,7 +257,7 @@ class FakePipeline:
 
 
 def supervisor_for(run_cpm, readings, ceiling_gf=200.0, blind_tolerance_s=2.0):
-    from lib.units import grams_force_to_newtons
+    from arm1.lib.units import grams_force_to_newtons
 
     return run_cpm.ForceSupervisor(
         FakeSource(readings), FakePipeline(readings),
@@ -266,7 +266,7 @@ def supervisor_for(run_cpm, readings, ceiling_gf=200.0, blind_tolerance_s=2.0):
 
 
 def test_a_force_under_the_ceiling_does_not_stop_anything(run_cpm):
-    from lib.units import grams_force_to_newtons
+    from arm1.lib.units import grams_force_to_newtons
 
     s = supervisor_for(run_cpm, [grams_force_to_newtons(150)] * 3)
     for _ in range(3):
@@ -275,7 +275,7 @@ def test_a_force_under_the_ceiling_does_not_stop_anything(run_cpm):
 
 
 def test_a_force_over_the_ceiling_stops_the_stroke(run_cpm):
-    from lib.units import grams_force_to_newtons
+    from arm1.lib.units import grams_force_to_newtons
 
     s = supervisor_for(run_cpm, [grams_force_to_newtons(250)])
     s.poll_once()
@@ -285,7 +285,7 @@ def test_a_force_over_the_ceiling_stops_the_stroke(run_cpm):
 
 def test_the_ceiling_message_names_both_numbers(run_cpm):
     """So the log says what was seen and what was allowed, not just that something tripped."""
-    from lib.units import grams_force_to_newtons
+    from arm1.lib.units import grams_force_to_newtons
 
     s = supervisor_for(run_cpm, [grams_force_to_newtons(250)], ceiling_gf=200.0)
     s.poll_once()
@@ -312,7 +312,7 @@ def test_a_brief_dropout_does_not_stop_the_stroke(run_cpm):
 
 
 def test_the_supervisor_tracks_the_peak_for_the_log(run_cpm):
-    from lib.units import grams_force_to_newtons, newtons_to_grams_force
+    from arm1.lib.units import grams_force_to_newtons, newtons_to_grams_force
 
     s = supervisor_for(run_cpm, [grams_force_to_newtons(x) for x in (50, 180, 90)])
     for _ in range(3):
@@ -333,8 +333,8 @@ def test_the_supervisor_has_no_way_to_change_a_step(run_cpm):
 
 
 def test_a_reading_renders_as_grams_for_the_operator(run_cpm):
-    """Grams is what a person reads off the PESOLA, per AGENTS.md's units rule."""
-    from lib.units import grams_force_to_newtons
+    """Grams is what a person reads off the PESOLA, per docs/contributing.md's units rule."""
+    from arm1.lib.units import grams_force_to_newtons
 
     s = supervisor_for(run_cpm, [grams_force_to_newtons(123)])
     assert s.reading.strip() == "--"
@@ -348,14 +348,14 @@ def test_set_home_pose_writes_to_exactly_one_of_the_two_named_poses():
     slot - and only that second slot, not an arbitrary path: this repo's rule is that a pose
     is trustworthy because it was placed and measured against the real rig, so the only
     legitimate destinations are the named pair in session.home_pose.NAMED_POSES."""
-    from session.home_pose import NAMED_POSES
+    from arm1.session.home_pose import NAMED_POSES
 
     spec = importlib.util.spec_from_file_location(
-        "set_home_pose", REPO / "scripts" / "set_home_pose.py"
+        "set_home_pose", REPO / "scripts" / "arm" / "set_home_pose.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    source = (REPO / "scripts" / "set_home_pose.py").read_text()
+    source = (REPO / "scripts" / "arm" / "set_home_pose.py").read_text()
     assert "--path" not in source, "writing to an arbitrary path was deliberately removed"
     assert "args.to" in source
     assert set(NAMED_POSES) == {"home", "cpm"}
@@ -364,7 +364,7 @@ def test_set_home_pose_writes_to_exactly_one_of_the_two_named_poses():
 def test_a_saved_pose_file_loads_through_the_same_loader(tmp_path):
     """Whatever path it is written to, `session.home_pose.load_home_pose` has to read it, so
     the CPM start pose and the session home stay one format."""
-    from session.home_pose import load_home_pose
+    from arm1.session.home_pose import load_home_pose
 
     path = tmp_path / "cpm-start-pose.json"
     path.write_text(json.dumps({"ticks": {str(m): v for m, v in POSE.items() if m != 8}}))
@@ -377,7 +377,7 @@ def test_a_saved_pose_file_loads_through_the_same_loader(tmp_path):
 def test_named_poses_is_exactly_these_two():
     """Not an open set. Adding a third pose later is a deliberate code change to this dict,
     not a string someone types at a prompt."""
-    from session.home_pose import NAMED_POSES
+    from arm1.session.home_pose import NAMED_POSES
 
     assert set(NAMED_POSES) == {"home", "cpm"}
 
@@ -388,7 +388,7 @@ def test_go_home_only_accepts_the_two_named_destinations(capsys):
     which is why this calls main() directly rather than through build_args: argparse refuses
     the bad value and exits before build_args's own capture ever runs."""
     spec = importlib.util.spec_from_file_location(
-        "go_home", REPO / "scripts" / "go_home.py"
+        "go_home", REPO / "scripts" / "arm" / "go_home.py"
     )
     go_home = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(go_home)
@@ -399,7 +399,7 @@ def test_go_home_only_accepts_the_two_named_destinations(capsys):
 
 def test_go_home_defaults_to_the_session_home():
     spec = importlib.util.spec_from_file_location(
-        "go_home", REPO / "scripts" / "go_home.py"
+        "go_home", REPO / "scripts" / "arm" / "go_home.py"
     )
     go_home = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(go_home)
@@ -407,11 +407,11 @@ def test_go_home_defaults_to_the_session_home():
 
 
 def test_go_home_can_target_the_cpm_start_pose():
-    from session.home_pose import CPM_START_POSE_PATH, NAMED_POSES
+    from arm1.session.home_pose import CPM_START_POSE_PATH, NAMED_POSES
 
     assert NAMED_POSES["cpm"] == CPM_START_POSE_PATH
     spec = importlib.util.spec_from_file_location(
-        "go_home", REPO / "scripts" / "go_home.py"
+        "go_home", REPO / "scripts" / "arm" / "go_home.py"
     )
     go_home = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(go_home)
@@ -420,7 +420,7 @@ def test_go_home_can_target_the_cpm_start_pose():
 
 def test_set_home_pose_only_accepts_the_two_named_destinations(capsys):
     spec = importlib.util.spec_from_file_location(
-        "set_home_pose", REPO / "scripts" / "set_home_pose.py"
+        "set_home_pose", REPO / "scripts" / "arm" / "set_home_pose.py"
     )
     set_home_pose = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(set_home_pose)
@@ -432,7 +432,7 @@ def test_set_home_pose_only_accepts_the_two_named_destinations(capsys):
 def test_run_cpm_and_go_home_agree_on_where_the_cpm_pose_lives(run_cpm):
     """run_cpm.py's own default --start-pose and go_home.py --to cpm have to be the same
     file, or walking there with go_home.py would not actually be where the stroke starts."""
-    from session.home_pose import NAMED_POSES
+    from arm1.session.home_pose import NAMED_POSES
 
     args = build_args(run_cpm, [])
     assert args.start_pose == NAMED_POSES["cpm"]
@@ -512,8 +512,8 @@ def test_the_real_stroke_is_a_real_motion_not_a_sub_tick_twitch(run_cpm):
     """Against the two poses actually saved on this bench. The first version asked the joints
     for 0.84, 4.16 and 6.38 ticks per step; this asserts the step is now big enough that
     rounding it at the bus is a small error rather than a dominant one."""
-    from lib.kinematics import ARM_MOTORS
-    from session.home_pose import NAMED_POSES, load_home_pose
+    from arm1.lib.kinematics import ARM_MOTORS
+    from arm1.session.home_pose import NAMED_POSES, load_home_pose
 
     start = {m: float(v) for m, v in load_home_pose(NAMED_POSES["cpm"]).items()}
     end = {m: float(v) for m, v in load_home_pose(NAMED_POSES["home"]).items()}

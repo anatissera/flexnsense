@@ -1,6 +1,6 @@
 import pytest
 
-from session.calibration import (
+from arm1.session.calibration import (
     HOW_TO_MEASURE,
     UNMEASURED_TETHER_ESTIMATE_N_PER_M,
     BenchCalibration,
@@ -40,7 +40,7 @@ def test_the_error_carries_the_procedure_not_just_the_name():
         BenchCalibration().require_tether_n_per_m()
     message = str(exc.value)
     assert "PESOLA is the force reference" in message
-    assert "lib.stiffness.fit_stiffness" in message
+    assert "arm1.lib.stiffness.fit_stiffness" in message
 
 
 def test_the_axis_reports_both_missing_fields_at_once():
@@ -160,7 +160,7 @@ def test_the_committed_bench_calibration_loads_and_reports_what_is_missing():
     # `yield_sign` is measured: the camera run of 2026-11-15 found -1 for motor 4, and the
     # URDF geometry independently agrees (tests/lib/test_kinematics.py). `ticks_per_metre` is
     # not, and on this arm a single-joint measurement of it cannot be taken at all, because no
-    # joint moves the gripper along the tether; `scripts/run_session.py --coordinated` derives
+    # joint moves the gripper along the tether; `scripts/session/run_session.py --coordinated` derives
     # the equivalent number from the pose instead. See docs/bench-measurements.md.
     assert c.missing == ["ticks_per_metre"]
     with pytest.raises(NotMeasured):
@@ -181,7 +181,7 @@ def test_a_full_range_rep_exceeds_the_default_travel_limit():
     """
     from pathlib import Path
 
-    from lib.units import grams_force_to_newtons
+    from arm1.lib.units import grams_force_to_newtons
 
     c = BenchCalibration.load(Path(__file__).resolve().parents[2] / "config/calibration/bench.json")
     cap = grams_force_to_newtons(200)

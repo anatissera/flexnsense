@@ -10,11 +10,11 @@ import json
 
 import pytest
 
-from lib.units import grams_force_to_newtons
-from session.modes import Phase
-from session.protocol import Block
-from session.snapshot import SCHEMA_VERSION, SessionSnapshot
-from session.snapshot_server import PATH, SnapshotHub, app_for
+from arm1.lib.units import grams_force_to_newtons
+from arm1.session.modes import Phase
+from arm1.session.protocol import Block
+from arm1.session.snapshot import SCHEMA_VERSION, SessionSnapshot
+from arm1.session.snapshot_server import PATH, SnapshotHub, app_for
 
 
 def block() -> Block:
@@ -198,7 +198,7 @@ def test_the_route_never_reads_from_the_socket():
     second place where "who may move the arm" is decided."""
     import inspect
 
-    from session import snapshot_server
+    from arm1.session import snapshot_server
 
     source = inspect.getsource(snapshot_server.app_for)
     for forbidden in ("receive_text", "receive_json", "receive_bytes", "iter_text"):
@@ -211,7 +211,7 @@ def test_the_module_has_no_future_annotations_import():
     and this file hit it on the first run."""
     from pathlib import Path
 
-    source = Path(__file__).resolve().parents[2] / "session" / "snapshot_server.py"
+    source = Path(__file__).resolve().parents[2] / "arm1" / "session" / "snapshot_server.py"
     # The import itself, at the start of a line, rather than the docstring that explains why
     # it is absent.
     lines = source.read_text().splitlines()

@@ -1,7 +1,7 @@
 import pytest
 
-from session.instructions import INSTRUCTIONS, SHARED, instruction_for
-from session.modes import (
+from arm1.session.instructions import INSTRUCTIONS, SHARED, instruction_for
+from arm1.session.modes import (
     ACTIVE,
     MODES,
     PASSIVE,

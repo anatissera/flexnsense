@@ -3,7 +3,7 @@
 #
 # Separate from the repo's .venv on purpose: ManiSkill pulls in torch, SAPIEN and a Vulkan
 # runtime, several gigabytes, and the test suite has to keep running on a machine with no GPU.
-# Same split robot_training/ uses for its LeRobot environment.
+# Same split arm2/training/ uses for its LeRobot environment.
 #
 #   ./sim/setup_env.sh
 #   source sim/venv/bin/activate
@@ -67,5 +67,5 @@ Next:
   python -m sim.elrobot_agent
 
 For "which motor moves the gripper along the tether", do NOT use this: run
-scripts/which_motor.py in the normal .venv. Same URDF, exact answer, no GPU.
+scripts/arm/which_motor.py in the normal .venv. Same URDF, exact answer, no GPU.
 EOF

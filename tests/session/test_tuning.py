@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from session.tuning import (
+from arm1.session.tuning import (
     DEFAULT_TUNING_PATH,
     SafetyTuning,
     SessionTuning,
@@ -27,7 +27,7 @@ REPO = Path(__file__).resolve().parents[2]
 def run_session():
     """Import the script by path: `scripts/` is not a package, so it is not importable."""
     spec = importlib.util.spec_from_file_location(
-        "run_session", REPO / "scripts" / "run_session.py"
+        "run_session", REPO / "scripts" / "session" / "run_session.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -36,7 +36,7 @@ def run_session():
 
 # ------------------------------------------------------------------ the committed profile
 def test_the_committed_profile_exists_and_parses():
-    """It is committed on purpose (AGENTS.md): it describes the shared rig, not one laptop."""
+    """It is committed on purpose (docs/contributing.md): it describes the shared rig, not one laptop."""
     assert DEFAULT_TUNING_PATH.exists(), (
         f"{DEFAULT_TUNING_PATH} is missing. It is meant to be committed, so that the CLI and "
         "the dashboard run the same numbers."

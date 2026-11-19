@@ -11,17 +11,17 @@ Everything needed to read the Pesola scale with the ASUS ROG EYE S webcam on the
 ## Use it
 
 ```bash
-.venv/bin/python -m gauge_reader cameras                 # the ROG must be in the list
+.venv/bin/python -m arm1.gauge_reader cameras                 # the ROG must be in the list
 cp config/cameras/rog-eye-s/scale_calib.json config/scale_calib.json   # optional: start from our calibration
-.venv/bin/python -m gauge_reader run --camera rog        # live reading
-.venv/bin/python -m gauge_reader calibrate --camera rog  # or calibrate again
+.venv/bin/python -m arm1.gauge_reader run --camera rog        # live reading
+.venv/bin/python -m arm1.gauge_reader calibrate --camera rog  # or calibrate again
 ```
 
 `config/scale_calib.json` is the file the reader and the dashboard force server load. It is per machine and not in git, so copy ours there or make your own.
 
 **The `cp` above assumes the same OS and camera backend.** This calibration's `ref_profile` was
 learned through OpenCV's AVFoundation backend on the MacBook. The same physical ROG EYE S opened
-through Linux's V4L2 backend (a different driver path, see `lib/camera.py`'s `apply_v4l2_controls`)
+through Linux's V4L2 backend (a different driver path, see `arm1/lib/camera.py`'s `apply_v4l2_controls`)
 rendered meaningfully less saturated red under one test setup: `redness1`/`redness2` of 75.7/64.6
 there against 110.2/88.0 here, same shapes (`elong1`/`elong2` close on both). Copying this file
 onto a Linux machine in that situation sets the matching threshold *higher* than the live feed can
@@ -46,11 +46,11 @@ Always choose the camera by name (`--camera rog`, or **ROG EYE S** in the contro
 | MacBook Air Camera | 0 | 1 |
 | iPhone Camera | 2 | 2 |
 
-Fix: `lib/camera.py` (`list_cameras`) now takes names and unique IDs from `system_profiler` and sorts them the way OpenCV does. ffmpeg is only the fallback.
+Fix: `arm1/lib/camera.py` (`list_cameras`) now takes names and unique IDs from `system_profiler` and sorts them the way OpenCV does. ffmpeg is only the fallback.
 
 **2. "Sticker hidden" on every frame.** This scale does not have the two matching red dots the reader expects. Its fixed red marks are the printed red band next to the label and a small red mark at the far end, by the clip. The generic rules reject that pair: the band is a stripe (not a round dot), the two marks differ a lot in size, and through this camera the far mark is duller than the redness cut-off.
 
-Fix: when the references are clicked by hand at calibration, the reader now learns what they look like and stores it in the calibration file as `ref_profile` (size ratio, shape and redness of the two marks). While running it accepts only a pair that looks like those two, in that order. Scales with two normal dots are read exactly as before. Code: `gauge_reader/stickers.py` (`StickerProfile`, `measure_profile`), `gauge_reader/calibration.py`, `gauge_reader/cli.py`.
+Fix: when the references are clicked by hand at calibration, the reader now learns what they look like and stores it in the calibration file as `ref_profile` (size ratio, shape and redness of the two marks). While running it accepts only a pair that looks like those two, in that order. Scales with two normal dots are read exactly as before. Code: `arm1/gauge_reader/stickers.py` (`StickerProfile`, `measure_profile`), `arm1/gauge_reader/calibration.py`, `arm1/gauge_reader/cli.py`.
 
 ## Calibrate with this camera
 

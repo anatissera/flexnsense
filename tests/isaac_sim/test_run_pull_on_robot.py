@@ -55,7 +55,7 @@ def test_importing_the_script_loads_no_hardware_or_network_package():
 
     code = (
         "import sys; sys.path.insert(0, sys.argv[1]); import run_pull_on_robot; "
-        "bad = [m for m in ('onnxruntime', 'websockets', 'cv2', 'lib.station', 'gauge_reader', 'sim_pull_runner') if m in sys.modules]; "
+        "bad = [m for m in ('onnxruntime', 'websockets', 'cv2', 'arm1.lib.station', 'gauge_reader', 'sim_pull_runner') if m in sys.modules]; "
         "print(bad); sys.exit(1 if bad else 0)"
     )
     done = subprocess.run([sys.executable, "-c", code, str(POLICIES)], capture_output=True, text=True)
@@ -63,7 +63,7 @@ def test_importing_the_script_loads_no_hardware_or_network_package():
 
 
 def test_the_script_finds_the_repository_root():
-    assert (bridge.REPO / "lib" / "station.py").exists() and (bridge.REPO / "gauge_reader").is_dir()
+    assert (bridge.REPO / "arm1" / "lib" / "station.py").exists() and (bridge.REPO / "arm1" / "gauge_reader").is_dir()
     assert str(bridge.REPO) in sys.path and str(POLICIES) in sys.path
 
 

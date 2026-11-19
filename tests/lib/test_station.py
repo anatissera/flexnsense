@@ -2,7 +2,7 @@ import struct
 
 import pytest
 
-from lib.station import (
+from arm1.lib.station import (
     _CURRENT_ADDR,
     _POSITION_ADDR,
     _TEMPERATURE_ADDR,
@@ -98,7 +98,7 @@ def test_register_addresses_match_normacore_examples():
     NormaCore's own examples (st3215-remote-teleop-py/state.py, so101-autocalibration-py/
     st3215.py) - this guards against an accidental edit drifting from the real register map,
     which would silently write the wrong thing to a servo."""
-    from lib.station import RAM_ACC, RAM_GOAL_POSITION, RAM_GOAL_SPEED, RAM_TORQUE_ENABLE
+    from arm1.lib.station import RAM_ACC, RAM_GOAL_POSITION, RAM_GOAL_SPEED, RAM_TORQUE_ENABLE
 
     assert RAM_TORQUE_ENABLE == 0x28
     assert RAM_ACC == 0x29
@@ -108,7 +108,7 @@ def test_register_addresses_match_normacore_examples():
 
 # ---------------------------------------------------------------- per-joint speed scaling
 def test_the_joint_travelling_furthest_gets_the_requested_speed():
-    from lib.station import scaled_speeds
+    from arm1.lib.station import scaled_speeds
 
     speeds = scaled_speeds({1: -2.0, 2: 10.0, 4: -6.0}, base_speed=400)
     assert speeds[2] == 400
@@ -118,7 +118,7 @@ def test_a_joint_travelling_less_gets_proportionally_less_speed():
     """The whole point: motor 4 here travels 60% of motor 2's distance, so it should arrive
     at about the same time by moving at about 60% of the speed, not the same speed motor 2
     gets (which is what made a coordinated pull wobble on the bench even after sync_write)."""
-    from lib.station import scaled_speeds
+    from arm1.lib.station import scaled_speeds
 
     speeds = scaled_speeds({2: 10.0, 4: -6.0}, base_speed=400)
     assert speeds[4] == pytest.approx(240, abs=1)
@@ -128,7 +128,7 @@ def test_speed_is_floored_not_zero_for_a_tiny_delta():
     """0 is ambiguous on this servo family (some firmware reads it as 'no limit' rather than
     'stop'), so a near-stationary joint still gets a safe, small, nonzero speed rather than
     whatever 0 happens to mean on this particular servo."""
-    from lib.station import scaled_speeds
+    from arm1.lib.station import scaled_speeds
 
     speeds = scaled_speeds({2: 10.0, 7: 0.001}, base_speed=400, min_speed=30)
     assert speeds[7] == 30
@@ -137,7 +137,7 @@ def test_speed_is_floored_not_zero_for_a_tiny_delta():
 def test_every_motor_at_zero_delta_gets_the_floor():
     """No motion this step at all: nothing to scale against, so every joint just gets the
     floor rather than a division by zero."""
-    from lib.station import scaled_speeds
+    from arm1.lib.station import scaled_speeds
 
     speeds = scaled_speeds({1: 0.0, 2: 0.0, 4: 0.0}, base_speed=400, min_speed=30)
     assert speeds == {1: 30, 2: 30, 4: 30}
@@ -146,7 +146,7 @@ def test_every_motor_at_zero_delta_gets_the_floor():
 def test_the_sign_of_the_delta_does_not_affect_the_speed():
     """Speed is a magnitude on this register; direction is carried entirely by the goal
     position, not by the speed value."""
-    from lib.station import scaled_speeds
+    from arm1.lib.station import scaled_speeds
 
     speeds = scaled_speeds({1: -10.0, 2: 10.0}, base_speed=400)
     assert speeds[1] == speeds[2]

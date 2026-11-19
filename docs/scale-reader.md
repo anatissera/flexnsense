@@ -54,7 +54,7 @@ Details, and what each package is for: [SETUP.md](../SETUP.md), section 2.
 Open the control panel:
 
 ```bash
-.venv/bin/python -m gauge_reader.launcher
+.venv/bin/python -m arm1.gauge_reader.launcher
 ```
 
 1. Pick the **camera** (cameras appear by name; on a Mac an iPhone is preselected) and keep **Mode = Stickers**.
@@ -77,16 +77,16 @@ Optional: to double-check, hang a known weight during calibration, press **w** i
 The control panel runs these commands; they also work on their own:
 
 ```bash
-.venv/bin/python -m gauge_reader cameras                       # list cameras and their numbers (macOS and Linux)
-.venv/bin/python -m gauge_reader calibrate --camera iphone     # sticker mode (default); --mode fixed for a clamped scale
-.venv/bin/python -m gauge_reader calibrate --resume            # reload the saved calibration: re-zero, add weights
-.venv/bin/python -m gauge_reader run --camera iphone           # live reading + CSV in recordings/
-.venv/bin/python -m gauge_reader run --camera 2               # Linux: /dev/video2 (or a name fragment, or the path itself)
-.venv/bin/python -m gauge_reader run --headless --video clip.mp4 --csv out.csv
+.venv/bin/python -m arm1.gauge_reader cameras                       # list cameras and their numbers (macOS and Linux)
+.venv/bin/python -m arm1.gauge_reader calibrate --camera iphone     # sticker mode (default); --mode fixed for a clamped scale
+.venv/bin/python -m arm1.gauge_reader calibrate --resume            # reload the saved calibration: re-zero, add weights
+.venv/bin/python -m arm1.gauge_reader run --camera iphone           # live reading + CSV in recordings/
+.venv/bin/python -m arm1.gauge_reader run --camera 2               # Linux: /dev/video2 (or a name fragment, or the path itself)
+.venv/bin/python -m arm1.gauge_reader run --headless --video clip.mp4 --csv out.csv
 
 # tests without hardware: synthetic hand-held video with exact ground truth, then score it
-.venv/bin/python -m gauge_reader.synthetic.moving recordings/moving.mp4 --speed 2 --occlude-every 40
-.venv/bin/python -m gauge_reader evaluate --video recordings/moving.mp4
+.venv/bin/python -m arm1.gauge_reader.synthetic.moving recordings/moving.mp4 --speed 2 --occlude-every 40
+.venv/bin/python -m arm1.gauge_reader evaluate --video recordings/moving.mp4
 ```
 
 Keys in the camera window - calibrate: `SPACE` freeze, click 0 then 600, `ENTER` accept, `c` click the dots by hand, `z` zero, `w` known weight, `s` save, `m` mask, `q` quit. Run: `z` zero, `s` save, `SPACE` pause, `m` mask, `q` quit.
@@ -142,7 +142,7 @@ What *does* affect it:
 
 ### Smoothing: the Kalman filter
 
-Every frame gives a raw reading with a little noise. Before it is shown, it goes through a small **Kalman filter** (`lib/filters.py`; the method is explained step by step at [kalmanfilter.net](https://kalmanfilter.net/)). It tracks two numbers, the weight in grams and how fast it is changing in grams per second, and blends:
+Every frame gives a raw reading with a little noise. Before it is shown, it goes through a small **Kalman filter** (`arm1/lib/filters.py`; the method is explained step by step at [kalmanfilter.net](https://kalmanfilter.net/)). It tracks two numbers, the weight in grams and how fast it is changing in grams per second, and blends:
 
 - a **prediction**: "it was 250 g and rising 20 g/s, so now it should be about 251 g", and
 - the **new measurement**: "the camera says 252 g",
@@ -188,30 +188,30 @@ Limits: each mark must be fully visible, clearly red in the picture and fixed to
 | Problem | What to do |
 |---|---|
 | Camera does not open (macOS) | System Settings → Privacy & Security → Camera → allow your terminal or IDE. |
-| Camera does not open (Linux) | Camera `N` is `/dev/videoN`: list them with `python -m gauge_reader cameras`. Check `ls -l /dev/video*` and that you are in the `video` group (`sudo usermod -aG video $USER`, then log out and in). Close any other program using the camera. |
+| Camera does not open (Linux) | Camera `N` is `/dev/videoN`: list them with `python -m arm1.gauge_reader cameras`. Check `ls -l /dev/video*` and that you are in the `video` group (`sudo usermod -aG video $USER`, then log out and in). Close any other program using the camera. |
 | No camera listed (Linux) | Plug the camera in and check `ls /dev/video*`. `v4l2-ctl --list-devices` (package `v4l-utils`) shows what the kernel sees. |
 | `cv2.imshow` error "The function is not implemented" (Linux) | That Python has `opencv-python-headless` (LeRobot installs it), which has no windows. Use this repo's `.venv`. |
 | iPhone picture is black | Lock the iPhone, keep it still in landscape near the Mac (Wi-Fi and Bluetooth on, same Apple ID). It should say "Connected to Mac". Opening Photo Booth and choosing the iPhone forces the connection. |
 | "Stickers not found" at calibration | Both dots and the marker must be visible. Check there are **two** dots plus the marker. You can also click dot 1, then dot 2, by hand (see "Other red marks as references" below). |
 | Reads a few grams at 0 g | Press **z** with nothing on the scale (zero), then **s** to save. |
 | "Sticker hidden" often | Fingers cover a dot, or a dot leaves the picture. Hold the scale by its ends and keep it fully in view. On a USB webcam under dim light, press **m** for the mask view: if the marks themselves look faint (small, grey, barely-there blobs) rather than covered, the light is too dim or the fixed exposure is too low for this camera - raise `CAMERA_V4L2_EXPOSURE` (Linux) rather than moving anything. |
-| A hand near the scale gets picked up as a dot | Some cameras render skin red enough to cross the mask under some lighting, even though it normally does not. Set `GAUGE_SAT_STRONG` in `.env` to a saturation skin does not reach but the marks do (`gauge_reader/detector.py`'s own numbers: stickers ~220, the marker ~200, skin ~130, wood ~75 - try 150). |
+| A hand near the scale gets picked up as a dot | Some cameras render skin red enough to cross the mask under some lighting, even though it normally does not. Set `GAUGE_SAT_STRONG` in `.env` to a saturation skin does not reach but the marks do (`arm1/gauge_reader/detector.py`'s own numbers: stickers ~220, the marker ~200, skin ~130, wood ~75 - try 150). |
 | Jumpy numbers | Use steady, even light; avoid moving shadows and strong reflections on the metal tube. |
 
 ## Where the code is
 
 | File | Job |
 |---|---|
-| `gauge_reader/stickers.py` | Finds dot 1, dot 2 and the marker in each frame; returns the fraction u or a reason |
-| `gauge_reader/calibration.py` | Turns u (or pixels, in fixed mode) into grams; saves `config/scale_calib.json` |
-| `gauge_reader/detector.py` | Red mask and sub-pixel centres; the fixed-mode marker detector |
-| `gauge_reader/cli.py` | `python -m gauge_reader`: cameras, calibrate, run, evaluate |
-| `gauge_reader/launcher.py` | The control panel |
-| `gauge_reader/overlay.py` | Drawing on the video |
+| `arm1/gauge_reader/stickers.py` | Finds dot 1, dot 2 and the marker in each frame; returns the fraction u or a reason |
+| `arm1/gauge_reader/calibration.py` | Turns u (or pixels, in fixed mode) into grams; saves `config/scale_calib.json` |
+| `arm1/gauge_reader/detector.py` | Red mask and sub-pixel centres; the fixed-mode marker detector |
+| `arm1/gauge_reader/cli.py` | `python -m arm1.gauge_reader`: cameras, calibrate, run, evaluate |
+| `arm1/gauge_reader/launcher.py` | The control panel |
+| `arm1/gauge_reader/overlay.py` | Drawing on the video |
 | `gauge_reader/synthetic/` | Test videos with exact ground truth (still and hand-held) |
-| `lib/camera.py` | Shared: opens cameras (by number or name, e.g. `iphone`) and video files |
-| `lib/filters.py` | Shared: the Kalman filter and steady flag |
-| `lib/geometry.py`, `lib/env.py` | Shared: line maths; settings from `.env` |
+| `arm1/lib/camera.py` | Shared: opens cameras (by number or name, e.g. `iphone`) and video files |
+| `arm1/lib/filters.py` | Shared: the Kalman filter and steady flag |
+| `arm1/lib/geometry.py`, `arm1/lib/env.py` | Shared: line maths; settings from `.env` |
 
 The `lib/` package knows nothing about the scale, so robot and calibration scripts can use the same camera and filter code.
 
@@ -223,8 +223,8 @@ Frames are processed in memory and never saved. The CSV holds only times and gra
 
 The dashboard can use the scale as its force input, in place of the constant 20 N it otherwise assumes.
 
-1. Calibrate as usual (`python -m gauge_reader calibrate`), so `config/scale_calib.json` exists.
-2. Start the server: `python -m gauge_reader.server` (listens on `ws://127.0.0.1:8766/force`; needs `fastapi` and `uvicorn`).
+1. Calibrate as usual (`python -m arm1.gauge_reader calibrate`), so `config/scale_calib.json` exists.
+2. Start the server: `python -m arm1.gauge_reader.server` (listens on `ws://127.0.0.1:8766/force`; needs `fastapi` and `uvicorn`).
 3. In the dashboard, under the camera controls, pick the camera that sees the scale in **Force camera** and press **Start force**. The browser owns the camera, so a machine with several can dedicate one to the scale and another to the hand. **Zero (unloaded)** tares the reading.
 
 Each JPEG frame the browser sends is measured by the same pipeline as `run` and discarded (nothing is written to disk). The reply is `{found, newtons, grams, stable, confidence, reason, inferenceMs}`. `newtons` and `grams` are `null` when there is no recent measurement. The dashboard treats a null or a reading older than 0.5 s as no force: the fingertip arrow disappears and the analysis records 0 N for that sample. It never holds the last value.

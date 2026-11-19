@@ -45,7 +45,7 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
-REPO = next(p for p in HERE.parents if (p / "lib" / "station.py").exists())  # the repository root, wherever this folder sits
+REPO = next(p for p in HERE.parents if (p / "arm1" / "lib" / "station.py").exists())  # the repository root, wherever this folder sits
 for _p in (HERE.parent / "tools", HERE, REPO):  # seed_pose.py (forward kinematics), sim_pull_runner.py, lib and gauge_reader
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
@@ -159,7 +159,7 @@ def parse_args(argv=None) -> argparse.Namespace:
 
 
 async def read_joints(client, bus: str, state: dict):
-    from lib.station import follow_motor_state
+    from arm1.lib.station import follow_motor_state
 
     async for bus_serial, motor_id, ms in follow_motor_state(client):
         if bus_serial == bus and ms.position is not None:
@@ -174,8 +174,8 @@ async def main(argv=None):
     from seed_pose import fk  # forward kinematics from NormaCore's URDF (tools/seed_pose.py)
     from sim_pull_runner import CameraForce  # the scale read through its camera, in this process
 
-    from lib.env import env_get
-    from lib.station import connect, set_position
+    from arm1.lib.env import env_get
+    from arm1.lib.station import connect, set_position
 
     jmap = load_joint_map(args.joint_map)
     bus = args.bus or env_get("FOLLOWER_BUS_SERIAL")

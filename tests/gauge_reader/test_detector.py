@@ -13,10 +13,10 @@ import time
 import numpy as np
 import pytest
 
-from gauge_reader import synthetic
-from gauge_reader.detector import DetectorConfig, Detection, RedMarkerDetector, find_red_blobs, red_mask
-from lib.geometry import Axis
-from gauge_reader.synthetic.still import grams_to_t, render_scale_frame
+from arm1.gauge_reader import synthetic
+from arm1.gauge_reader.detector import DetectorConfig, Detection, RedMarkerDetector, find_red_blobs, red_mask
+from arm1.lib.geometry import Axis
+from arm1.gauge_reader.synthetic.still import grams_to_t, render_scale_frame
 
 
 def _measure_render_offset() -> float:

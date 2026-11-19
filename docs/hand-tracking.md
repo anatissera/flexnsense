@@ -55,10 +55,10 @@ curl -L -o models/hand_landmarker.task \
 ## Run it
 
 ```bash
-python -m hand_tracking run                                 # live window, one hand
-python -m hand_tracking run --csv recordings/session.csv     # + log one row per frame
-python -m hand_tracking run --jsonl recordings/frames.jsonl  # + one HandFrame per line
-python -m hand_tracking run --headless --video clip.mp4 --csv out.csv   # no camera needed
+python -m arm1.hand_tracking run                                 # live window, one hand
+python -m arm1.hand_tracking run --csv recordings/session.csv     # + log one row per frame
+python -m arm1.hand_tracking run --jsonl recordings/frames.jsonl  # + one HandFrame per line
+python -m arm1.hand_tracking run --headless --video clip.mp4 --csv out.csv   # no camera needed
 ```
 
 `q` quits the window. CSV columns: `time_s, frame, found, thumb, index, middle, ring, pinky`
@@ -67,7 +67,7 @@ python -m hand_tracking run --headless --video clip.mp4 --csv out.csv   # no cam
 ### With WiLoR instead
 
 ```bash
-python -m hand_tracking run --source wilor --jsonl out.jsonl --wilor-root ../WiLoR
+python -m arm1.hand_tracking run --source wilor --jsonl out.jsonl --wilor-root ../WiLoR
 ```
 
 Same flags, same CSV columns, same overlay: only `--source` changes, and the JSONL gains the
@@ -89,7 +89,7 @@ The angle is computed from `hand_world_landmarks` (metres, origin at the hand's 
 pixel landmarks used only to draw the overlay: pixel x/y are normalized to the image's width and
 height separately and z is a rough relative depth, so an angle computed from them is distorted by
 the image's aspect ratio and by how far the hand is from the camera. World landmarks do not have
-that problem. See `hand_tracking/landmarks.py` for the geometry (no mediapipe or cv2 import there,
+that problem. See `arm1/hand_tracking/landmarks.py` for the geometry (no mediapipe or cv2 import there,
 so it is unit-tested directly with synthetic points, no camera needed).
 
 ## HandFrame: the shared output shape
@@ -97,13 +97,13 @@ so it is unit-tested directly with synthetic points, no camera needed).
 Everything a tracker knows about one frame goes out in a single shape, so that swapping MediaPipe
 for WiLoR changes nothing downstream. It is declared twice, and the two have to agree:
 
-- `hand_tracking/frame.py`, used by anything in Python.
+- `arm1/hand_tracking/frame.py`, used by anything in Python.
 - `dashboard/app/lib/handFrame.ts`, used by the in-browser MediaPipe tracker.
 
 `tests/hand_tracking/test_frame.py` reads the TypeScript file and fails if the two drift apart, and
 also checks every joint name against the committed MuJoCo model.
 
-Three sources emit it today: `hand_tracking/mediapipe_source.py`, `hand_tracking/wilor_source.py`,
+Three sources emit it today: `arm1/hand_tracking/mediapipe_source.py`, `arm1/hand_tracking/wilor_source.py`,
 and the dashboard's `HandTracker.tsx`.
 
 ```jsonc
@@ -141,7 +141,7 @@ WiLoR's MANO wrapper remaps its joints into OpenPose order (`mano_to_openpose` i
 `wilor/models/mano_wrapper.py`), and OpenPose's 21-point hand layout is the same one MediaPipe
 uses: wrist, then thumb, index, middle, ring and pinky, four landmarks each, base to tip. So
 `pred_keypoints_3d` indexes exactly like MediaPipe's landmarks, and the same function computes
-the angles for both (`hand_tracking/pose.py`, mirrored by `landmarksToPose` in the dashboard).
+the angles for both (`arm1/hand_tracking/pose.py`, mirrored by `landmarksToPose` in the dashboard).
 This was checked against the actual index list rather than assumed.
 
 Two things still differ by source and are handled on the way out:
@@ -167,7 +167,7 @@ nothing: it runs in the browser. WiLoR needs a server next to the GPU, because i
 browser at all:
 
 ```bash
-python -m hand_tracking.server --wilor-root ../WiLoR     # from the WiLoR environment
+python -m arm1.hand_tracking.server --wilor-root ../WiLoR     # from the WiLoR environment
 ```
 
 Then pick "WiLoR (local GPU server)" in the dashboard. The status line shows the measured
@@ -209,10 +209,10 @@ randomised inputs and fails if they disagree.
 
 - `dashboard/app/lib/excursion.ts`: `fitExcursion`, `tipMinusWrist`, and an `ExcursionRecorder`
   that a "calibrate range of motion" control can feed from the tracker's `onFrame` (pass it
-  `frame.world`) and read once the sweep ends. Mirror of `hand_tracking/excursion.py`.
+  `frame.world`) and read once the sweep ends. Mirror of `arm1/hand_tracking/excursion.py`.
 - `dashboard/app/lib/handGeometry.ts`: one flexion angle per finger in degrees (PIP for four
-  fingers, IP for the thumb), same convention as above. Mirror of `hand_tracking/landmarks.py`.
-- `landmarksToPose` in `HandTracker.tsx` was already the twin of `hand_tracking/pose.py`.
+  fingers, IP for the thumb), same convention as above. Mirror of `arm1/hand_tracking/landmarks.py`.
+- `landmarksToPose` in `HandTracker.tsx` was already the twin of `arm1/hand_tracking/pose.py`.
 
 In the dashboard, pressing **Start** in the Rep machine switches on the camera (with the model chosen
 under **Model** in the right-hand panel) and a **Hand measurements** card appears under the tracker:

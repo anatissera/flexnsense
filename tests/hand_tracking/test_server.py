@@ -11,14 +11,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from hand_tracking.frame import FLEXION_JOINTS, HandFrame, ManoParams
+from arm1.hand_tracking.frame import FLEXION_JOINTS, HandFrame, ManoParams
 
 fastapi = pytest.importorskip("fastapi", reason="fastapi only lives in the WiLoR environment")
 pytest.importorskip("cv2")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from hand_tracking.server import app_for  # noqa: E402
+from arm1.hand_tracking.server import app_for  # noqa: E402
 
 
 class StubTracker:

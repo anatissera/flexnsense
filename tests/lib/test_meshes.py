@@ -11,8 +11,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from lib.kinematics import load_chain
-from lib.meshes import load_visuals, posed_triangles, read_binary_stl, simplify
+from arm1.lib.kinematics import load_chain
+from arm1.lib.meshes import load_visuals, posed_triangles, read_binary_stl, simplify
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 URDF = REPO_ROOT / "norma-core/hardware/elrobot/simulation/elrobot_follower.urdf"

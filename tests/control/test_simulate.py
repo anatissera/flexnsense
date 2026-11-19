@@ -1,8 +1,8 @@
 import pytest
 
-from control.admittance import AdmittanceParams
-from control.safety import SafetyLimits
-from control.simulate import simulate
+from arm1.control.admittance import AdmittanceParams
+from arm1.control.safety import SafetyLimits
+from arm1.control.simulate import simulate
 
 SPRING = 53.9
 

@@ -1,6 +1,6 @@
 import pytest
 
-from lib.geometry import Axis
+from arm1.lib.geometry import Axis
 
 
 def test_axis_project_and_back():

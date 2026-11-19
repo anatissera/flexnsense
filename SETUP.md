@@ -14,7 +14,7 @@ dependencies, so this isn't adding weight - it's one less environment to keep st
 ## 1. Python environment
 
 ```bash
-cd ~/Documents/leukerbad-hackathon
+cd ~/Documents/flexnsense
 uv venv --python 3.12 .venv
 ```
 
@@ -23,7 +23,7 @@ rather: `source .venv/bin/activate`.
 
 ## 2. System dependencies
 
-The Python packages are the same on macOS and Linux. `lib/camera.py` detects the operating system
+The Python packages are the same on macOS and Linux. `arm1/lib/camera.py` detects the operating system
 and picks the camera backend: AVFoundation on macOS, V4L2 on Linux.
 
 ### Linux (Ubuntu)
@@ -39,11 +39,11 @@ sudo usermod -aG video $USER      # then log out and in again
 - `v4l-utils`: optional. The code does not use it, but `v4l2-ctl --list-devices` and
   `v4l2-ctl -d /dev/video0 --list-formats-ext` help when a camera misbehaves.
 - The `video` group lets your user read `/dev/video*`. Check with `ls -l /dev/video*` and `groups`.
-- The control panel (`python -m gauge_reader.launcher`) uses Tk. The Python that `uv` or conda installs
+- The control panel (`python -m arm1.gauge_reader.launcher`) uses Tk. The Python that `uv` or conda installs
   includes it. With the system Python, also install `python3-tk`.
 
 Cameras are numbered as the kernel numbers them: camera `N` is `/dev/videoN`. List them with
-`.venv/bin/python -m gauge_reader cameras`. The names come from `/sys/class/video4linux`, so no extra
+`.venv/bin/python -m arm1.gauge_reader cameras`. The names come from `/sys/class/video4linux`, so no extra
 tool is needed. One USB camera often creates two devices (picture and metadata); only the picture one
 is listed, so the numbers can skip (0, 2, 4, ...).
 
@@ -95,7 +95,7 @@ next to the binary.
 **Servo IDs and joint-range calibration are done once per physical arm, by hand, in this web
 UI** (*ST3215 motor config* and *ST3215 bus calibration* pages) - NormaCore does not publish a
 scripted procedure for either. Each bus shows a serial number on its card; note it down, you
-need it for everything below. Our `scripts/calibrate.py` only checks that this has already
+need it for everything below. Our `scripts/arm/calibrate.py` only checks that this has already
 been done - run it after, not instead of, the web UI step.
 
 Once calibrated, commit the result so the team doesn't redo it per laptop: a
@@ -104,7 +104,7 @@ a calibration is ever lost (servo reset, reflash, replaced servo), restore it fr
 without redoing the manual web UI step:
 
 ```bash
-python scripts/restore_calibration.py config/calibration/<bus serial>.json
+python scripts/arm/restore_calibration.py config/calibration/<bus serial>.json
 ```
 
 ## 5. The Python client (for our scripts)
@@ -113,7 +113,7 @@ Zero external dependencies - it only needs the repo on `PYTHONPATH` and generate
 Works in the `.venv` from step 1, or any other Python >= 3.10 environment already in use.
 
 ```bash
-cd ~/Documents/leukerbad-hackathon   # or wherever, this clone is independent of the repo
+cd ~/Documents/flexnsense   # or wherever, this clone is independent of the repo
 
 git clone --depth 1 --filter=blob:none --sparse https://github.com/norma-core/norma-core.git
 cd norma-core
@@ -138,7 +138,7 @@ cd ..
 ```
 
 (The check import path differs slightly from NormaCore's own README example - theirs checks
-`software.station.shared.station_py`; `lib/station.py` in this repo imports from `station_py`
+`software.station.shared.station_py`; `arm1/lib/station.py` in this repo imports from `station_py`
 directly, since that's what ends up on `sys.path` after the sparse checkout. If the check
 fails, try both.)
 
@@ -159,11 +159,11 @@ cp .env.example .env
 
 ```bash
 .venv/bin/python -m pytest -q                         # software, no hardware, no Station needed
-.venv/bin/python scripts/calibrate.py                   # Station: is the bus calibrated, do 8 motors answer
-.venv/bin/python scripts/log_force_calibration.py --probe   # current readings, unloaded
+.venv/bin/python scripts/arm/calibrate.py                   # Station: is the bus calibrated, do 8 motors answer
+.venv/bin/python scripts/measure/log_force_calibration.py --probe   # current readings, unloaded
 ```
 
-`scripts/calibrate.py` is the first thing to run against the real arm: it connects to
+`scripts/arm/calibrate.py` is the first thing to run against the real arm: it connects to
 Station, watches the bus, and tells you which motor ids respond and whether each one already
 has a calibrated range - before you trust any position command or force reading. Force
 calibration procedure: [docs/force-calibration.md](./docs/force-calibration.md).

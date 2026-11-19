@@ -6,11 +6,11 @@ its way past a refusal.
 """
 import pytest
 
-from lib.units import grams_force_to_newtons
-from session.arm2 import HookOutcome, HookResult, ManualHookMover
-from session.interlock import ArmOneStatus, Custody, Interlock
-from session.orchestrator import Command, Orchestrator, SessionState
-from session.protocol import Block, Protocol
+from arm1.lib.units import grams_force_to_newtons
+from arm1.session.arm2 import HookOutcome, HookResult, ManualHookMover
+from arm1.session.interlock import ArmOneStatus, Custody, Interlock
+from arm1.session.orchestrator import Command, Orchestrator, SessionState
+from arm1.session.protocol import Block, Protocol
 
 CAP_N = grams_force_to_newtons(200)
 CEILING_N = grams_force_to_newtons(300)
@@ -324,7 +324,7 @@ def test_the_manual_mover_refuses_to_confirm_nothing():
 def test_the_unimplemented_movers_raise_rather_than_report_success():
     """A hook mover that claims success it did not achieve would have the session pull on a
     finger the hook is not attached to."""
-    from session.arm2 import PolicyHookMover, ReplayHookMover
+    from arm1.session.arm2 import PolicyHookMover, ReplayHookMover
 
     with pytest.raises(NotImplementedError, match="no policy has been trained"):
         PolicyHookMover()

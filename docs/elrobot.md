@@ -21,7 +21,7 @@ to train on data Station recorded, after converting Station's own Parquet format
 - Station Python client (verified against the actual source):
   [`software/station/shared/station_py/`](https://github.com/norma-core/norma-core/tree/main/software/station/shared/station_py)
   - `client.py`, `example_follow.py`, `example_commands.py` is where
-  [`lib/station.py`](../lib/station.py) comes from, line for line on the protocol parts.
+  [`arm1/lib/station.py`](../arm1/lib/station.py) comes from, line for line on the protocol parts.
 - ElRobot hardware (BOM, STL/STEP, manuals, URDF):
   [`hardware/elrobot/`](https://github.com/norma-core/norma-core/tree/main/hardware/elrobot)
   - Assembly manuals, one per arm, which is what to read before taking one apart:
@@ -47,13 +47,13 @@ example, which cites `protocol/memory.rs`):
 
 | Field | Offset | Size | Notes |
 |---|---|---|---|
-| Position | `0x38` | 2 bytes | sign bit flags direction; `lib/station.py` unwraps it |
+| Position | `0x38` | 2 bytes | sign bit flags direction; `arm1/lib/station.py` unwraps it |
 | Current | `0x45` | 2 bytes | **milliamps directly** - Station has already decoded it, no `x6.5` scaling needed |
 | Temperature | `0x3F` | 1 byte | degrees C |
 | Voltage | `0x3E` | 1 byte | 0.1 V units |
 
 `Present_Load` is not read anywhere in NormaCore's own examples; current is the force proxy
-they use and the one we use too, in `scripts/log_force_calibration.py`.
+they use and the one we use too, in `scripts/measure/log_force_calibration.py`.
 
 Each motor also carries `range_min` / `range_max`, the calibrated position range, set once in
 the web UI and otherwise read-only from Python.
@@ -107,12 +107,12 @@ of the whole workspace.
    arm, by hand, in Station's web UI. No script performs the first calibration (NormaCore
    doesn't publish one, and we don't write one over a manual-only UI flow): it has to come
    from actually moving each joint through its real range. Once done, it is committed to the
-   repo as a `config/calibration/<bus>.json` + `.md` pair. `scripts/calibrate.py` only checks
-   that a bus is already calibrated; `scripts/restore_calibration.py` writes a saved `.json`
+   repo as a `config/calibration/<bus>.json` + `.md` pair. `scripts/arm/calibrate.py` only checks
+   that a bus is already calibrated; `scripts/arm/restore_calibration.py` writes a saved `.json`
    back to the servos' firmware if the calibration is ever lost (a reset, a reflash, a
    replaced servo) - recovery, not a substitute for the one manual calibration.
 2. **Force calibration** (servo current -> grams) - our own experiment, run through
-   `scripts/log_force_calibration.py`, described in
+   `scripts/measure/log_force_calibration.py`, described in
    [force-calibration.md](./force-calibration.md). Needs (1) done first, since an
    uncalibrated motor's position readings aren't meaningful, but is otherwise unrelated.
    **Run, result negative**: the 345:1 reduction leaves no usable current signal, see

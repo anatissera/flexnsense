@@ -6,10 +6,10 @@ the arm is pulling a finger, a lost reading stops the advance on the very first 
 """
 import pytest
 
-from lib.units import grams_force_to_newtons
-from session.modes import Driver, Law, Phase
-from session.protocol import Block
-from session.reps import RepInput, RepLimits, RepMachine
+from arm1.lib.units import grams_force_to_newtons
+from arm1.session.modes import Driver, Law, Phase
+from arm1.session.protocol import Block
+from arm1.session.reps import RepInput, RepLimits, RepMachine
 
 CAP_N = grams_force_to_newtons(200)
 #: What ARMED drives towards: the resting tension between repetitions, a fraction of the cap so

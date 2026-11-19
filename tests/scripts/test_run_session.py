@@ -1,4 +1,4 @@
-"""How `scripts/run_session.py` turns a live pose into something the control loop can drive.
+"""How `scripts/session/run_session.py` turns a live pose into something the control loop can drive.
 
 The part worth testing without hardware is the resolution step: given a pose, which joints
 pull, which one gets tracked, how many ticks to the metre, and which way releases. Every one
@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from session.tuning import load_tuning
+from arm1.session.tuning import load_tuning
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 URDF = REPO_ROOT / "norma-core/hardware/elrobot/simulation/elrobot_follower.urdf"
@@ -30,7 +30,7 @@ POSE = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275, 8: 1301}
 def load_script():
     """Import the script by path: `scripts/` is not a package, so it is not importable."""
     spec = importlib.util.spec_from_file_location(
-        "run_session", REPO_ROOT / "scripts/run_session.py"
+        "run_session", REPO_ROOT / "scripts/session/run_session.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -90,7 +90,7 @@ def test_it_picks_three_joints_and_tracks_one_of_them(run_session, capsys):
 def test_the_direction_is_the_tether_not_an_arbitrary_axis(run_session, capsys):
     """Defaulting to the gripper's own axis is what removes the step where a person reads a
     direction off a 3D view and types it in, which is where this went wrong on the bench."""
-    from lib.kinematics import load_chain, tether_tension_direction
+    from arm1.lib.kinematics import load_chain, tether_tension_direction
 
     _, coordinated = resolve(run_session)
     capsys.readouterr()
@@ -101,7 +101,7 @@ def test_the_direction_is_the_tether_not_an_arbitrary_axis(run_session, capsys):
 def test_yielding_actually_slackens_the_tether(run_session, capsys):
     """The one that matters most. A step in the yield direction must move the gripper towards
     the finger, closing the gap, not away from it."""
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain(URDF)
     axis, coordinated = resolve(run_session)
@@ -118,7 +118,7 @@ def test_yielding_actually_slackens_the_tether(run_session, capsys):
 def test_the_tracked_joints_sign_agrees_with_the_coordinated_step(run_session, capsys):
     """The loop commands the coordinated step but measures and releases on one joint, so the
     two have to mean the same thing by "give way"."""
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain(URDF)
     axis, coordinated = resolve(run_session)
@@ -141,7 +141,7 @@ def test_ticks_per_metre_is_along_the_tether(run_session, capsys):
     """Not the joint's total speed: a joint that moves mostly sideways delivers less travel
     along the pull per tick than its raw speed suggests, and counting the raw speed would make
     the loop believe it had given way further than it had."""
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain(URDF)
     axis, coordinated = resolve(run_session)
@@ -170,7 +170,7 @@ def test_a_zero_tether_axis_is_refused(run_session):
 
 def test_a_pull_this_pose_cannot_follow_is_refused(run_session):
     """Refusing beats discovering it partway through a pull with a finger attached."""
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain(URDF)
     direction = chain.tip_velocity_direction(4, POSE)
@@ -225,7 +225,7 @@ def test_a_missing_joint_would_have_changed_the_pull(run_session):
     """Why a partial pose is refused outright rather than used with a warning. The chain is
     serial, so one absent angle rotates every link below it: dropping motor 2 swings the
     computed tether direction by about 60 degrees, which is a different line entirely."""
-    from lib.kinematics import load_chain, tether_tension_direction
+    from arm1.lib.kinematics import load_chain, tether_tension_direction
 
     chain = load_chain(URDF)
     full = tether_tension_direction(chain, POSE)
@@ -262,7 +262,7 @@ def test_the_arm_is_actually_commanded_when_the_force_is_over_the_cap(tmp_path, 
     printed a rising force and a nonzero 'step' column for three full reps while the arm
     never moved, ending in 'arm travelled 0.0 mm'.
 
-    The cause was `scripts/run_session.py`'s main loop never yielding to the event loop
+    The cause was `scripts/session/run_session.py`'s main loop never yielding to the event loop
     during the session (grab frame, process, decide - all synchronous, and `ControlLoop.step`
     performs no I/O until it has a position to command against). A coroutine that never
     suspends never lets a concurrently scheduled task take a turn, so the background task
@@ -280,9 +280,9 @@ def test_the_arm_is_actually_commanded_when_the_force_is_over_the_cap(tmp_path, 
     import asyncio
     from types import SimpleNamespace
 
-    import lib.camera
-    import lib.station
-    import gauge_reader.cli
+    import arm1.lib.camera
+    import arm1.lib.station
+    import arm1.gauge_reader.cli
 
     commands: list[tuple[int, int]] = []
 
@@ -292,7 +292,7 @@ def test_the_arm_is_actually_commanded_when_the_force_is_over_the_cap(tmp_path, 
             await asyncio.sleep(0)
             yield "FAKEBUS", 4, SimpleNamespace(position=pos)
 
-    monkeypatch.setattr(lib.station, "follow_motor_state", lambda client: fake_motor_stream())
+    monkeypatch.setattr(arm1.lib.station, "follow_motor_state", lambda client: fake_motor_stream())
 
     async def fake_connect(host=None):
         return object()
@@ -314,11 +314,11 @@ def test_the_arm_is_actually_commanded_when_the_force_is_over_the_cap(tmp_path, 
             # exact state the starved follower left the session in on the bench.
             return SimpleNamespace(found=True, newtons=1.5)
 
-    monkeypatch.setattr(lib.station, "connect", fake_connect)
-    monkeypatch.setattr(lib.station, "set_position", fake_set_position)
-    monkeypatch.setattr(lib.camera, "open_source", lambda camera=None: FakeSource())
-    monkeypatch.setattr(gauge_reader.cli, "_load_calibration", lambda path: {})
-    monkeypatch.setattr(gauge_reader.cli, "make_pipeline", lambda calib, filt=None: FakePipeline())
+    monkeypatch.setattr(arm1.lib.station, "connect", fake_connect)
+    monkeypatch.setattr(arm1.lib.station, "set_position", fake_set_position)
+    monkeypatch.setattr(arm1.lib.camera, "open_source", lambda camera=None: FakeSource())
+    monkeypatch.setattr(arm1.gauge_reader.cli, "_load_calibration", lambda path: {})
+    monkeypatch.setattr(arm1.gauge_reader.cli, "make_pipeline", lambda calib, filt=None: FakePipeline())
     monkeypatch.setattr("builtins.input", lambda *a, **kw: "yes")
 
     calib = tmp_path / "calib.json"
@@ -345,9 +345,9 @@ def test_a_bad_confirmation_still_aborts_without_touching_the_fake_arm(tmp_path,
     the camera opens or any position is ever commanded, same as it always has."""
     import asyncio
 
-    import lib.camera
-    import lib.station
-    import gauge_reader.cli
+    import arm1.lib.camera
+    import arm1.lib.station
+    import arm1.gauge_reader.cli
 
     opened = []
 
@@ -361,11 +361,11 @@ def test_a_bad_confirmation_still_aborts_without_touching_the_fake_arm(tmp_path,
     async def fake_connect(host=None):
         return object()
 
-    monkeypatch.setattr(lib.station, "connect", fake_connect)
-    monkeypatch.setattr(lib.station, "set_position", lambda *a, **kw: None)
-    monkeypatch.setattr(lib.camera, "open_source", lambda camera=None: opened.append("opened") or FakeSource())
-    monkeypatch.setattr(gauge_reader.cli, "_load_calibration", lambda path: {})
-    monkeypatch.setattr(gauge_reader.cli, "make_pipeline", lambda calib, filt=None: None)
+    monkeypatch.setattr(arm1.lib.station, "connect", fake_connect)
+    monkeypatch.setattr(arm1.lib.station, "set_position", lambda *a, **kw: None)
+    monkeypatch.setattr(arm1.lib.camera, "open_source", lambda camera=None: opened.append("opened") or FakeSource())
+    monkeypatch.setattr(arm1.gauge_reader.cli, "_load_calibration", lambda path: {})
+    monkeypatch.setattr(arm1.gauge_reader.cli, "make_pipeline", lambda calib, filt=None: None)
     monkeypatch.setattr("builtins.input", lambda *a, **kw: "no")
 
     run_session = load_script()
@@ -392,9 +392,9 @@ def session_fakes(monkeypatch, final_pose: dict[int, float], force_n: float = 0.
     """
     from types import SimpleNamespace
 
-    import gauge_reader.cli
-    import lib.camera
-    import lib.station
+    import arm1.gauge_reader.cli
+    import arm1.lib.camera
+    import arm1.lib.station
 
     commands: list[tuple[int, int]] = []
 
@@ -421,12 +421,12 @@ def session_fakes(monkeypatch, final_pose: dict[int, float], force_n: float = 0.
         def process(self, frame, ts):
             return SimpleNamespace(found=True, newtons=force_n)
 
-    monkeypatch.setattr(lib.station, "follow_motor_state", lambda client: fake_motor_stream())
-    monkeypatch.setattr(lib.station, "connect", fake_connect)
-    monkeypatch.setattr(lib.station, "set_position", fake_set_position)
-    monkeypatch.setattr(lib.camera, "open_source", lambda camera=None: FakeSource())
-    monkeypatch.setattr(gauge_reader.cli, "_load_calibration", lambda path: {})
-    monkeypatch.setattr(gauge_reader.cli, "make_pipeline", lambda calib, filt=None: FakePipeline())
+    monkeypatch.setattr(arm1.lib.station, "follow_motor_state", lambda client: fake_motor_stream())
+    monkeypatch.setattr(arm1.lib.station, "connect", fake_connect)
+    monkeypatch.setattr(arm1.lib.station, "set_position", fake_set_position)
+    monkeypatch.setattr(arm1.lib.camera, "open_source", lambda camera=None: FakeSource())
+    monkeypatch.setattr(arm1.gauge_reader.cli, "_load_calibration", lambda path: {})
+    monkeypatch.setattr(arm1.gauge_reader.cli, "make_pipeline", lambda calib, filt=None: FakePipeline())
     monkeypatch.setattr("builtins.input", lambda *a, **kw: "yes")
     return commands
 
@@ -450,11 +450,11 @@ def test_it_walks_home_when_the_session_ends_away_from_it(tmp_path, monkeypatch)
     not what this test is about. Taking the LAST command per motor, rather than demanding
     the list be exactly the home walk, is what keeps this test about the home return
     specifically instead of also re-asserting release's existence."""
-    import session.home_pose
+    import arm1.session.home_pose
 
     away = {1: 2000, 2: 2000, 3: 2000, 4: 2772, 5: 2000, 6: 2000, 7: 2000}
     home = {1: 2050, 2: 2050, 3: 2050, 4: 2050, 5: 2050, 6: 2050, 7: 2050}
-    monkeypatch.setattr(session.home_pose, "load_home_pose", lambda *a, **kw: dict(home))
+    monkeypatch.setattr(arm1.session.home_pose, "load_home_pose", lambda *a, **kw: dict(home))
 
     commands = session_fakes(monkeypatch, away)
     run_session = load_script()
@@ -469,10 +469,10 @@ def test_it_walks_home_when_the_session_ends_away_from_it(tmp_path, monkeypatch)
 def test_it_does_nothing_extra_when_already_home(tmp_path, monkeypatch):
     """Only the finally block's release back-off should fire - no joint but the tracked one
     gets a command at all, because there is no home walk to take."""
-    import session.home_pose
+    import arm1.session.home_pose
 
     home = {1: 2050, 2: 2050, 3: 2050, 4: 2772, 5: 2050, 6: 2050, 7: 2050}
-    monkeypatch.setattr(session.home_pose, "load_home_pose", lambda *a, **kw: dict(home))
+    monkeypatch.setattr(arm1.session.home_pose, "load_home_pose", lambda *a, **kw: dict(home))
 
     commands = session_fakes(monkeypatch, home)
     run_session = load_script()
@@ -486,11 +486,11 @@ def test_it_does_nothing_extra_when_already_home(tmp_path, monkeypatch):
 def test_no_home_check_skips_the_return_entirely(tmp_path, monkeypatch):
     """Same shape as the already-home case: the release back-off still happens (it is
     unconditional, by design), but nothing related to the home pose does."""
-    import session.home_pose
+    import arm1.session.home_pose
 
     away = {1: 2000, 2: 2000, 3: 2000, 4: 2772, 5: 2000, 6: 2000, 7: 2000}
     home = {1: 2050, 2: 2050, 3: 2050, 4: 2050, 5: 2050, 6: 2050, 7: 2050}
-    monkeypatch.setattr(session.home_pose, "load_home_pose", lambda *a, **kw: dict(home))
+    monkeypatch.setattr(arm1.session.home_pose, "load_home_pose", lambda *a, **kw: dict(home))
 
     commands = session_fakes(monkeypatch, away)
     run_session = load_script()
@@ -505,12 +505,12 @@ def test_no_home_check_skips_the_return_entirely(tmp_path, monkeypatch):
 
 
 def test_a_missing_joint_on_the_way_home_aborts_without_crashing(tmp_path, monkeypatch, capsys):
-    import session.home_pose
+    import arm1.session.home_pose
 
     # Only six of the home pose's seven joints are ever reported.
     partial = {1: 2000, 2: 2000, 3: 2000, 4: 2772, 5: 2000, 6: 2000}
     home = {1: 2050, 2: 2050, 3: 2050, 4: 2050, 5: 2050, 6: 2050, 7: 2050}
-    monkeypatch.setattr(session.home_pose, "load_home_pose", lambda *a, **kw: dict(home))
+    monkeypatch.setattr(arm1.session.home_pose, "load_home_pose", lambda *a, **kw: dict(home))
 
     commands = session_fakes(monkeypatch, partial)
     run_session = load_script()
@@ -539,9 +539,9 @@ def test_a_dead_position_stream_is_warned_about_loudly(tmp_path, monkeypatch, ca
     import asyncio
     from types import SimpleNamespace
 
-    import gauge_reader.cli
-    import lib.camera
-    import lib.station
+    import arm1.gauge_reader.cli
+    import arm1.lib.camera
+    import arm1.lib.station
 
     async def dies_midway_stream():
         """Delivers normally, then goes quiet, modelling a bus that drops mid-session.
@@ -573,12 +573,12 @@ def test_a_dead_position_stream_is_warned_about_loudly(tmp_path, monkeypatch, ca
         def process(self, frame, ts):
             return SimpleNamespace(found=True, newtons=0.2)
 
-    monkeypatch.setattr(lib.station, "follow_motor_state", lambda client: dies_midway_stream())
-    monkeypatch.setattr(lib.station, "connect", fake_connect)
-    monkeypatch.setattr(lib.station, "set_position", fake_set_position)
-    monkeypatch.setattr(lib.camera, "open_source", lambda camera=None: FakeSource())
-    monkeypatch.setattr(gauge_reader.cli, "_load_calibration", lambda path: {})
-    monkeypatch.setattr(gauge_reader.cli, "make_pipeline", lambda calib, filt=None: FakePipeline())
+    monkeypatch.setattr(arm1.lib.station, "follow_motor_state", lambda client: dies_midway_stream())
+    monkeypatch.setattr(arm1.lib.station, "connect", fake_connect)
+    monkeypatch.setattr(arm1.lib.station, "set_position", fake_set_position)
+    monkeypatch.setattr(arm1.lib.camera, "open_source", lambda camera=None: FakeSource())
+    monkeypatch.setattr(arm1.gauge_reader.cli, "_load_calibration", lambda path: {})
+    monkeypatch.setattr(arm1.gauge_reader.cli, "make_pipeline", lambda calib, filt=None: FakePipeline())
     monkeypatch.setattr("builtins.input", lambda *a, **kw: "yes")
 
     calib = tmp_path / "calib.json"
@@ -620,9 +620,9 @@ def test_a_slow_camera_does_not_starve_the_position_reader(tmp_path, monkeypatch
     import asyncio
     from types import SimpleNamespace
 
-    import gauge_reader.cli
-    import lib.camera
-    import lib.station
+    import arm1.gauge_reader.cli
+    import arm1.lib.camera
+    import arm1.lib.station
 
     commands: list[tuple[int, int]] = []
 
@@ -658,12 +658,12 @@ def test_a_slow_camera_does_not_starve_the_position_reader(tmp_path, monkeypatch
             time.sleep(0.05)         # the real sticker detection's CPU cost
             return SimpleNamespace(found=True, newtons=2.2)   # 224 gf, over the cap
 
-    monkeypatch.setattr(lib.station, "follow_motor_state", lambda client: fake_motor_stream())
-    monkeypatch.setattr(lib.station, "connect", fake_connect)
-    monkeypatch.setattr(lib.station, "set_position", fake_set_position)
-    monkeypatch.setattr(lib.camera, "open_source", lambda camera=None: SlowSource())
-    monkeypatch.setattr(gauge_reader.cli, "_load_calibration", lambda path: {})
-    monkeypatch.setattr(gauge_reader.cli, "make_pipeline", lambda calib, filt=None: SlowPipeline())
+    monkeypatch.setattr(arm1.lib.station, "follow_motor_state", lambda client: fake_motor_stream())
+    monkeypatch.setattr(arm1.lib.station, "connect", fake_connect)
+    monkeypatch.setattr(arm1.lib.station, "set_position", fake_set_position)
+    monkeypatch.setattr(arm1.lib.camera, "open_source", lambda camera=None: SlowSource())
+    monkeypatch.setattr(arm1.gauge_reader.cli, "_load_calibration", lambda path: {})
+    monkeypatch.setattr(arm1.gauge_reader.cli, "make_pipeline", lambda calib, filt=None: SlowPipeline())
     monkeypatch.setattr("builtins.input", lambda *a, **kw: "yes")
 
     calib = tmp_path / "calib.json"
@@ -690,9 +690,9 @@ def test_it_refuses_to_start_when_no_position_ever_arrives(tmp_path, monkeypatch
     import asyncio
     from types import SimpleNamespace
 
-    import gauge_reader.cli
-    import lib.camera
-    import lib.station
+    import arm1.gauge_reader.cli
+    import arm1.lib.camera
+    import arm1.lib.station
 
     commands: list[tuple[int, int]] = []
 
@@ -718,12 +718,12 @@ def test_it_refuses_to_start_when_no_position_ever_arrives(tmp_path, monkeypatch
         def process(self, frame, ts):
             return SimpleNamespace(found=True, newtons=2.2)
 
-    monkeypatch.setattr(lib.station, "follow_motor_state", lambda client: dead_stream())
-    monkeypatch.setattr(lib.station, "connect", fake_connect)
-    monkeypatch.setattr(lib.station, "set_position", fake_set_position)
-    monkeypatch.setattr(lib.camera, "open_source", lambda camera=None: FakeSource())
-    monkeypatch.setattr(gauge_reader.cli, "_load_calibration", lambda path: {})
-    monkeypatch.setattr(gauge_reader.cli, "make_pipeline", lambda calib, filt=None: FakePipeline())
+    monkeypatch.setattr(arm1.lib.station, "follow_motor_state", lambda client: dead_stream())
+    monkeypatch.setattr(arm1.lib.station, "connect", fake_connect)
+    monkeypatch.setattr(arm1.lib.station, "set_position", fake_set_position)
+    monkeypatch.setattr(arm1.lib.camera, "open_source", lambda camera=None: FakeSource())
+    monkeypatch.setattr(arm1.gauge_reader.cli, "_load_calibration", lambda path: {})
+    monkeypatch.setattr(arm1.gauge_reader.cli, "make_pipeline", lambda calib, filt=None: FakePipeline())
     monkeypatch.setattr("builtins.input", lambda *a, **kw: "yes")
 
     calib = tmp_path / "calib.json"
@@ -744,7 +744,7 @@ def test_it_refuses_to_start_when_no_position_ever_arrives(tmp_path, monkeypatch
 # ---------------------------------------------------------------- the separate deadman knob
 def test_blind_grace_s_is_a_real_cli_flag_wired_to_rep_limits(run_session):
     """--max-dropouts only reaches SafetyLimits; it was mistaken, on the bench, for covering
-    session.reps.RepMachine's own device-driven-phase deadman too, and it does not. This
+    arm1.session.reps.RepMachine's own device-driven-phase deadman too, and it does not. This
     pins that --blind-grace-s exists and actually reaches RepLimits, so raising tolerance for
     a device-driven abort has an effect distinct from --max-dropouts."""
     args = build_args(run_session, ["--no-coordinated", "--motor", "4", "--blind-grace-s", "1.5"])
@@ -773,7 +773,7 @@ def test_outlier_persist_is_overridable(run_session):
 
 
 def test_build_pipeline_passes_outlier_persist_through(run_session, tmp_path):
-    from gauge_reader.calibration import Calibration
+    from arm1.gauge_reader.calibration import Calibration
 
     calib_path = tmp_path / "calib.json"
     Calibration.from_clicks((0, 0), (100, 0)).save(str(calib_path))
@@ -786,7 +786,7 @@ def test_build_pipeline_defaults_outlier_persist_to_three(run_session, tmp_path)
     """build_pipeline's OWN default stays at the library default (3): the higher default (5)
     is a decision made once, in main()'s argument parser, not duplicated here - this pins
     that build_pipeline itself does not silently raise it a second time."""
-    from gauge_reader.calibration import Calibration
+    from arm1.gauge_reader.calibration import Calibration
 
     calib_path = tmp_path / "calib.json"
     Calibration.from_clicks((0, 0), (100, 0)).save(str(calib_path))
@@ -830,7 +830,7 @@ class FakeStep:
 
 
 def fake_machine(rom_target_m=0.015, pretension_n=0.59):
-    from session.protocol import Block
+    from arm1.session.protocol import Block
 
     class M:
         block = Block(finger="index", mode="cpm", reps=2, cap_n=1.96, hold_s=0.5,
@@ -841,7 +841,7 @@ def fake_machine(rom_target_m=0.015, pretension_n=0.59):
 
 def test_a_yielding_cycle_asks_for_no_pull(run_session):
     """The yield law is what runs then, and it is the one already proven on the bench."""
-    from session.modes import Law, Target
+    from arm1.session.modes import Law, Target
 
     plan = run_session.pull_plan_for(FakeStep(Law.YIELD, Target.NONE),
                                      fake_machine(), pull_args(run_session))
@@ -849,7 +849,7 @@ def test_a_yielding_cycle_asks_for_no_pull(run_session):
 
 
 def test_a_still_cycle_asks_for_no_pull(run_session):
-    from session.modes import Law, Target
+    from arm1.session.modes import Law, Target
 
     assert run_session.pull_plan_for(FakeStep(Law.STILL, Target.NONE),
                                      fake_machine(), pull_args(run_session)) is None
@@ -858,7 +858,7 @@ def test_a_still_cycle_asks_for_no_pull(run_session):
 def test_a_rom_targeted_pull_aims_at_the_prescribed_stretch(run_session):
     """Negative, because stretching a finger toward extension raises tension, which is the
     direction a yielding arm moves away from."""
-    from session.modes import Law, Target
+    from arm1.session.modes import Law, Target
 
     plan = run_session.pull_plan_for(FakeStep(Law.PULL, Target.ROM),
                                      fake_machine(rom_target_m=0.015), pull_args(run_session))
@@ -866,8 +866,8 @@ def test_a_rom_targeted_pull_aims_at_the_prescribed_stretch(run_session):
 
 
 def test_a_rep_start_pull_aims_at_zero(run_session):
-    """The same zero session.reps.RepMachine uses to decide a reset has arrived."""
-    from session.modes import Law, Target
+    """The same zero arm1.session.reps.RepMachine uses to decide a reset has arrived."""
+    from arm1.session.modes import Law, Target
 
     plan = run_session.pull_plan_for(FakeStep(Law.PULL, Target.REP_START),
                                      fake_machine(), pull_args(run_session))
@@ -878,7 +878,7 @@ def test_the_two_pull_directions_are_opposite(run_session):
     """The whole reason step.target has to be read and not just step.law: in cpm both beats
     are Law.PULL and they aim opposite ways, so a caller holding only the law would run the
     return stroke outward."""
-    from session.modes import Law, Target
+    from arm1.session.modes import Law, Target
 
     args, machine = pull_args(run_session), fake_machine()
     out = run_session.pull_plan_for(FakeStep(Law.PULL, Target.ROM), machine, args)
@@ -890,7 +890,7 @@ def test_arming_is_bounded_by_a_force_not_a_position(run_session):
     """ARMED is the one pull with no position target: it takes slack up to the tether's
     resting tension and must stop there, well under the cap, or the patient is handed a finger
     already at therapeutic force while still being cued."""
-    from session.modes import Law, Target
+    from arm1.session.modes import Law, Target
 
     machine = fake_machine(pretension_n=0.59)
     plan = run_session.pull_plan_for(FakeStep(Law.PULL, Target.NONE), machine,
@@ -902,7 +902,7 @@ def test_arming_is_bounded_by_a_force_not_a_position(run_session):
 def test_arming_is_slower_than_the_working_stroke(run_session):
     """It is the one pull that starts with the tether slack and a finger already through the
     hook, so it is the stroke that knows least about what it is about to touch."""
-    from session.modes import Law, Target
+    from arm1.session.modes import Law, Target
 
     args = pull_args(run_session, ["--pull-mm-s", "30", "--arm-mm-s", "5"])
     machine = fake_machine()
@@ -912,7 +912,7 @@ def test_arming_is_slower_than_the_working_stroke(run_session):
 
 
 def test_the_pull_speed_comes_from_the_flag(run_session):
-    from session.modes import Law, Target
+    from arm1.session.modes import Law, Target
 
     plan = run_session.pull_plan_for(
         FakeStep(Law.PULL, Target.ROM), fake_machine(),
@@ -924,7 +924,7 @@ def test_the_pull_speed_comes_from_the_flag(run_session):
 def test_the_pull_step_cap_is_separate_from_the_yield_one(run_session):
     """--max-step-mm bounds the yield step's smoothness against a flexing finger, and a pull
     is not that motion, so raising one must not move the other."""
-    from session.modes import Law, Target
+    from arm1.session.modes import Law, Target
 
     args = pull_args(run_session, ["--max-step-mm", "1", "--pull-max-step-mm", "6"])
     plan = run_session.pull_plan_for(FakeStep(Law.PULL, Target.ROM), fake_machine(), args)
@@ -934,7 +934,7 @@ def test_the_pull_step_cap_is_separate_from_the_yield_one(run_session):
 
 def test_cpm_requires_a_stretch_target(run_session):
     """Under the cap nothing else tells a pulling arm to stop, so Block refuses it outright."""
-    from session.protocol import Block
+    from arm1.session.protocol import Block
 
     with pytest.raises(ValueError, match="needs rom_target_m"):
         Block(finger="index", mode="cpm", reps=1, cap_n=1.96, hold_s=0.5)
@@ -1047,7 +1047,7 @@ def test_a_cpm_protocol_carries_its_stretch_target(run_session, capsys):
 
 def test_every_block_of_every_example_protocol_can_be_loaded(run_session, capsys):
     """Catches a protocol that parses but names a block this script cannot run."""
-    from session.protocol import Protocol
+    from arm1.session.protocol import Protocol
 
     for path in (ACTIVE_PROTOCOL, CPM_PROTOCOL):
         for i in range(len(Protocol.load(path))):

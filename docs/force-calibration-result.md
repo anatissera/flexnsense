@@ -47,7 +47,7 @@ wrong-variant problem.
 - **Torque was enabled.** Read back directly from each motor's `RAM_TORQUE_ENABLE` byte
   (0x28): `1` on all 8 motors.
 - **The PESOLA was attached** to the gripper, pulling along the therapy axis.
-- **The joint ranges were calibrated** first (`scripts/calibrate.py` confirmed all 8 motors
+- **The joint ranges were calibrated** first (`scripts/arm/calibrate.py` confirmed all 8 motors
   report a real range), so position readings were meaningful.
 - **NormaCore's own example** (`example_follow.py`) shows the same currents, so this is not an
   artefact of our client.
@@ -68,5 +68,5 @@ whole safety case rests on.
 
 ## Raw data
 
-Committed alongside this doc: `data/calib_up.csv`, `data/calib_down.csv` (13 lines each,
-header + 12 points). Re-fit with `python scripts/log_force_calibration.py --fit data/calib_up.csv`.
+Committed alongside this doc: `config/measurements/calib_up.csv`, `config/measurements/calib_down.csv` (13 lines each,
+header + 12 points). Re-fit with `python scripts/measure/log_force_calibration.py --fit config/measurements/calib_up.csv`.

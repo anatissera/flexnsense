@@ -1,6 +1,6 @@
 import pytest
 
-from lib.ticks_calibration import fit_ticks_per_metre, infer_yield_sign
+from arm1.lib.ticks_calibration import fit_ticks_per_metre, infer_yield_sign
 
 
 class TestFitTicksPerMetre:

@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from lib.units import grams_force_to_newtons
-from session.calibration import BenchCalibration
-from session.protocol import Block, Protocol
+from arm1.lib.units import grams_force_to_newtons
+from arm1.session.calibration import BenchCalibration
+from arm1.session.protocol import Block, Protocol
 
 CAP_N = grams_force_to_newtons(200)
 CEILING_N = grams_force_to_newtons(300)
@@ -27,7 +27,7 @@ def test_a_block_is_just_numbers():
 
 
 def test_the_cap_is_set_in_grams_and_stored_in_newtons():
-    """AGENTS.md units rule: the clinician reads grams off the PESOLA, control math is SI."""
+    """docs/contributing.md units rule: the clinician reads grams off the PESOLA, control math is SI."""
     b = Block.from_grams("index", "active", 10, cap_gf=200)
     assert b.cap_n == pytest.approx(1.96, abs=0.01)
     assert b.cap_gf == pytest.approx(200, abs=0.1)

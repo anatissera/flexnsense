@@ -6,7 +6,7 @@ A stand-in arm and scale replace the real ones, at Station's pace (10 frames a s
   * the scale: a spring between the point between the jaws and a finger that pulls away, holds and comes back;
   * the force reading: in steps of 5 gf, with noise, as the camera gives it.
 Every frame goes through the real code: position_norm -> SimPullRunner (the exported network) -> goal_norm ->
-ticks -> the control loop's GoalSafety (if robot_training/inference is found) -> the stand-in arm.
+ticks -> the control loop's GoalSafety (if arm2/training/inference is found) -> the stand-in arm.
 
 It runs the same pulls twice, with the policy and with the arm holding still, and prints the peak forces.
 
@@ -118,7 +118,7 @@ def main() -> int:
               f"the limit: {100 * (peaks > 1.1 * meta['cap_n']).mean():3.0f} % | time over, average {overs.mean():4.2f} s | "
               f"drift at rest {1000 * drifts.mean():4.1f} mm | safety aborts {aborts}")
     print(f"limit {meta['cap_n']:.2f} N | {a.pulls} pulls | motors lag {a.lag:.2f} s | "
-          f"{'through robot_training GoalSafety' if with_safety else 'robot_training/inference not found: without GoalSafety'}")
+          f"{'through robot_training GoalSafety' if with_safety else 'arm2/training/inference not found: without GoalSafety'}")
     ok = out["policy"].mean() < meta["cap_n"] and out["policy"].mean() < 0.75 * out["held still"].mean()
     print("RESULT:", "OK" if ok else "NOT OK")
     return 0 if ok else 1

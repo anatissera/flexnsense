@@ -31,7 +31,7 @@ Everything. The point of the demonstration build is that no control is dead.
 - hand tracking from their own laptop camera (MediaPipe, in the page: frames are measured and
   discarded, never uploaded and never stored);
 - the repetition machine's decisions, cues, counting and stop conditions, which are
-  `session/reps.py` ported to TypeScript;
+  `arm1/session/reps.py` ported to TypeScript;
 - the analysis (range of motion, rate of force development, hysteresis, the recovery index) and the
   exported reports;
 - the assistant, text and voice, including its tool calls into the page;
@@ -48,7 +48,7 @@ panel renders, so there is one answer rather than one per place it is asked.
 
 `dashboard/app/lib/demo/patients.ts`. Invented people, real prescriptions: the plans are
 `config/protocols/*.json` copied verbatim and parsed through `protocolFromJSON`, the same validation
-`session/protocol.py` applies on the rig. A plan that would be refused there is refused here.
+`arm1/session/protocol.py` applies on the rig. A plan that would be refused there is refused here.
 
 - **Jordan Woods**, five weeks after a zone II flexor repair. `active` mode: the patient does the
   work and the arm gives way at the cap.
@@ -77,8 +77,8 @@ API: Chrome, Edge and Safari have it, Firefox does not, and the control says so 
 there dead.
 
 **None of this is the safety system.** A browser tab is not what keeps a real finger safe. On the rig
-that is the force gate in `control/safety.py` (which releases on a reading it cannot trust, including
-no reading at all), `session/interlock.py`, and Station's own current limits in `station.yaml`. All
+that is the force gate in `arm1/control/safety.py` (which releases on a reading it cannot trust, including
+no reading at all), `arm1/session/interlock.py`, and Station's own current limits in `station.yaml`. All
 three work with the browser closed.
 
 ## Hints

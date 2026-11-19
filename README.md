@@ -1,111 +1,65 @@
 <div align="center">
 
-<img src="docs/images/logo.svg" alt="Flex'N Sense" width="460">
+<img src="docs/images/logo.svg" alt="Flex'N Sense" width="420">
 
-# Force-Limited Finger Tether
+# Force-Limited Hand Rehabilitation
 
-**Robot-assisted finger rehabilitation after hand surgery, with a force cap the clinician sets remotely.**<br>
-By team **Flex'N Sense** at the Leukerbad Robotics Hackathon 2026.
+**Two robot arms move a patient's finger against a force cap a clinician sets remotely.**<br>
+For recovery after surgery, injury, stroke, or age-related loss of hand strength.
 
-**[Watch the presentation](https://flexnsense.vercel.app)** - the pitch deck.<br>
-**[Try the dashboard](https://flexnsense-dashboard.vercel.app)** - the 3D MyoHand simulation and rep machine, live, no hardware needed. See [docs/dashboard-demo.md](./docs/dashboard-demo.md) for what's real and what's simulated.
-
-[![Leukerbad Robotics Hackathon 2026](https://img.shields.io/badge/Leukerbad_Robotics_Hackathon-2026-0b7285)](https://luma.com/event/evt-7RecqicPQUegOIG)
-[![Track: Elderly Care & Rehabilitation](https://img.shields.io/badge/track-Elderly_Care_%26_Rehabilitation-2f9e44)](#the-hackathon)
 [![NormaCore ElRobot](https://img.shields.io/badge/arm-NormaCore_ElRobot_7%2B1_DOF-0b7285)](./docs/elrobot.md)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](./SETUP.md)
-[![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)](./gauge_reader)
-[![Tests: 914 passing](https://img.shields.io/badge/tests-914_passing-success)](./tests)
-[![Status: prototype](https://img.shields.io/badge/status-prototype-orange)](#status)
-
-![Arm A holds the hand, the finger pulls on a PESOLA spring scale held by arm B, a camera reads grams, the clinician sets the cap remotely](docs/images/concept.svg)
+[![Tests: 1168](https://img.shields.io/badge/tests-1168-success)](./tests)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](./LICENSE)
 
 </div>
 
-## Contents
+![The finger pulls a spring scale held by the arm. A camera reads the scale in grams. At 200 g the arm gives way, so the force stops rising.](docs/images/tether.gif)
 
-- [The hackathon](#the-hackathon)
-- [Team](#team)
-- [The problem](#the-problem)
-- [Our solution](#our-solution)
-- [How it works](#how-it-works)
-- [Status](#status)
-- [Getting started](#getting-started)
-- [Repository layout](#repository-layout)
-- [Documentation and contributing](#documentation-and-contributing)
-- [Acknowledgements](#acknowledgements)
+The arm is the anchor, not the mover. The patient pulls, a camera reads the force off a PESOLA
+spring scale thirty times a second, and when the reading reaches the prescribed cap the arm
+**gives way**: it retreats just fast enough that the spring stretches no further. The force the
+finger feels is therefore bounded by the control law, not by how hard the patient pulls.
 
-## The hackathon
+## Why this is hard
 
-- **Event:** [Leukerbad Robotics Hackathon 2026](https://luma.com/event/evt-7RecqicPQUegOIG) (Robotics, XR and AI)
-- **When:** 14–16 November 2026
-- **Where:** Sportarena Leukerbad, Valais, Switzerland
-- **Challenge:** Elderly Care & Rehabilitation, one of four alongside Autonomous Urban Services, Resilient & Safe City and Sustainable City
-- **Our hardware:** two NormaCore ElRobot arms (7 joints + gripper, 8x Feetech ST3215), a PESOLA 600 g spring scale and a camera
+A healing finger tolerates very little. Dynamic finger splints in hand therapy work in the
+**0 to 450 gf (0 to 4.4 N)** range, and past that you are not treating a tendon, you are
+damaging one. So the force has to be known continuously and bounded by something that keeps
+working when the software does not.
 
-## Team
+The kit has **no force sensor**. The obvious substitute, servo current, was measured and ruled
+out: the 345:1 gearbox leaves a ~1 mA noise floor regardless of applied force
+([docs/force-calibration-result.md](./docs/force-calibration-result.md)). That negative result
+is why force sensing is entirely on the camera, and why a lost or low-confidence frame has no
+fallback to fall back on, only "release and stop".
 
-We are **Flex'N Sense**, a team of six.
-
-| Name | Background | GitHub | LinkedIn |
-|---|---|---|---|
-| Guillaume Bonifas | Robotics & MedTech, scale-up leader | [@Guitool77](https://github.com/Guitool77) | [guillaumebonifas](https://www.linkedin.com/in/guillaumebonifas) |
-| Damien Frechou | Mechatronics, automation & control systems | | [damien-frechou](https://www.linkedin.com/in/damien-frechou) |
-| Ana Tissera | AI Engineering, Universidad de San Andrés | [@anatissera](https://github.com/anatissera) | |
-| Laurence Liang | Applied AI Engineer at Mistral. Rootly (YC S21) AI Labs, Groq, MDA Space | [@TheFloatingString](https://github.com/TheFloatingString) | [laurence-liang-innovator](https://www.linkedin.com/in/laurence-liang-innovator) |
-| Javier Peres | AI Engineer | [@peresramirez](https://github.com/peresramirez) | [peresjavier](https://www.linkedin.com/in/peresjavier) |
-| Justo Valverde | Robotics Software Engineering student, URJC | | [justodariovalverde](https://www.linkedin.com/in/justodariovalverde) |
-
-## The problem
-
-After hand surgery, fingers have to be moved early and regularly to prevent tendons and joint capsules from sticking (adhesions). This is the job of **CPM, continuous passive motion**. The force matters: dynamic finger splints in hand therapy work in the **0–450 g (0–4.4 N)** range, and too much force on a healing finger does harm. Therapists cannot be present for every session, and the kit available here has **no force sensor**.
-
-## Our solution
-
-A **force-limited tether** built from two ElRobot arms, with a clinician supervising remotely:
-
-1. **Arm A** holds the patient's hand still in a fixed pose (a hard-coded position, no policy).
-2. **Arm B** is tied to one finger through a **PESOLA spring scale** (0–600 g, 5 g per line, a red indicator on a linear printed scale).
-3. The patient moves the finger. Arm B stays put as an anchor, so the spring stretches and the force rises.
-4. When the force reaches the patient's prescribed cap (e.g. **200 g, 1.96 N**), arm B **yields**: it moves slowly with the finger so the spring stretches no further.
-5. The **clinician** sets the cap and watches the session remotely, and can stop it.
-
-### The bench as it actually is
-
-![The bench from above: Leader 2 top left, Follower 2 to the left of the hand, Follower 1 bottom centre with the PESOLA running from its gripper up to a fingertip, Leader 1 bottom right. The hand rests palm-up on the cardboard work surface, and the dark boom over the wrist carries the camera.](docs/images/setup.jpg)
-
-Two leader/follower pairs. **Follower 1** carries the tether and runs the admittance controller; **Follower 2** moves the hook from one finger to the next and is being trained separately. The leaders are for teleoperation and for recording demonstrations, not for a running session. Bus serials and roles: [docs/hardware-setup.md](./docs/hardware-setup.md).
-
-Worth noting against step 1 above: in the rig as built **no arm holds the hand**, it rests on the work surface. That matters because every pose-dependent number is measured against whatever pose the hand is in, so it is worth settling before those measurements are taken. The detail is in [docs/hardware-setup.md](./docs/hardware-setup.md).
-
-![Force over time: it rises while the finger moves, stays at the 200 g cap while arm B yields, and drops when the finger relaxes](docs/images/force-cap.svg)
+This is deliberately **not** a learned policy on the arm that touches the patient. ACT and
+Diffusion Policy execute action chunks open-loop and cannot react to contact forces mid-chunk,
+which is the exact failure a device pulling on a post-surgical finger must not have.
 
 ## How it works
 
-### Measuring force without a force sensor
+### Reading force from a camera
 
-Two independent signals:
-
-| Signal | How | Strength | Weakness |
-|---|---|---|---|
-| **Camera + PESOLA** | Read the red indicator against the printed scale and convert its position to grams (the gauge reader) | Physical ground truth, ~30 Hz | Glare, occlusion, motion blur |
-| **Servo current** | ST3215 current, read from NormaCore Station's `st3215/inference` queue, in mA already decoded | Fast and robust | Unitless; gearbox friction |
-
-The arm is the **NormaCore ElRobot**, not an SO-101: same servo family (Feetech ST3215), so the force path below is unchanged in kind, but there is no LeRobot support for this arm - everything goes through NormaCore's own software, Station, instead. What that means in practice: [docs/elrobot.md](./docs/elrobot.md).
-
-The plan was to calibrate servo current against the camera and run the control loop on current for speed. **Run against real hardware, result negative**: the 345:1 gearbox leaves no usable current signal, just a ~1 mA noise floor regardless of applied force - see [docs/force-calibration-result.md](./docs/force-calibration-result.md). Force sensing is entirely on the camera; the control loop runs at the camera's rate, and a lost or low-confidence reading has no fallback signal to fall back on, only the "release and stop" behaviour in Safety below.
-
-**Gauge reader.** Two red dots drawn on the PESOLA's tube act as fixed references. Each frame, the camera finds the three red spots in a row (dot, marker, dot); the marker's position *between* the dots is a fraction that does not change when the scale moves, turns or comes closer, and calibration turns it into grams. When a dot is covered, it reports a reason instead of a number. Details: [docs/scale-reader.md](./docs/scale-reader.md).
+Two red dots on the PESOLA's tube are fixed references. Each frame the reader finds three red
+spots in a row (dot, marker, dot); the marker's position *between* the dots is a fraction that
+does not change when the scale moves, turns, or comes closer, and calibration turns that
+fraction into grams. When a dot is covered it reports a reason instead of a number.
 
 ![Gauge reader: find the red spots, the outer two are the dots and the middle one the marker, the marker's fraction between the dots becomes grams](docs/images/gauge-reader.svg)
 
-### Control
+Details, calibration and failure modes: [docs/scale-reader.md](./docs/scale-reader.md).
 
-Admittance control with a deadband, clinically *assist-as-needed*. The gauge reads grams, matching the PESOLA and the clinician's cap, but everything past that reading is in newtons (SI), see AGENTS.md "Units":
+### The control law
+
+Admittance control with a deadband, clinically *assist-as-needed*. The gauge reads grams, which
+is what the PESOLA is graduated in and what the clinician sets; everything past that reading is
+in newtons:
 
 ```python
 F = read_force()                            # newtons, from the camera; None if the marker was not seen
-F_threshold = grams_force_to_newtons(200)   # the clinician's cap is set in grams, 200 gf = 1.96 N
+F_threshold = grams_force_to_newtons(200)   # the clinician's cap, set in grams
 if F is None or F > F_max or stale:
     release_and_stop()          # never guess a force, never hold tension blind
 elif F <= F_threshold:
@@ -115,161 +69,332 @@ else:
     move(v * dt, direction_that_reduces_F)  # dt from real frame timestamps
 ```
 
-Implemented in `control/`: the gate (`safety.py`), the law (`admittance.py`), the wiring to camera and Station (`loop.py`), and a closed-loop simulation for choosing constants (`simulate.py`). The simulation established that the damping `B` is bounded by the gap between the cap and the ceiling (overshoot settles at `B x pull speed`), and that a fast yank is handled by the gate releasing rather than by the loop tracking it: [docs/admittance-design.md](./docs/admittance-design.md).
+`arm1/control/safety.py` is the gate (HOLD / YIELD / RELEASE), `arm1/control/admittance.py` the law,
+`arm1/control/loop.py` the only part that touches hardware. The first two are pure and exhaustively
+tested. Why `B` is bounded by the gap between cap and ceiling:
+[docs/admittance-design.md](./docs/admittance-design.md).
 
-The arm gives way along the tether with **three joints at once**, not one. No single revolute joint moves the gripper along a straight line, and on this arm none comes close enough to approximate it: the best-aligned joint at the session pose reaches about 0.4 of the tether's direction. `control.loop.CoordinatedAxis` picks three joints for the live pose, refuses poses that cannot follow the pull to the end, and takes the tether's direction from the gripper's own axis, so no one has to read a direction off a 3D view and type it in. It is on by default, so `scripts/run_session.py` already pulls this way (`--no-coordinated` falls back to a single joint). Watch it first with `scripts/simulate_session_video.py`, which renders the whole thing (force, threshold, joints, and how far off the tether's line the gripper strays) from the real control code and the URDF's own meshes, with nothing plugged in.
+### Three joints, not one
 
-### Two files decide a session, and they are split by one question
+A revolute joint moves the gripper along an **arc**, and the tether does not bend, so whatever
+leaves the line becomes side-load on the finger or slack in the tether. One full-range
+repetition needs 72 to 88 mm of travel. Asked for 90 mm along the tether from the saved home
+pose, no single joint can deliver it:
 
-"Would a different patient change this number?"
+| Joints | Distance covered | Deviation from the line |
+|---|---|---|
+| Best single joint (motor 4) | 21.8 mm of 90 | 38.1 mm |
+| Motors 1, 2 and 4 together | 89.9 mm of 90 | 0.9 mm |
 
-- **Yes**: it is a prescription, and it lives in `config/protocols/` as a finger, a mode, a rep count, a force cap and a hold time. `session/protocol.py` validates it and warns about anything the bench measurements say will not work on this rig.
-- **No**: it is machine tuning, and it lives in `config/session-tuning.json`: virtual damping, how the camera's outlier gate is set, how fast three joints may chase a goal. `session/tuning.py` is the loader, and it records what each number is paying for, since most of them were found by debugging against the real arm rather than chosen.
+The joints with low deviation in isolation (5 and 6) score that way because they barely move
+along the tether at all. Coordination is not a refinement here, it is what makes the stroke
+possible.
 
-Both are committed, for the reason the joint calibration is: they describe the shared rig and the shared clinical intent, not one person's laptop. The CLI and the dashboard read the same files, so a normal session needs no tuning flags at all, and any individual flag still overrides the profile for one run.
+Two joints are not enough either: their jacobian is rank 2, so the reachable directions form a
+plane, and the stroke that is not in it misses. `CoordinatedAxis` refuses fewer than three, and
+refuses a pose that cannot follow the pull to the end.
 
-Three values in the profile are deliberately *looser* than what the code shipped with: the hard force ceiling, how many blind frames the gate tolerates, and the yield-direction check being off. They sit in their own `safety` block and are printed on every run, because a loosened limit nobody is shown on the way past stops being a decision and becomes an accident.
+Measured from NormaCore's URDF at the saved home pose, no simulator and no bench needed.
+`.venv/bin/python scripts/arm/which_motor.py` runs the same geometry against the live pose.
 
-This is deliberately **not** a learned policy. ACT and Diffusion Policy execute action chunks open-loop and cannot react to contact forces mid-chunk, the exact failure a device pulling on a post-surgical finger must not have. They also need 50–200 demonstrations and ~16 GB of VRAM, against a 4 GB laptop GPU and two days. RL from scratch is out for the same reason.
+### Two exercise modes
+
+| Mode | Work beat | Reset beat |
+|---|---|---|
+| `active` | the patient flexes, the arm yields at the cap | the arm walks back to where the rep began |
+| `cpm` | the arm takes the finger out to the stretch target | the arm brings it back; the patient is passive throughout |
+
+`cpm` is the only mode where the driver does not flip within a repetition, which is the point of
+it: a repetition that waits on nobody is the same motion every time, so it can run faster and
+more smoothly than an arm chasing a signal. It also means a lost force reading stops *both*
+halves of the stroke, not one.
+
+Both modes count honestly. A repetition is counted only once the force actually reached the cap,
+so a patient who moved a little and came back shows as an **abandoned attempt**, not a rep.
 
 ### Safety
 
-Force limits on the patient are enforced **independently of the main control loop**:
+Force limits on the patient are enforced **independently of the control loop**:
 
-- a torque/current cap written to the servo registers, in force even if the control process dies;
-- software position limits on how far arm B can travel;
-- a vision watchdog: on lost detection, low confidence or dropped frames, **release tension and stop**, never hold;
-- low maximum velocity throughout;
-- a physical e-stop within reach of the patient and the operator;
-- the spring itself acts as a mechanical fuse.
+- a current cap written to the servo registers by Station's own `station.yaml`, in force even if
+  every Python process dies;
+- software position limits on total travel;
+- a vision watchdog: on lost detection, low confidence or dropped frames, **release and stop**,
+  never hold;
+- a per-cycle deadman on any phase where the arm moves the finger: one missing frame stops the
+  advance;
+- a low velocity ceiling throughout, and a physical e-stop within reach;
+- the spring itself as a mechanical fuse.
 
-### Where the learning is
+**A missing force reading is never evidence of a safe force.** That single rule is why the gate
+refuses to guess, why the deadman stops a blind pull, and why the two-machine lease expires on
+silence rather than persisting.
 
-- The **vision model** that reads the PESOLA scale.
-- **Hand keypoint tracking** to measure the finger's range of motion: MediaPipe live, WiLoR for precision capture (it adds MANO joint rotations). Both emit the same `HandFrame`, see [docs/hand-tracking.md](./docs/hand-tracking.md).
-- **Per-patient cap adaptation** from the patient's response within a session: a lightweight online estimator, not deep RL.
-- The **force–displacement curve** across the session, which yields joint stiffness, a published biomarker of post-surgical tendon adhesion. The device measures recovery, not only exercises it; this is what the clinician watches evolve between sessions.
-- **Re-hooking the dynamometer between fingers**, on the second arm pair, is a separate manipulation task trained with imitation learning (teleoperated demonstrations, behaviour cloning), not the admittance controller. See [docs/hardware-setup.md](./docs/hardware-setup.md) for which physical arm is which.
+## The two arms are trained completely differently
 
-## Status
+This is the part worth understanding, because the two arms sit at opposite ends of the
+"learned versus specified" question, on purpose.
 
-The work is split into the subtasks of [ROADMAP.md](./ROADMAP.md), one branch and one PR each.
+### Arm 1, the tether: no learning at all
 
-| # | Subtask | Branch | Status |
-|---|---|---|---|
-| 1 | Force calibration: can servo current stand in for a force sensor? | `feature/force-calibration` | ❌ answered: no ([docs/force-calibration-result.md](./docs/force-calibration-result.md)) |
-| 2 | Gauge reader: PESOLA → grams + confidence from a camera | `feature/gauge-reader` | ✅ merged ([#5](https://github.com/anatissera/leukerbad-hackathon/pull/5), [#35](https://github.com/anatissera/leukerbad-hackathon/pull/35), [#45](https://github.com/anatissera/leukerbad-hackathon/pull/45)) |
-| 3 | Admittance controller + safety layer | `feature/admittance-control` | ✅ merged, run on the real arm with `scripts/run_session.py` ([#33](https://github.com/anatissera/leukerbad-hackathon/pull/33), [#38](https://github.com/anatissera/leukerbad-hackathon/pull/38)) |
-| 4 | Simulation: the bench in NVIDIA Isaac Sim, both arms trained in Isaac Lab | `feature/isaac-sim-training` | ✅ merged ([#43](https://github.com/anatissera/leukerbad-hackathon/pull/43), [#46](https://github.com/anatissera/leukerbad-hackathon/pull/46), [#48](https://github.com/anatissera/leukerbad-hackathon/pull/48)). Simulation only: none of these policies has moved the real arm. See [isaac-sim/](./isaac-sim/) |
-| 5 | Hand tracking / range of motion | `feature/hand-tracking` | ✅ merged ([#16](https://github.com/anatissera/leukerbad-hackathon/pull/16), [#28](https://github.com/anatissera/leukerbad-hackathon/pull/28)) |
-| 6 | Session metrics: force–displacement, stiffness | `feature/session-metrics` | ⚪ planned on real data. The dashboard shows these metrics for a simulated patient |
-| 7 | Remote clinician dashboard | `feat/dashboard` | ✅ merged, with live force from the scale ([#29](https://github.com/anatissera/leukerbad-hackathon/pull/29)). The patient data in it is simulated |
-| - | ElRobot (NormaCore Station) instead of LeRobot: the arm we actually have | `feature/elrobot-support` | ✅ merged ([#17](https://github.com/anatissera/leukerbad-hackathon/pull/17)) |
-| - | Session layer: exercise modes, rep and session state machines, two-arm interlock | `feature/session-orchestration` | ✅ merged ([#23](https://github.com/anatissera/leukerbad-hackathon/pull/23), [#38](https://github.com/anatissera/leukerbad-hackathon/pull/38)) |
-| - | Second arm: policies trained on teleoperated recordings, to move the scale between fingers | `feature/robot-training` | 🟡 merged ([#50](https://github.com/anatissera/leukerbad-hackathon/pull/50)). The first ACT ran on the arm with a mediocre result; the newer ones are not yet tested on it. See [robot_training/](./robot_training/) |
+Fixed control law, hand-tuned constants, exhaustively tested gate. Nothing about it is learned,
+because the thing it does (bound a force on a healing finger) is a specification, not a pattern
+to be inferred from data. The constants live in
+[`config/session-tuning.json`](./config/session-tuning.json), each one annotated in
+[`arm1/session/tuning.py`](./arm1/session/tuning.py) with the bench failure it is paying for.
 
-## Models and data on Hugging Face
+### Arm 2, the hook mover: behaviour cloning from teleoperation
 
-| Repo | What it holds |
-|---|---|
-| [peresjav/flexnsense-sim-policies](https://huggingface.co/peresjav/flexnsense-sim-policies) | The policies trained in Isaac Lab (ONNX, TorchScript and checkpoints), the training code and the videos. Simulation only |
-| [peresjav/lerobot-2026](https://huggingface.co/datasets/peresjav/lerobot-2026) (dataset) | Recorded simulation episodes, 512 per policy, as Parquet, without camera images |
-| [JustoDario/flexnsense_skill1](https://huggingface.co/datasets/JustoDario/flexnsense_skill1) (dataset) | 226 teleoperated episodes on the real second arm: moving the scale from one finger to the next, three tasks, three cameras |
-| [JustoDario/flexnsense_act_skill1_rightindex2middle](https://huggingface.co/JustoDario/flexnsense_act_skill1_rightindex2middle) | The first ACT policy trained on those recordings (43 episodes). The one that ran on the arm |
-| [JustoDario/flexnsense_smolvla](https://huggingface.co/JustoDario/flexnsense_smolvla) | SmolVLA fine-tuned on the same 43 episodes. Not tested on the arm |
+Moving the scale's hook from one finger to the next is fiddly, contact-rich, and has no clean
+analytic solution. So it is learned, from demonstrations:
 
-The newer multi-task ACT policies are in private repos for now; [robot_training/README.md](./robot_training/README.md) lists them.
+1. **Record.** A human teleoperates arm 2 through the move with a leader arm, while Station
+   records joints and three cameras. [`arm2/data_collection/`](./arm2/data_collection/)
+2. **Augment.** WiLoR runs on the side camera and writes 21 hand keypoints into every frame, so
+   the policy sees where the fingers actually are, not just where the arm is.
+3. **Train.** ACT on the resulting LeRobot dataset, one multi-task model covering all three
+   finger-to-finger moves, selected by a `--task` phrase.
+   [`arm2/training/`](./arm2/training/)
+4. **Run.** The policy drives the arm through Station, with its own goal-rate limits, abort rule
+   and stalled-motor hold. It does **not** implement this project's safety layer and must not be
+   used near a patient's hand.
 
-## Getting started
+**226 teleoperated episodes**, publicly available:
+[JustoDario/flexnsense_skill1](https://huggingface.co/datasets/JustoDario/flexnsense_skill1).
+
+A policy cannot confirm its own success, so it never reports one. A person watching the arm
+presses a button, `stop_and_home.py` stops the policy and homes the arm, and its **exit code**
+decides what the session is told. That is the whole reason `PolicyHookMover` raises instead of
+returning a plausible outcome: a hook reported as moved when it has not moved means arm 1 starts
+pulling on a finger the hook is not attached to.
+
+### Both arms in simulation
+
+The bench is rebuilt in NVIDIA Isaac Sim, with the scale as a real physical object rather than
+a scripted constraint, and both arms are trained together in Isaac Lab across thousands of
+tables at once. **Simulation only**: none of these policies has moved the real arm.
+[`isaac-sim/`](./isaac-sim/)
+
+![Isaac Sim: the pull arm giving way, seen from the bench, the overhead camera that reads the scale, and the camera on the move arm. The force is printed on the frame.](docs/images/isaac-sim.gif)
+
+The force on the frame is the simulator's own, so it shows directly whether a policy stayed
+under the 1.96 N limit, which a video of the arm alone cannot.
+
+![Isaac Lab: one table before training, with the share of tables over the force limit and the share with the loop on its target finger printed on the frame](docs/images/isaac-lab.gif)
+
+Before training, 47.6% of tables are over the force limit and none has the loop on its target
+finger. Those two numbers are the reward, and watching them is how a training run is judged.
+
+## Running a session
+
+One block, on one finger, against the real arm:
 
 ```bash
-git clone https://github.com/anatissera/leukerbad-hackathon.git && cd leukerbad-hackathon
-uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
-.venv/bin/python -m pytest -q                   # all tests, no camera, robot or Station needed
-.venv/bin/python -m gauge_reader.launcher      # gauge reader control panel: camera, calibrate, run
-.venv/bin/python -m gauge_reader.server        # live force for the dashboard (ws://127.0.0.1:8766/force)
-.venv/bin/python -m hand_tracking run           # finger flexion angles, live window (downloads the model once)
-.venv/bin/python -m hand_tracking run --jsonl frames.jsonl   # + the full per-frame HandFrame
+.venv/bin/python scripts/session/run_session.py --finger index --cap-gf 150 --reps 3
 ```
 
-Arm (NormaCore Station, motor ids, calibration, `.env`): [SETUP.md](./SETUP.md). There is no
-LeRobot support for the ElRobot - see [docs/elrobot.md](./docs/elrobot.md) before assuming
-otherwise.
+No tuning flags: the bench-proven profile in `config/session-tuning.json` supplies them, and the
+banner prints the gate's limits on every run. From a clinician's prescription instead:
+
+```bash
+.venv/bin/python scripts/session/run_session.py --protocol config/protocols/tendon-repair-active.json
+```
+
+Continuous passive motion, which walks between two saved poses rather than chasing a force:
+
+```bash
+.venv/bin/python scripts/session/run_cpm.py --no-camera --reps 1   # check the path, nothing attached
+.venv/bin/python scripts/session/run_cpm.py --reps 3               # with the finger hooked
+```
+
+### Across two machines
+
+Arm 2 and its cameras run on one computer, arm 1 and the force camera on another. **Arm 1's
+machine is the brain**, and that is not a preference: every safety decision is a function of the
+force reading, so putting the brain on the machine that owns the force camera keeps all of them
+off the network.
+
+```bash
+# on arm 2's machine
+.venv/bin/python -m arm1.session.link serve --host 0.0.0.0 --port 8770
+
+# on arm 1's machine, one request over the real socket
+.venv/bin/python scripts/session/try_remote_hook.py --url ws://<arm2-host>:8770/arm2 --finger index
+```
+
+Custody is a **lease with a deadline**, not a flag. A flag set by "you may move" stays set when
+the link dies and the far arm keeps going with nobody able to stop it; a lease has to be renewed,
+so silence means stop. Four message types, no shell commands, and why:
+[docs/two-machine-session.md](./docs/two-machine-session.md).
+
+## The dashboard
+
+```bash
+cd dashboard && pnpm install
+pnpm dev                        # bench build: probes 127.0.0.1 for the gauge and tracker
+NEXT_PUBLIC_DEMO=1 pnpm dev     # demonstration build: nothing attached, and it says so
+```
+
+![The dashboard: a 3D hand with the flexor tendons tinted by estimated recovery, the repetition machine on the left, the patient's record and per-finger recovery curves on the right](docs/images/dashboard.gif)
+
+A 3D MyoHand in MuJoCo WebAssembly with the flexor tendons tinted by estimated recovery, hand
+tracking on the laptop camera, the repetition machine, and a text/voice assistant that answers
+from the results. `NEXT_PUBLIC_DEMO` is the only
+difference between the public build and the one that runs beside the rig: with it set nothing is
+probed, and every panel carries a badge saying where its numbers come from.
+
+When a real session is running, `python -m arm1.session.snapshot_server` streams it and the panel
+shows the arm instead of the simulation, badged `live session`.
+[docs/dashboard-demo.md](./docs/dashboard-demo.md)
+
+## What has and has not touched a patient
+
+Nothing here has touched a patient. Against the **bench**, with a finger in the hook:
+
+| | |
+|---|---|
+| Admittance control, `active` mode | runs, full sets completed on the real arm |
+| Coordinated three-joint pull | runs |
+| Gauge reader | runs, with a known intermittent fault (below) |
+| `cpm` mode | implemented and tested in software, **has not moved a real finger** |
+| Two-machine handover | protocol verified over a real socket, **never run with both arms powered** |
+| Arm 2 policies | one ACT ran on the arm with a mediocre result; the newer ones are untested on it |
+| Isaac Lab policies | simulation only |
+
+**Known fault:** the gauge reader occasionally swaps the two reference stickers, which inverts
+the whole scale (`g` reads as `570 - g`) and stays inverted until tracking breaks. Diagnosed to
+the orientation tiebreak in `arm1/gauge_reader/stickers.py`; the profile that is supposed to tell the
+two ends apart scores both orientations identically on this rig. Not yet fixed.
+
+## Setup
+
+```bash
+git clone https://github.com/anatissera/flexnsense.git && cd flexnsense
+uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
+.venv/bin/python -m pytest -q          # 1168 tests, no camera, robot or Station needed
+```
+
+Everything runs without hardware. The arm, Station, motor ids and `.env`: [SETUP.md](./SETUP.md).
+There is **no LeRobot support for the ElRobot**, so every path to the arm goes through
+NormaCore's Station: [docs/elrobot.md](./docs/elrobot.md).
+
+```bash
+.venv/bin/python -m arm1.gauge_reader.launcher     # camera, calibrate, run
+.venv/bin/python -m arm1.gauge_reader.server       # live force for the dashboard
+.venv/bin/python -m arm1.hand_tracking run         # finger flexion angles
+```
 
 ## Repository layout
 
 ```
-lib/              shared helpers for any script: camera, .env settings, Kalman filter, geometry, Station client
-gauge_reader/     subtask 2: read the PESOLA scale through a camera (python -m gauge_reader)
-hand_tracking/    subtask 5: finger flexion angles through a camera (python -m hand_tracking)
-control/          subtask 3: the admittance controller, its safety gate and a simulation
-session/          subtask 5b: exercise modes, the prescription, the session and rep machines, the two-arm interlock
-scripts/          robot and calibration scripts, against Station (force calibration, bench measurements)
-scripts/lerobot/  NOT our hardware: the original SO-101-via-LeRobot scripts, parked in case we ever port
-robot_training/   train ACT policies on ElRobot datasets recorded with NormaCore Station, upload them, run them on the arm (robot_training/README.md)
-tests/            tests per package: tests/lib/, tests/gauge_reader/, tests/hand_tracking/, tests/robot_training/
-docs/             guides and diagrams
+arm1/             the tether arm: inverse kinematics and a fixed control law, nothing learned
+  lib/            shared helpers, no device knowledge: camera, .env, Kalman filter, geometry, kinematics, Station client
+  control/        the admittance controller: safety gate, the law, the hardware loop, simulation
+  session/        prescriptions, exercise modes, the rep machine, the interlock, the two-machine protocol
+  gauge_reader/   read the PESOLA scale through a camera
+  hand_tracking/  finger flexion angles (MediaPipe on CPU, WiLoR for precision capture)
+arm2/             the hook mover: teleoperated recordings and the policy trained on them
+  data_collection/  record episodes through Station, with hand keypoints in every frame
+  training/         Station Parquet to LeRobot, ACT training, inference on the arm
+scripts/          grouped by what they do to the rig (scripts/README.md)
+  session/        run an exercise with a finger in the hook
+  arm/            move or configure the arm, nothing attached
+  measure/        produce a number the repo then depends on
+  preview/        render or inspect, nothing moves
+config/           committed: joint calibration, bench measurements, tuning profile, example protocols
+dashboard/        the Next.js clinician dashboard (own package.json)
+isaac-sim/        both arms in Isaac Sim and Isaac Lab (simulation only)
+sim/              URDF-level checks that need no simulator
+tests/            one directory per package above
+docs/             guides, design documents, the contributor guide and the pitch deck
 ```
 
-Reusable code goes in `lib/`, for example:
+`arm1/` and `arm2/` is the division the two halves of this project actually have: the tether
+arm is solved with inverse kinematics and a control law nobody trained, and the hook mover is a
+policy cloned from teleoperation. They share `lib/` and Station, and nothing else.
 
-```python
-from lib.camera import open_source       # cameras by number or name ("iphone"), or video files
-from lib.filters import ReadingFilter    # smooth any noisy signal, with a "steady" flag
 
-src, filt = open_source(camera="iphone"), ReadingFilter()
-ok, frame, ts, idx = src.read()
-```
+## Configuration, and which machine holds what
 
-## Documentation and contributing
+| File | Holds | Committed |
+|---|---|---|
+| `config/session-tuning.json` | the machine's own tuning: damping, speeds, camera gating | yes, it describes the shared rig |
+| `config/protocols/*.json` | a clinician's prescription: finger, mode, reps, cap, hold | yes, it is shared clinical intent |
+| `config/calibration/*.json` | joint ranges, home poses, bench constants | yes, measured not chosen |
+| `config/scale_calib.json` | where *this* camera sees the scale | no, per machine |
+| `.env` | Station host, bus serials, camera index | no, per machine |
 
-| Document | What it covers |
+The dividing question for tuning versus prescription is "would a different patient change this
+number?" If yes it is a prescription, if no it is tuning.
+
+Three values in the tuning profile are deliberately **looser** than what the code shipped with:
+the hard ceiling, the blind-frame count, and the yield-direction check being off. They sit in
+their own `safety` block and are printed on every run, because a loosened limit nobody is shown
+on the way past stops being a decision and becomes an accident.
+
+Which physical arm is which, bus serials, voltages:
+[docs/hardware-setup.md](./docs/hardware-setup.md).
+
+## Models and data
+
+| Repo | What it holds |
 |---|---|
-| [ROADMAP.md](./ROADMAP.md) | The subtasks, their order and branches |
-| [SETUP.md](./SETUP.md) | Python, Station, motors and `.env` |
-| [docs/elrobot.md](./docs/elrobot.md) | The ElRobot and NormaCore Station: why not LeRobot, the real client, what's unverified |
-| [docs/bench-measurements.md](./docs/bench-measurements.md) | **How to take the bench measurements**: tether stiffness, fingertip excursion, ticks per metre |
-| [docs/force-calibration.md](./docs/force-calibration.md) | The servo-current calibration experiment |
-| [docs/scale-reader.md](./docs/scale-reader.md) | The gauge reader: setup, calibration, precision, troubleshooting |
-| [docs/hand-tracking.md](./docs/hand-tracking.md) | Hand landmarks: model, the flexion angle, running it |
-| [docs/hardware-setup.md](./docs/hardware-setup.md) | Which physical arm is which: Follower 1/2, Leader 1/2, bus serials, who runs what |
-| [docs/session-orchestration.md](./docs/session-orchestration.md) | The two exercise modes, the rep and session state machines, the two-arm interlock, why arm 1 needs no VLA |
-| [docs/pull-mode-design.md](./docs/pull-mode-design.md) | Passive (device-driven) mode: the inverted monotonicity guard, the three stop conditions, end-feel. Designed, not implemented |
-| [docs/pitch-v6-storytelling/](./docs/pitch-v6-storytelling/) | Pitch deck (HTML), current version: version 5 with a 25-second intro film in front, which starts on one key press and moves to the first slide when it ends (online at **https://flexnsense.vercel.app**, or open `index.html` locally). The words to say over the film are in `INTRO-SCRIPT.md`. |
-| [docs/pitch-v5-storytelling/](./docs/pitch-v5-storytelling/) | Pitch deck (HTML): the pitch told as one patient's story in four acts, with real footage (open `index.html` locally). The original PowerPoint is [docs/Pitch.pptx](./docs/Pitch.pptx) |
-| [AGENTS.md](./AGENTS.md) | Git workflow, branch naming, rules for contributors and coding agents |
+| [JustoDario/flexnsense_skill1](https://huggingface.co/datasets/JustoDario/flexnsense_skill1) | 226 teleoperated episodes on the real arm 2: three finger-to-finger tasks, three cameras, hand keypoints per frame |
+| [JustoDario/flexnsense_act_skill1_rightindex2middle](https://huggingface.co/JustoDario/flexnsense_act_skill1_rightindex2middle) | The first ACT policy, the one that ran on the arm |
+| [JustoDario/flexnsense_smolvla](https://huggingface.co/JustoDario/flexnsense_smolvla) | SmolVLA fine-tuned on the same episodes. Untested on the arm |
+| [peresjav/flexnsense-sim-policies](https://huggingface.co/peresjav/flexnsense-sim-policies) | The Isaac Lab policies, training code and videos. Simulation only |
+| [peresjav/lerobot-2026](https://huggingface.co/datasets/peresjav/lerobot-2026) | 512 simulated episodes per policy, Parquet, no images |
 
-`main` is protected: work on the roadmap branch and open a PR. Commits and PRs do not credit AI tools (see [AGENTS.md](./AGENTS.md)).
+## Documentation
 
-## Dashboard (Next.js app)
+| Document | Covers |
+|---|---|
+| [SETUP.md](./SETUP.md) | Python, Station, motors, `.env` |
+| [docs/elrobot.md](./docs/elrobot.md) | The arm and Station: why not LeRobot, what is verified |
+| [docs/hardware-setup.md](./docs/hardware-setup.md) | Which arm is which, bus serials, who runs what |
+| [docs/bench-measurements.md](./docs/bench-measurements.md) | How to take every bench number this repo depends on |
+| [docs/admittance-design.md](./docs/admittance-design.md) | The control law, choosing `B`, what the simulation established |
+| [docs/session-orchestration.md](./docs/session-orchestration.md) | Modes, the rep machine, the two-arm interlock |
+| [docs/two-machine-session.md](./docs/two-machine-session.md) | The socket protocol, the lease, the four rules a network must not break |
+| [docs/scale-reader.md](./docs/scale-reader.md) | The gauge reader: calibration, precision, troubleshooting |
+| [docs/hand-tracking.md](./docs/hand-tracking.md) | MediaPipe and WiLoR, the flexion angle, the VRAM question |
+| [docs/force-calibration-result.md](./docs/force-calibration-result.md) | Why servo current cannot stand in for a force sensor |
+| [docs/dashboard-demo.md](./docs/dashboard-demo.md) | The two dashboard builds, what is real in each |
+| [docs/contributing.md](./docs/contributing.md) | Git workflow, units, rules for contributors and coding agents |
 
-A browser dashboard in `dashboard/`: a 3D MyoHand (MuJoCo, in the browser), the repetition machine driving a simulated patient, two example patients with a clinician's prescription and their past sessions, a finger-curl stress test with recovery metrics and charts, and a text/voice assistant (OpenAI) that answers from the results. All data is simulated.
+`main` is protected: work on a branch and open a PR.
 
-```bash
-cd dashboard
-pnpm install                    # Node 20+, pnpm 9
-cp .env.example .env            # then set OPENAI_API_KEY in .env
-pnpm dev                        # bench build: probes 127.0.0.1 for the gauge and WiLoR servers
-NEXT_PUBLIC_DEMO=1 pnpm dev     # demonstration build: says plainly that nothing is attached
-```
+## Licences
 
-The same build runs next to the rig and as a public demonstration, and `NEXT_PUBLIC_DEMO` is the
-only difference: with it set, nothing is probed, the force panel is a labelled simulation in the
-gauge's place, and every panel carries a badge for where its numbers come from. Hand tracking works
-either way, on whatever camera the machine has. What is real in each build, the two example
-patients, the three stops (button, top bar, voice in four languages), and how to deploy it:
-[docs/dashboard-demo.md](./docs/dashboard-demo.md).
+This repository is MIT ([LICENSE](./LICENSE)). The pieces it builds on are not all as
+permissive, and two of them matter for anything beyond research:
 
-- The keys are read server-side only (`dashboard/app/api/chat`, `dashboard/app/api/realtime`); the browser never sees them. Without one the simulator still runs, but the assistant returns an error.
-- The **text** assistant takes either `GEMINI_API_KEY` (Gemini's OpenAI-compatible endpoint) or `OPENAI_API_KEY`. The **voice** assistant is OpenAI-only: the browser speaks OpenAI's realtime protocol directly, which is a different protocol from Google's Live API, not a different base URL. The emergency stop by voice needs no key at all, being the browser's own speech recognition.
-- Optional overrides in `dashboard/.env`: `GEMINI_MODEL`, `OPENAI_MODEL` (chat) and `OPENAI_REALTIME_MODEL` (voice).
-- The MyoHand model files are served from `dashboard/public/models/myohand`.
-- Voice needs microphone permission and network access to `api.openai.com`.
-- The assistant's two API routes are rate limited per address; a public deployment also wants a spend limit on the OpenAI key.
-- The dashboard needs a screen of at least 1280 by 800 and says so below that.
-- (from `dashboard/`) `pnpm build && pnpm start` runs the production build; `pnpm lint` runs ESLint.
+| Component | Licence | What it means here |
+|---|---|---|
+| NormaCore Station and the ElRobot URDF | MIT | no constraint |
+| LeRobot | Apache 2.0 | no constraint |
+| MediaPipe, OpenCV, NumPy | Apache 2.0 / BSD | no constraint |
+| MuJoCo (dashboard, WebAssembly) | Apache 2.0 | no constraint |
+| **WiLoR** | **CC BY-NC-ND 4.0** | **non-commercial, no derivatives.** Used for hand keypoints in arm 2's training data and as the dashboard's precision tracker |
+| **MANO** (WiLoR depends on it) | own licence, registration required | separate terms, must be accepted directly |
 
-## Where to start
-## Acknowledgements
+**A commercial product could not ship WiLoR or MANO as they stand.** MediaPipe, which is the
+dashboard's default tracker and Apache 2.0, is the path that does not have this problem. This is
+worth settling before any of this leaves research.
 
-Built at the Leukerbad Robotics Hackathon 2026, co-organized by the Edelweiss Innovation & Intelligence Institute (EIII), HerCode, AI Team, EuroTech Federation and TUM-XR. Thanks to the organizers, mentors and hardware partners.
+## Team
+
+Flex'N Sense, built at the Leukerbad Robotics Hackathon 2026 (Elderly Care & Rehabilitation
+track).
+
+| | | |
+|---|---|---|
+| Guillaume Bonifas | Robotics & MedTech | [@Guitool77](https://github.com/Guitool77) |
+| Damien Frechou | Mechatronics, control systems | |
+| Ana Tissera | AI Engineering, Universidad de San Andrés | [@anatissera](https://github.com/anatissera) |
+| Laurence Liang | Applied AI, Mistral | [@TheFloatingString](https://github.com/TheFloatingString) |
+| Javier Peres | AI Engineering | [@peresramirez](https://github.com/peresramirez) |
+| Justo Valverde | Robotics Software Engineering, URJC | |
+
+Thanks to the organizers at the Edelweiss Innovation & Intelligence Institute, HerCode, AI Team,
+EuroTech Federation and TUM-XR, and to the hardware partners.

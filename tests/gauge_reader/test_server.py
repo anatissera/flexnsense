@@ -15,8 +15,8 @@ cv2 = pytest.importorskip("cv2")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from gauge_reader.server import app_for, reading_message  # noqa: E402
-from lib.units import grams_force_to_newtons  # noqa: E402
+from arm1.gauge_reader.server import app_for, reading_message  # noqa: E402
+from arm1.lib.units import grams_force_to_newtons  # noqa: E402
 
 
 class StubResult:

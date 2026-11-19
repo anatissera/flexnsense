@@ -11,7 +11,7 @@ import asyncio
 
 import pytest
 
-from session.link import PATH, QueueLink, app_for, connect_to_actuator
+from arm1.session.link import PATH, QueueLink, app_for, connect_to_actuator
 
 
 def test_send_is_not_a_coroutine():
@@ -86,7 +86,7 @@ def test_health_reports_the_schema_it_speaks():
     fastapi = pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
-    from session.wire import SCHEMA_VERSION
+    from arm1.session.wire import SCHEMA_VERSION
 
     async def on_link(link):
         await asyncio.sleep(3600)
@@ -134,9 +134,9 @@ def test_a_hook_move_round_trips_over_a_real_websocket():
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
-    from session.arm2 import HookResult
-    from session.remote_arm2 import ActuatorSide
-    from session.wire import MessageKind, decode, encode_hook_report
+    from arm1.session.arm2 import HookResult
+    from arm1.session.remote_arm2 import ActuatorSide
+    from arm1.session.wire import MessageKind, decode, encode_hook_report
 
     seen: dict = {}
 
@@ -153,7 +153,7 @@ def test_a_hook_move_round_trips_over_a_real_websocket():
 
     client = TestClient(app_for(on_link))
     with client.websocket_connect(PATH) as ws:
-        from session.wire import Lease, encode_hook_request
+        from arm1.session.wire import Lease, encode_hook_request
 
         ws.send_json(encode_hook_request("middle", Lease(move_id=1, issued_at=0.0,
                                                          period_s=1e6)))
@@ -172,7 +172,7 @@ def test_the_far_end_refuses_a_request_it_cannot_trust_over_a_real_socket():
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
-    from session.remote_arm2 import ActuatorSide
+    from arm1.session.remote_arm2 import ActuatorSide
 
     seen: dict = {"authorised": False}
 
@@ -214,9 +214,9 @@ def test_brain_transport_task_ends_when_the_actuator_disconnects():
 
 
 def test_manual_actuator_reports_the_persons_confirmation(monkeypatch):
-    from session import link as link_module
-    from session.arm2 import HookResult
-    from session.wire import Lease, MessageKind, decode, encode_hook_request
+    from arm1.session import link as link_module
+    from arm1.session.arm2 import HookResult
+    from arm1.session.wire import Lease, MessageKind, decode, encode_hook_request
 
     async def confirm(prompt: str) -> bool:
         assert "index" in prompt

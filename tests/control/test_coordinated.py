@@ -10,10 +10,10 @@ import asyncio
 import numpy as np
 import pytest
 
-from control.admittance import AdmittanceParams
-from control.loop import AxisCalibration, ControlLoop, CoordinatedAxis
-from control.safety import Action, SafetyLimits
-from lib.units import grams_force_to_newtons
+from arm1.control.admittance import AdmittanceParams
+from arm1.control.loop import AxisCalibration, ControlLoop, CoordinatedAxis
+from arm1.control.safety import Action, SafetyLimits
+from arm1.lib.units import grams_force_to_newtons
 
 POSE = {1: 1976, 2: 1719, 3: 2526, 4: 2755, 5: 1907, 6: 1270, 7: 1282}
 PULL_MOTORS = [2, 3, 4]
@@ -38,7 +38,7 @@ class FakeStation:
     stays meaningful whichever register write produced it. `speed_writes` and `accel_writes`
     are the sync_write calls to RAM_GOAL_SPEED and RAM_ACC specifically, decoded back to plain
     ints, for the tests that check the coordinated path is scaling speed per joint rather than
-    writing one motor at a time (`lib.station.set_position` is never called on that path at
+    writing one motor at a time (`arm1.lib.station.set_position` is never called on that path at
     all any more, which is the point: see `ControlLoop._command_coordinated`).
     """
 
@@ -51,7 +51,7 @@ class FakeStation:
         self.commands.append((motor_id, position))
 
     async def sync_write(self, client, bus_serial, address, values):
-        from lib.station import RAM_ACC, RAM_GOAL_POSITION, RAM_GOAL_SPEED
+        from arm1.lib.station import RAM_ACC, RAM_GOAL_POSITION, RAM_GOAL_SPEED
 
         decoded = {m: int.from_bytes(v, byteorder="little") for m, v in values.items()}
         if address == RAM_GOAL_POSITION:
@@ -64,11 +64,11 @@ class FakeStation:
 
 @pytest.fixture
 def fake_station(monkeypatch):
-    import lib.station
+    import arm1.lib.station
 
     fake = FakeStation()
-    monkeypatch.setattr(lib.station, "set_position", fake.set_position)
-    monkeypatch.setattr(lib.station, "sync_write", fake.sync_write)
+    monkeypatch.setattr(arm1.lib.station, "set_position", fake.set_position)
+    monkeypatch.setattr(arm1.lib.station, "sync_write", fake.sync_write)
     return fake
 
 
@@ -99,7 +99,7 @@ def test_the_direction_is_normalised():
 def test_yielding_moves_along_the_tether_not_against_it():
     """Positive `step_m` means give way, so the gripper must travel opposite to the direction
     that increases tension. Getting this backwards tightens the spring on a finger."""
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain()
     a = coordinated()
@@ -113,7 +113,7 @@ def test_yielding_moves_along_the_tether_not_against_it():
 
 
 def test_a_step_is_shared_across_the_joints():
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     deltas = coordinated().ticks_for(0.002, POSE, load_chain())
     assert set(deltas) == set(PULL_MOTORS)
@@ -123,7 +123,7 @@ def test_a_step_is_shared_across_the_joints():
 def test_no_joint_exceeds_the_per_cycle_tick_limit():
     """The second bound, in joint space. A badly conditioned pose can ask for a large joint
     motion to make a small tip motion, and the metre-space limit alone would not catch it."""
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     a = coordinated(max_ticks_per_cycle=10)
     deltas = a.ticks_for(0.050, POSE, load_chain())      # deliberately a huge step
@@ -132,7 +132,7 @@ def test_no_joint_exceeds_the_per_cycle_tick_limit():
 
 def test_scaling_down_keeps_the_direction():
     """When the limit bites, the step must get shorter, not crooked."""
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain()
     full = coordinated(max_ticks_per_cycle=10_000).ticks_for(0.010, POSE, chain)
@@ -220,7 +220,7 @@ def test_a_dropout_still_stops_a_coordinated_pull(fake_station):
 def test_for_pose_picks_the_joints_itself():
     """What makes this usable without knowing the pose in advance: the caller supplies the
     pose and the pull, not a list of motor ids."""
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain()
     direction = chain.tip_velocity_direction(4, POSE)
@@ -233,7 +233,7 @@ def test_for_pose_picks_the_joints_itself():
 def test_for_pose_refuses_a_pull_this_pose_cannot_follow():
     """Refusing is the point: the alternative is an arm that tracks the first few millimetres
     and then wanders off the tether's line with a finger attached."""
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain()
     centred = {m: 2048 for m in range(1, 8)}
@@ -246,7 +246,7 @@ def test_for_pose_refuses_a_pull_this_pose_cannot_follow():
 
 
 def test_for_pose_carries_the_direction_through():
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain()
     direction = chain.tip_velocity_direction(4, POSE)
@@ -264,7 +264,7 @@ def test_for_pose_checks_the_stroke_it_is_told_to_travel():
     never happens would refuse a pull that is entirely sound, so `for_pose` takes the travel
     direction explicitly rather than assuming it equals `direction`.
     """
-    from lib.kinematics import load_chain, tether_tension_direction
+    from arm1.lib.kinematics import load_chain, tether_tension_direction
 
     chain = load_chain()
     pose = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275}
@@ -279,7 +279,7 @@ def test_for_pose_checks_the_stroke_it_is_told_to_travel():
 
 
 def test_for_pose_still_defaults_to_checking_the_direction_given():
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain()
     direction = chain.tip_velocity_direction(4, POSE)
@@ -291,7 +291,7 @@ def test_for_pose_still_defaults_to_checking_the_direction_given():
 # ---------------------------------------------------------------- sub-tick accumulation
 def straightness(step_m: float, distance_m: float, use_residual: bool) -> float:
     """Worst deviation from the tether's line, pulling `distance_m` in steps of `step_m`."""
-    from lib.kinematics import load_chain, tether_tension_direction
+    from arm1.lib.kinematics import load_chain, tether_tension_direction
 
     chain = load_chain()
     pose = {1: 2045, 2: 1468, 3: 2458, 4: 2775, 5: 1877, 6: 1524, 7: 3274}
@@ -339,7 +339,7 @@ def test_the_residual_does_not_spoil_steps_that_were_already_fine():
 def test_the_remainder_stays_under_one_tick_per_joint():
     """It is a rounding remainder, not a backlog. If it could grow it would eventually hand
     the arm a jump instead of a step."""
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     chain = load_chain()
     a = coordinated()
@@ -354,7 +354,7 @@ def test_the_remainder_stays_under_one_tick_per_joint():
 def test_the_per_cycle_clamp_drops_the_remainder_rather_than_banking_it():
     """The clamp is a safety bound, not a rounding error. Carrying the clamped-away motion
     forward would return it as a burst on a later cycle, which is what the bound prevents."""
-    from lib.kinematics import load_chain
+    from arm1.lib.kinematics import load_chain
 
     a = coordinated(max_ticks_per_cycle=5)
     residual = {m: 0.4 for m in PULL_MOTORS}
@@ -379,7 +379,7 @@ def test_for_pose_refuses_when_tick_ranges_rules_out_a_joint():
     """The bug this closes: `choose_pull_motors`/`can_pull_straight` had no idea a joint's
     real travel is narrower than the URDF believes, so two joints could quietly compensate
     for a third pinned at its stop while every geometric check kept reporting a clean pull."""
-    from lib.kinematics import load_chain, tether_tension_direction
+    from arm1.lib.kinematics import load_chain, tether_tension_direction
 
     chain = load_chain()
     pose = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275}
@@ -396,7 +396,7 @@ def test_for_pose_refuses_when_tick_ranges_rules_out_a_joint():
 def test_for_pose_still_works_with_tick_ranges_omitted():
     """Backwards compatible: every earlier test in this file calls for_pose without
     tick_ranges and must keep passing unchanged."""
-    from lib.kinematics import load_chain, tether_tension_direction
+    from arm1.lib.kinematics import load_chain, tether_tension_direction
 
     chain = load_chain()
     pose = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275}
@@ -407,7 +407,7 @@ def test_for_pose_still_works_with_tick_ranges_omitted():
 
 
 def test_for_pose_accepts_a_wide_enough_tick_range():
-    from lib.kinematics import load_chain, tether_tension_direction
+    from arm1.lib.kinematics import load_chain, tether_tension_direction
 
     chain = load_chain()
     pose = {1: 2049, 2: 1469, 3: 2468, 4: 2772, 5: 1879, 6: 1525, 7: 3275}
@@ -421,7 +421,7 @@ def test_for_pose_accepts_a_wide_enough_tick_range():
 
 # ---------------------------------------------------------------- speed/accel through the loop
 def test_the_coordinated_loop_scales_speed_per_joint(fake_station):
-    """The whole point of porting this from scripts/jog_coordinated.py: the real controller
+    """The whole point of porting this from scripts/arm/jog_coordinated.py: the real controller
     must get the same per-joint speed matching, not just the diagnostic script. Without it,
     whichever joint travels furthest this cycle is still moving once the others have stopped,
     which is the wobble `scaled_speeds` exists to remove."""

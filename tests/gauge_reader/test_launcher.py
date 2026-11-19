@@ -1,4 +1,4 @@
-from gauge_reader.launcher import MODES, build_cmd
+from arm1.gauge_reader.launcher import MODES, build_cmd
 
 
 def test_build_cmd():
@@ -16,7 +16,7 @@ def test_build_cmd_mode():
 
 
 def test_build_cmd_parses():
-    from gauge_reader.cli import build_parser
+    from arm1.gauge_reader.cli import build_parser
     for mode in ("stickers", "fixed"):
         a = build_parser().parse_args(build_cmd("calibrate", 2, mode=mode)[4:])
         assert a.mode == mode and a.camera == 2
@@ -24,8 +24,8 @@ def test_build_cmd_parses():
 
 def test_calib_summary_both_modes(tmp_path, monkeypatch):
     import pytest
-    import gauge_reader.launcher as L
-    vc = pytest.importorskip("gauge_reader.calibration")
+    import arm1.gauge_reader.launcher as L
+    vc = pytest.importorskip("arm1.gauge_reader.calibration")
     monkeypatch.setattr(L, "CALIB", tmp_path / "c.json")
     assert "Not calibrated" in L.calib_summary()
     vc.Calibration.from_clicks((0, 0), (0, 600)).save(L.CALIB)
@@ -37,8 +37,8 @@ def test_calib_summary_both_modes(tmp_path, monkeypatch):
 
 def test_camera_choices_on_linux(tmp_path, monkeypatch):
     # the panel's camera list on a faked Linux: V4L2 numbers and names, no iPhone needed for a default
-    import gauge_reader.launcher as L
-    from lib import camera
+    import arm1.gauge_reader.launcher as L
+    from arm1.lib import camera
     (tmp_path / "video2").mkdir()
     (tmp_path / "video2" / "name").write_text("ROG EYE S: ROG EYE S\n")
     (tmp_path / "video2" / "index").write_text("0\n")

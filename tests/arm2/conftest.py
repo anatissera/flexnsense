@@ -1,0 +1,9 @@
+"""arm2/training scripts use flat imports (they are run from their own folder)."""
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2] / "arm2" / "training"
+for p in (ROOT, ROOT / "inference"):
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))

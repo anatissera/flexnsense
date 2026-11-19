@@ -2,7 +2,7 @@
 
 Design notes for roadmap item 3, written after the force-calibration result came back negative
 ([force-calibration-result.md](./force-calibration-result.md)). The clinical behaviour is
-unchanged from [admittance-control.md](./admittance-control.md); what changes is that there is
+unchanged from the original design; what changes is that there is
 exactly one force signal, it arrives at ~30 Hz, and it can disappear for a frame at a time.
 
 ## The loop
@@ -15,7 +15,7 @@ camera frame
        -> StickerFrameResult: .newtons | None, .stable, .found, .reason
   -> safety gate                                       # new, this item
   -> admittance law                                    # new, this item
-  -> lib.station.set_position(bus, motor, ticks)        # existing, hardware-verified
+  -> arm1.lib.station.set_position(bus, motor, ticks)        # existing, hardware-verified
 ```
 
 `StickerPipeline` already does the hard part: red-blob detection, the sticker-relative fraction
@@ -101,10 +101,10 @@ Simulating the closed loop (tether at 56.2 N/m, 30 Hz, patient pulling at a cons
 gives a relationship worth knowing before touching the bench. 56.2 N/m is the bench-measured
 stiffness of the whole tether, spring plus cord plus attachments, not the spring alone: hand-pull
 the PESOLA through 50-500 gf and back, measuring the distance between a fixed and a moving
-reference mark at each level (`scripts/measure_tether_stiffness.py`, fit by `lib.stiffness`). It
+reference mark at each level (`scripts/measure/measure_tether_stiffness.py`, fit by `lib.stiffness`). It
 replaces the datasheet shortcut this doc used before measuring (600 gf over ~110 mm of printed
 scale = 53.5 N/m), which was always going to be a little too stiff, since the real tether adds a
-cord in series with the spring. The raw sweep is `data/tether_stiffness.csv`; the worst up/down
+cord in series with the spring. The raw sweep is `config/measurements/tether_stiffness.csv`; the worst up/down
 gap in it, 6 mm at 400 gf, is the floor on any displacement later inferred from a force reading
 (the `ticks_per_metre` measurement, next).
 

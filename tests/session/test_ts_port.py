@@ -24,14 +24,14 @@ from pathlib import Path
 
 import pytest
 
-from hand_tracking.excursion import fit_excursion, tip_minus_wrist
-from hand_tracking.landmarks import all_flexion_deg
-from lib.units import STANDARD_GRAVITY_M_S2, grams_force_to_newtons, newtons_to_grams_force
-from session.fingers import normalise
-from session.instructions import instruction_for, instruction_key
-from session.modes import MODES, Phase, plan_for
-from session.protocol import Block, Protocol
-from session.reps import RepInput, RepMachine
+from arm1.hand_tracking.excursion import fit_excursion, tip_minus_wrist
+from arm1.hand_tracking.landmarks import all_flexion_deg
+from arm1.lib.units import STANDARD_GRAVITY_M_S2, grams_force_to_newtons, newtons_to_grams_force
+from arm1.session.fingers import normalise
+from arm1.session.instructions import instruction_for, instruction_key
+from arm1.session.modes import MODES, Phase, plan_for
+from arm1.session.protocol import Block, Protocol
+from arm1.session.reps import RepInput, RepMachine
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DASHBOARD = REPO_ROOT / "dashboard"

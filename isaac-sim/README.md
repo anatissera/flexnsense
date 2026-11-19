@@ -11,12 +11,12 @@ what does not is stated plainly below and in [docs/06-limits-and-next.md](docs/0
 
 - **Nothing here has run on the real arm.** The policies were trained and measured in simulation only.
 - **The policy to test is `policies/pull_bench_v1`** (the pull arm, trained on the full bench at the pace of the real
-  control loop). It is in this folder, ready to run with `robot_training/inference`. Go through the steps below in
+  control loop). It is in this folder, ready to run with `arm2/training/inference`. Go through the steps below in
   order; the first three need no robot.
 - **The first move policy (`move_v1`) is known to be wrong for real use**: in its training task the scale is not a
   physical object, the whole move takes about 0.4 s, and it starts already hovering over the scale. The jointly
   trained one (`team_v3`, below) starts from rest and takes 3.5 s, but it is a simulation result too.
-  For moving the scale between fingers, the policies in `robot_training/` (trained on real recordings) are the ones
+  For moving the scale between fingers, the policies in `arm2/training/` (trained on real recordings) are the ones
   to use.
 
 ## Both arms learning together (16 November)
@@ -48,17 +48,17 @@ After 62 minutes of training the policy completes the whole sequence on all 1,02
 simulation result only, its pulls overshoot 200 g by about 17 g, and its gripper is faster than wanted. The record is in
 [docs/08-physical-contact.md](docs/08-physical-contact.md); the policy is in `policies/phys_v1/`.
 
-## Test the pull policy with `robot_training/inference`
+## Test the pull policy with `arm2/training/inference`
 
 The policy plugs into the control loop of branch `feature/robot-training` without changing it: it takes the eight
 `position_norm` values of a Station frame and returns `goal_norm`, 10 times a second, and that loop's Station code
 and tick-level safety (`GoalSafety`) do the rest. Station's camera pictures are not used; the force comes from
 `gauge_reader` reading the scale's own camera inside the same process.
 
-**What you need:** the environment of `robot_training/setup_env.sh`. It already has everything: torch, numpy,
+**What you need:** the environment of `arm2/training/setup_env.sh`. It already has everything: torch, numpy,
 OpenCV and norma-core's `station_py`. No extra package. Run from a checkout that has both this folder and
-`robot_training/` (merge one branch into the other, or pass `--robot-training <path to robot_training/inference>`).
-On Linux, `python -m gauge_reader cameras` lists the cameras once pull request #45 is merged; until then pass the
+`arm2/training/` (merge one branch into the other, or pass `--robot-training <path to arm2/training/inference>`).
+On Linux, `python -m arm1.gauge_reader cameras` lists the cameras once pull request #45 is merged; until then pass the
 camera's number.
 
 **If you already ran `run_pull_on_robot.py` with `pull_v1`:** that was the first policy (60 decisions a second, one
@@ -109,15 +109,15 @@ example `[1, -1, 1, 1, 1, 1, 1]`. A quick sanity check that needs no table: put 
 run step 5 (dry run); the line it prints must show "along" near 0 mm and stay near 0 while nobody pulls. A wrong
 direction shows up as "along" jumping as soon as the arm is touched.
 
-The check was done against the calibration of bus `5B8E114979` (`config/calibration/`). `robot_training/inference`
+The check was done against the calibration of bus `5B8E114979` (`config/calibration/`). `arm2/training/inference`
 defaults to bus `5B3D050113`: pass the right `--bus-serial`, and if that arm's ranges differ, the mapping needs
 checking for it too.
 
 ### 4. Set up the bench
 
-1. Station running, the follower with torque, the leader without (as in `robot_training/README.md`, section 4.1).
+1. Station running, the follower with torque, the leader without (as in `arm2/training/README.md`, section 4.1).
 2. The scale's calibration on this machine: `config/scale_calib.json` (it is per machine and not in git; make it with
-   `python -m gauge_reader calibrate`). The script opens the scale's camera itself (`--force-camera`).
+   `python -m arm1.gauge_reader calibrate`). The script opens the scale's camera itself (`--force-camera`).
 3. The arm in the start posture used in training, jaws closed on the scale's ring, the scale level and in line with
    the arm. As `position_norm` for motors 1 to 7 (with all directions +1): 0.50, 0.51, 0.80, 0.52, 0.45, 0.07, 0.54.
    The policy tolerates about 0.1 rad around it; further away it has not been trained.
@@ -143,7 +143,7 @@ while the force is low and go the same way every time the force passes about 1.6
 What protects the arm: `GoalSafety` from `robot_training` (goal change limited per tick, abort if a goal is far from
 the position), a target that never runs more than 0.6 rad ahead of the arm, and a hard stop, with the reason printed,
 when the scale reading is missing for 0.3 s. On that stop the arm **keeps holding** its last goal, as that loop does; it does not release. The
-limits in `robot_training/README.md` section 4.0 apply here as well: do not use it with a patient's hand.
+limits in `arm2/training/README.md` section 4.0 apply here as well: do not use it with a patient's hand.
 
 ## Get the earlier policies, the videos and the recorded episodes
 

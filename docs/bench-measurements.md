@@ -65,7 +65,7 @@ result far from it means something is set up differently, not that the tether ch
 ### Run it
 
 ```bash
-.venv/bin/python scripts/measure_tether_stiffness.py
+.venv/bin/python scripts/measure/measure_tether_stiffness.py
 ```
 
 It asks you, for each force level going up and then the same levels coming back down:
@@ -102,10 +102,10 @@ moved or the needle was not settled when you read it.
 ### What it writes
 
 `tether_n_per_m` and `displacement_uncertainty_m` into `config/calibration/bench.json`, and the
-raw sweep into `data/tether_stiffness.csv`. To re-fit an existing sweep without measuring again:
+raw sweep into `config/measurements/tether_stiffness.csv`. To re-fit an existing sweep without measuring again:
 
 ```bash
-.venv/bin/python scripts/measure_tether_stiffness.py --fit data/tether_stiffness.csv
+.venv/bin/python scripts/measure/measure_tether_stiffness.py --fit config/measurements/tether_stiffness.csv
 ```
 
 ---
@@ -134,7 +134,7 @@ No robot, no tether, no tension. You are only being filmed.
 The order matters and the first step is easy to get wrong.
 
 ```bash
-.venv/bin/python -m hand_tracking run --jsonl data/excursion-middle.jsonl
+.venv/bin/python -m arm1.hand_tracking run --jsonl data/excursion-middle.jsonl
 ```
 
 **The `--jsonl` flag is required.** Without it the command still runs and still writes a file,
@@ -148,7 +148,7 @@ to fit a direction through.
 Stop the recording, then fit it:
 
 ```bash
-.venv/bin/python scripts/measure_tip_excursion.py data/excursion-middle.jsonl --finger middle
+.venv/bin/python scripts/measure/measure_tip_excursion.py data/excursion-middle.jsonl --finger middle
 ```
 
 `--finger` is one of `thumb`, `index`, `middle`, `ring`, `pinky`. Omit it to fit all five from
@@ -213,7 +213,7 @@ cause:
   the tether rather than along it.
 
 No amount of re-measuring fixes this, because the quantity being measured is not well defined for
-a single joint. What replaces it is `scripts/run_session.py --coordinated`, which moves three
+a single joint. What replaces it is `scripts/session/run_session.py --coordinated`, which moves three
 joints together and derives the equivalent conversion, the tether's direction, and `yield_sign`
 from the URDF and the live pose. See the "no single joint follows the tether" section of that
 script's docstring.
@@ -230,7 +230,7 @@ belongs here.
 
 1. Station running, and the norma-core Python client set up (`SETUP.md`).
 2. `FOLLOWER_BUS_SERIAL` set, or passed as `--bus-serial`.
-3. The arm locked in the session pose: `.venv/bin/python scripts/lock_arm.py --motors <id>`.
+3. The arm locked in the session pose: `.venv/bin/python scripts/arm/lock_arm.py --motors <id>`.
 4. The PESOLA anchored between the gripper and a fixed point, under light pre-tension.
 5. **No finger anywhere near the rig**, and nothing else that can be damaged by a pull.
 6. You know **which motor moves along the tether axis**, for `--motor`. Do not guess it.
@@ -265,7 +265,7 @@ the pose safely allows, because the ruler's fixed error divides down over a long
 ### Run it
 
 ```bash
-.venv/bin/python scripts/measure_ticks_per_metre.py --motor <id> --ticks 30,60,90,-30,-60,-90
+.venv/bin/python scripts/measure/measure_ticks_per_metre.py --motor <id> --ticks 30,60,90,-30,-60,-90
 ```
 
 Before it connects to anything, it asks you to type a literal phrase:
@@ -323,10 +323,10 @@ arm and a person watching, and none of them is scripted yet:
 - that yielding actually loosens the tether in the real rig, confirming `yield_sign` in practice
   rather than on paper;
 - that covering the camera mid-pull stops the arm advancing **on the first frame**, which is the
-  single most important behaviour to confirm by hand (`session/reps.py`, the device-driven
+  single most important behaviour to confirm by hand (`arm1/session/reps.py`, the device-driven
   deadman);
 - that the two-arm interlock refuses a hook move while the tether is still loaded
-  (`session/interlock.py`);
+  (`arm1/session/interlock.py`);
 - a first finger session at a deliberately low cap, 50 gf or so, in each exercise mode.
 
 Details of what each one is checking: [docs/session-orchestration.md](./session-orchestration.md).

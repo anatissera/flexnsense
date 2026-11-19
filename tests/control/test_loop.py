@@ -2,9 +2,9 @@ import asyncio
 
 import pytest
 
-from control.admittance import AdmittanceParams
-from control.loop import AxisCalibration, ControlLoop, PullPlan
-from control.safety import Action, SafetyLimits
+from arm1.control.admittance import AdmittanceParams
+from arm1.control.loop import AxisCalibration, ControlLoop, PullPlan
+from arm1.control.safety import Action, SafetyLimits
 
 THRESHOLD = 1.96
 TICKS_PER_M = 100_000.0   # 0.01 mm per tick, the order of magnitude of a 4096-tick servo arc
@@ -33,14 +33,14 @@ class FakeClient:
 
 @pytest.fixture
 def patched_set_position(monkeypatch):
-    """Intercept lib.station.set_position, which loop.step imports lazily."""
+    """Intercept arm1.lib.station.set_position, which loop.step imports lazily."""
     calls: list[tuple[int, int]] = []
 
     async def fake(client, bus_serial, motor_id, position):
         calls.append((motor_id, position))
 
-    import lib.station
-    monkeypatch.setattr(lib.station, "set_position", fake)
+    import arm1.lib.station
+    monkeypatch.setattr(arm1.lib.station, "set_position", fake)
     return calls
 
 
@@ -571,7 +571,7 @@ def test_a_pull_stops_at_the_cap_and_not_at_the_anticipation_margin():
     at a set speed and has it from the first cycle, so it has no such problem.
 
     Stopping early here was tried and deadlocks, which `test_cpm_closed_loop.py` demonstrates
-    end to end: `session.reps.RepMachine` ends a stretch at the force reaching the cap, so a
+    end to end: `arm1.session.reps.RepMachine` ends a stretch at the force reaching the cap, so a
     motion that stops `anticipation_n` below it leaves a band where the arm has halted and the
     machine waits for a cap that can no longer be reached, because the thing raising the force
     was the motion that just stopped. One threshold for both is what keeps them agreeing.
