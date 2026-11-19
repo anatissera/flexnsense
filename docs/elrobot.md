@@ -24,6 +24,13 @@ to train on data Station recorded, after converting Station's own Parquet format
   [`lib/station.py`](../lib/station.py) comes from, line for line on the protocol parts.
 - ElRobot hardware (BOM, STL/STEP, manuals, URDF):
   [`hardware/elrobot/`](https://github.com/norma-core/norma-core/tree/main/hardware/elrobot)
+  - Assembly manuals, one per arm, which is what to read before taking one apart:
+    [follower](https://github.com/norma-core/norma-core/blob/main/hardware/elrobot/manual-follower.pdf)
+    and [leader](https://github.com/norma-core/norma-core/blob/main/hardware/elrobot/manual-leader.pdf)
+  - [URDF web playground](https://normacore.dev/elrobot-urdf/): drag the joints and watch the
+    tool point move. Quicker than our own kinematics for answering "can this pose reach that".
+- Station's own README:
+  [`software/station/bin/station/`](https://github.com/norma-core/norma-core/tree/main/software/station/bin/station)
 - Releases (the `station` binary): [releases page](https://github.com/norma-core/norma-core/releases)
 
 ## How Station exposes the servos
