@@ -18,12 +18,16 @@ For recovery after surgery, injury, stroke, or age-related loss of hand strength
 
 </div>
 
-![The finger pulls a spring scale held by the arm. A camera reads the scale in grams. At 200 g the arm gives way, so the force stops rising.](docs/images/tether.gif)
+![The finger pulls a spring scale held by the arm. A camera reads the scale in grams. On reaching the 200 g cap the arm starts moving with the finger, so the reading stays at 200 g.](docs/images/tether.gif)
 
-The arm is the anchor, not the mover. The patient pulls, a camera reads the force off a PESOLA
-spring scale thirty times a second, and when the reading reaches the prescribed cap the arm
-**gives way**: it retreats just fast enough that the spring stretches no further. The force the
-finger feels is therefore bounded by the control law, not by how hard the patient pulls.
+The patient pulls, a camera reads the force off a PESOLA spring scale thirty times a second,
+and on reaching the prescribed cap the arm starts **moving with the finger**, at whatever speed
+holds the reading there. It is not giving way and it is not letting go: the finger keeps working
+against a force the clinician chose, for as far as it can travel. What the patient feels is set
+by the control law, not by how hard they pull.
+
+That is `active` mode, one of two. In `cpm` the arm drives the whole stroke and the finger goes
+along, for a patient who cannot flex yet.
 
 ## Why this is hard
 
@@ -62,10 +66,12 @@ is what the PESOLA is graduated in and what the clinician sets; everything past 
 in newtons.
 
 Every frame resolves to one of three outcomes. Below the cap the arm **holds**, because it is
-the anchor and the patient is meant to work against it. Above the cap it **yields**, retreating
-at a speed proportional to the excess, `v = min((F - cap) / B, v_max)`, so the spring stops
-stretching. With no reading, a stale one, or one past the hard ceiling, it **releases and
-stops**. There is no fourth branch and no guessed force.
+the anchor and the patient is meant to work against it. Above the cap it **moves away**, at a
+speed proportional to how far over it is, `v = min((F - cap) / B, v_max)`. That proportionality
+is the whole trick: the further the reading drifts past the cap the faster the arm retreats, so
+it settles at exactly the speed the finger is advancing and the reading sits on the cap. With no
+reading, a stale one, or one past the hard ceiling, it **releases and stops**. There is no fourth
+branch and no guessed force.
 
 `arm1/control/safety.py` is the gate, `arm1/control/admittance.py` the law, and
 `arm1/control/loop.py` the only part that touches hardware. The first two are pure and
@@ -107,7 +113,7 @@ are involved.
 
 | Mode | Work beat | Reset beat |
 |---|---|---|
-| `active` | the patient flexes, the arm yields at the cap | the arm walks back to where the rep began |
+| `active` | the patient flexes, the arm moves with them to hold the force at the cap | the arm walks back to where the rep began |
 | `cpm` | the arm takes the finger out to the stretch target | the arm brings it back; the patient is passive throughout |
 
 `cpm` is the only mode where the driver does not flip within a repetition, which is the point of
