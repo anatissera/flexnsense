@@ -7,10 +7,14 @@
 **Two robot arms move a patient's finger against a force cap a clinician sets remotely.**<br>
 For recovery after surgery, injury, stroke, or age-related loss of hand strength.
 
+[![Watch the presentation](https://img.shields.io/badge/▶_Watch_the_presentation-0b7285?style=for-the-badge)](https://flexnsense.vercel.app)
+[![Try the dashboard](https://img.shields.io/badge/◉_Try_the_dashboard-2f9e44?style=for-the-badge)](https://flexnsense-dashboard.vercel.app)
+
+[![tests](https://github.com/anatissera/flexnsense/actions/workflows/tests.yml/badge.svg)](https://github.com/anatissera/flexnsense/actions/workflows/tests.yml)
 [![NormaCore ElRobot](https://img.shields.io/badge/arm-NormaCore_ElRobot_7%2B1_DOF-0b7285)](./docs/elrobot.md)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](./SETUP.md)
-[![Tests: 1168](https://img.shields.io/badge/tests-1168-success)](./tests)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](./LICENSE)
+[![WiLoR: CC BY-NC-ND](https://img.shields.io/badge/WiLoR-CC_BY--NC--ND-orange)](./docs/licences.md)
 
 </div>
 
@@ -55,23 +59,17 @@ Details, calibration and failure modes: [docs/scale-reader.md](./docs/scale-read
 
 Admittance control with a deadband, clinically *assist-as-needed*. The gauge reads grams, which
 is what the PESOLA is graduated in and what the clinician sets; everything past that reading is
-in newtons:
+in newtons.
 
-```python
-F = read_force()                            # newtons, from the camera; None if the marker was not seen
-F_threshold = grams_force_to_newtons(200)   # the clinician's cap, set in grams
-if F is None or F > F_max or stale:
-    release_and_stop()          # never guess a force, never hold tension blind
-elif F <= F_threshold:
-    hold_position()             # the arm is the anchor
-else:
-    v = min((F - F_threshold) / B, v_max)   # yield proportionally to the excess
-    move(v * dt, direction_that_reduces_F)  # dt from real frame timestamps
-```
+Every frame resolves to one of three outcomes. Below the cap the arm **holds**, because it is
+the anchor and the patient is meant to work against it. Above the cap it **yields**, retreating
+at a speed proportional to the excess, `v = min((F - cap) / B, v_max)`, so the spring stops
+stretching. With no reading, a stale one, or one past the hard ceiling, it **releases and
+stops**. There is no fourth branch and no guessed force.
 
-`arm1/control/safety.py` is the gate (HOLD / YIELD / RELEASE), `arm1/control/admittance.py` the law,
-`arm1/control/loop.py` the only part that touches hardware. The first two are pure and exhaustively
-tested. Why `B` is bounded by the gap between cap and ceiling:
+`arm1/control/safety.py` is the gate, `arm1/control/admittance.py` the law, and
+`arm1/control/loop.py` the only part that touches hardware. The first two are pure and
+exhaustively tested. Why `B` is bounded by the gap between the cap and the ceiling:
 [docs/admittance-design.md](./docs/admittance-design.md).
 
 ### Three joints, not one
@@ -90,12 +88,20 @@ The joints with low deviation in isolation (5 and 6) score that way because they
 along the tether at all. Coordination is not a refinement here, it is what makes the stroke
 possible.
 
-Two joints are not enough either: their jacobian is rank 2, so the reachable directions form a
-plane, and the stroke that is not in it misses. `CoordinatedAxis` refuses fewer than three, and
-refuses a pose that cannot follow the pull to the end.
+So the step is solved, not chosen. For a desired tether displacement **d**, the joint step is
+the least-squares solution of **J q̇ = d**, where **J** is the 3 x n jacobian of tool position
+with respect to the pull joints at the current pose:
 
-Measured from NormaCore's URDF at the saved home pose, no simulator and no bench needed.
-`.venv/bin/python scripts/arm/which_motor.py` runs the same geometry against the live pose.
+**q̇ = J⁺ d**,  with **J⁺ = Jᵀ(J Jᵀ + λ²I)⁻¹**
+
+The damping term λ is what keeps the step finite near a singularity, where an undamped inverse
+would ask a joint for an enormous move to buy a millimetre. Two joints are not enough for the
+same reason the table shows: **J** is then rank 2, the reachable directions collapse to a plane,
+and any stroke off that plane simply misses. `CoordinatedAxis` refuses fewer than three joints,
+and refuses a pose that cannot follow the pull to the end.
+
+All of it is read from NormaCore's URDF at the saved home pose, so no simulator and no bench
+are involved.
 
 ### Two exercise modes
 
@@ -129,6 +135,10 @@ Force limits on the patient are enforced **independently of the control loop**:
 **A missing force reading is never evidence of a safe force.** That single rule is why the gate
 refuses to guess, why the deadman stops a blind pull, and why the two-machine lease expires on
 silence rather than persisting.
+
+This is a research prototype. **Nothing here has touched a patient**, and the bench results,
+the known faults and what is still untested on hardware are in
+[docs/status.md](./docs/status.md).
 
 ## The two arms are trained completely differently
 
@@ -187,25 +197,12 @@ finger. Those two numbers are the reward, and watching them is how a training ru
 
 ## Running a session
 
-One block, on one finger, against the real arm:
-
-```bash
-.venv/bin/python scripts/session/run_session.py --finger index --cap-gf 150 --reps 3
-```
-
-No tuning flags: the bench-proven profile in `config/session-tuning.json` supplies them, and the
-banner prints the gate's limits on every run. From a clinician's prescription instead:
-
-```bash
-.venv/bin/python scripts/session/run_session.py --protocol config/protocols/tendon-repair-active.json
-```
-
-Continuous passive motion, which walks between two saved poses rather than chasing a force:
-
-```bash
-.venv/bin/python scripts/session/run_cpm.py --no-camera --reps 1   # check the path, nothing attached
-.venv/bin/python scripts/session/run_cpm.py --reps 3               # with the finger hooked
-```
+A session is one command against the real arm, naming the finger, the cap in grams and the
+repetitions. It takes **no tuning flags**: the bench-proven profile in
+`config/session-tuning.json` supplies them, and the gate's limits are printed on every run. A
+clinician's prescription can be passed as a file instead of flags, and `cpm` has its own entry
+point because it walks between two saved poses rather than chasing a force. Every command, with
+its arguments: [scripts/README.md](./scripts/README.md).
 
 ### Across two machines
 
@@ -214,26 +211,13 @@ machine is the brain**, and that is not a preference: every safety decision is a
 force reading, so putting the brain on the machine that owns the force camera keeps all of them
 off the network.
 
-```bash
-# on arm 2's machine
-.venv/bin/python -m arm1.session.link serve --host 0.0.0.0 --port 8770
-
-# on arm 1's machine, one request over the real socket
-.venv/bin/python scripts/session/try_remote_hook.py --url ws://<arm2-host>:8770/arm2 --finger index
-```
-
 Custody is a **lease with a deadline**, not a flag. A flag set by "you may move" stays set when
 the link dies and the far arm keeps going with nobody able to stop it; a lease has to be renewed,
-so silence means stop. Four message types, no shell commands, and why:
+so silence means stop. It is also timed on the receiver's clock, since two machines' monotonic
+clocks have no relation to each other. Four message types, no shell commands, and why:
 [docs/two-machine-session.md](./docs/two-machine-session.md).
 
 ## The dashboard
-
-```bash
-cd dashboard && pnpm install
-pnpm dev                        # bench build: probes 127.0.0.1 for the gauge and tracker
-NEXT_PUBLIC_DEMO=1 pnpm dev     # demonstration build: nothing attached, and it says so
-```
 
 ![The dashboard: a 3D hand with the flexor tendons tinted by estimated recovery, the repetition machine on the left, the patient's record and per-finger recovery curves on the right](docs/images/dashboard.gif)
 
@@ -247,42 +231,12 @@ When a real session is running, `python -m arm1.session.snapshot_server` streams
 shows the arm instead of the simulation, badged `live session`.
 [docs/dashboard-demo.md](./docs/dashboard-demo.md)
 
-## What has and has not touched a patient
-
-Nothing here has touched a patient. Against the **bench**, with a finger in the hook:
-
-| | |
-|---|---|
-| Admittance control, `active` mode | runs, full sets completed on the real arm |
-| Coordinated three-joint pull | runs |
-| Gauge reader | runs, with a known intermittent fault (below) |
-| `cpm` mode | implemented and tested in software, **has not moved a real finger** |
-| Two-machine handover | protocol verified over a real socket, **never run with both arms powered** |
-| Arm 2 policies | one ACT ran on the arm with a mediocre result; the newer ones are untested on it |
-| Isaac Lab policies | simulation only |
-
-**Known fault:** the gauge reader occasionally swaps the two reference stickers, which inverts
-the whole scale (`g` reads as `570 - g`) and stays inverted until tracking breaks. Diagnosed to
-the orientation tiebreak in `arm1/gauge_reader/stickers.py`; the profile that is supposed to tell the
-two ends apart scores both orientations identically on this rig. Not yet fixed.
-
 ## Setup
 
-```bash
-git clone https://github.com/anatissera/flexnsense.git && cd flexnsense
-uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt
-.venv/bin/python -m pytest -q          # 1168 tests, no camera, robot or Station needed
-```
-
-Everything runs without hardware. The arm, Station, motor ids and `.env`: [SETUP.md](./SETUP.md).
-There is **no LeRobot support for the ElRobot**, so every path to the arm goes through
-NormaCore's Station: [docs/elrobot.md](./docs/elrobot.md).
-
-```bash
-.venv/bin/python -m arm1.gauge_reader.launcher     # camera, calibrate, run
-.venv/bin/python -m arm1.gauge_reader.server       # live force for the dashboard
-.venv/bin/python -m arm1.hand_tracking run         # finger flexion angles
-```
+A virtual environment and the requirements file are the whole of it, and **the entire test
+suite runs with no camera, no robot and no Station**. The arm itself, Station, the motor ids
+and `.env` are in [SETUP.md](./SETUP.md). There is **no LeRobot support for the ElRobot**, so
+every path to the arm goes through NormaCore's Station: [docs/elrobot.md](./docs/elrobot.md).
 
 ## Repository layout
 
@@ -349,7 +303,9 @@ Which physical arm is which, bus serials, voltages:
 
 | Document | Covers |
 |---|---|
+| [docs/status.md](./docs/status.md) | What has run on the bench, what has not, and the known faults |
 | [SETUP.md](./SETUP.md) | Python, Station, motors, `.env` |
+| [scripts/README.md](./scripts/README.md) | Every command, grouped by what it does to the rig |
 | [docs/elrobot.md](./docs/elrobot.md) | The arm and Station: why not LeRobot, what is verified |
 | [docs/hardware-setup.md](./docs/hardware-setup.md) | Which arm is which, bus serials, who runs what |
 | [docs/bench-measurements.md](./docs/bench-measurements.md) | How to take every bench number this repo depends on |
@@ -360,41 +316,19 @@ Which physical arm is which, bus serials, voltages:
 | [docs/hand-tracking.md](./docs/hand-tracking.md) | MediaPipe and WiLoR, the flexion angle, the VRAM question |
 | [docs/force-calibration-result.md](./docs/force-calibration-result.md) | Why servo current cannot stand in for a force sensor |
 | [docs/dashboard-demo.md](./docs/dashboard-demo.md) | The two dashboard builds, what is real in each |
+| [docs/licences.md](./docs/licences.md) | Every dependency's licence, and the one that would block a product |
 | [docs/contributing.md](./docs/contributing.md) | Git workflow, units, rules for contributors and coding agents |
 
 `main` is protected: work on a branch and open a PR.
 
-## Licences
-
-This repository is MIT ([LICENSE](./LICENSE)). The pieces it builds on are not all as
-permissive, and two of them matter for anything beyond research:
-
-| Component | Licence | What it means here |
-|---|---|---|
-| NormaCore Station and the ElRobot URDF | MIT | no constraint |
-| LeRobot | Apache 2.0 | no constraint |
-| MediaPipe, OpenCV, NumPy | Apache 2.0 / BSD | no constraint |
-| MuJoCo (dashboard, WebAssembly) | Apache 2.0 | no constraint |
-| **WiLoR** | **CC BY-NC-ND 4.0** | **non-commercial, no derivatives.** Used for hand keypoints in arm 2's training data and as the dashboard's precision tracker |
-| **MANO** (WiLoR depends on it) | own licence, registration required | separate terms, must be accepted directly |
-
-**A commercial product could not ship WiLoR or MANO as they stand.** MediaPipe, which is the
-dashboard's default tracker and Apache 2.0, is the path that does not have this problem. This is
-worth settling before any of this leaves research.
-
 ## Team
 
-Flex'N Sense, built at the Leukerbad Robotics Hackathon 2026 (Elderly Care & Rehabilitation
-track).
-
-| | | |
-|---|---|---|
-| Guillaume Bonifas | Robotics & MedTech | [@Guitool77](https://github.com/Guitool77) |
-| Damien Frechou | Mechatronics, control systems | |
-| Ana Tissera | AI Engineering, Universidad de San Andrés | [@anatissera](https://github.com/anatissera) |
-| Laurence Liang | Applied AI, Mistral | [@TheFloatingString](https://github.com/TheFloatingString) |
-| Javier Peres | AI Engineering | [@peresramirez](https://github.com/peresramirez) |
-| Justo Valverde | Robotics Software Engineering, URJC | |
+[Guillaume Bonifas](https://www.linkedin.com/in/guillaumebonifas) ·
+[Damien Frechou](https://www.linkedin.com/in/damien-frechou) ·
+[Ana Tissera](https://github.com/anatissera) ·
+[Laurence Liang](https://www.linkedin.com/in/laurence-liang-innovator) ·
+[Javier Peres](https://www.linkedin.com/in/peresjavier) ·
+[Justo Valverde](https://www.linkedin.com/in/justodariovalverde)
 
 Thanks to the organizers at the Edelweiss Innovation & Intelligence Institute, HerCode, AI Team,
 EuroTech Federation and TUM-XR, and to the hardware partners.
