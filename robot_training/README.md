@@ -359,6 +359,13 @@ Hay dos entornos más, opcionales y separados de este:
 > GPUs muy nuevas (p.ej. RTX PRO 4000 Blackwell, `sm_120`) necesitan un PyTorch compilado con
 > CUDA ≥ 12.8. Comprueba `python -c "import torch; print(torch.cuda.is_available())"`.
 
+Sin GPU local, los notebooks de LeRobot entrenan en Colab. No son nuestro flujo (no leen
+los datasets de Station sin convertirlos primero, sección 1.1), pero sirven para ver el
+entrenamiento de principio a fin con una GPU prestada:
+
+- [training-act.ipynb](https://colab.research.google.com/github/huggingface/notebooks/blob/main/lerobot/training-act.ipynb)
+- [training-smolvla.ipynb](https://colab.research.google.com/github/huggingface/notebooks/blob/main/lerobot/training-smolvla.ipynb)
+
 ---
 
 ## 1. Entrenar una policy con un dataset concreto
