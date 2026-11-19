@@ -18,12 +18,16 @@ For recovery after surgery, injury, stroke, or age-related loss of hand strength
 
 </div>
 
-![The finger pulls a spring scale held by the arm. A camera reads the scale in grams. At 200 g the arm gives way, so the force stops rising.](docs/images/tether.gif)
+![The finger pulls a spring scale held by the arm. A camera reads the scale in grams. On reaching the 200 g cap the arm starts moving with the finger, so the reading stays at 200 g.](docs/images/tether.gif)
 
-The arm is the anchor, not the mover. The patient pulls, a camera reads the force off a PESOLA
-spring scale thirty times a second, and when the reading reaches the prescribed cap the arm
-**gives way**: it retreats just fast enough that the spring stretches no further. The force the
-finger feels is therefore bounded by the control law, not by how hard the patient pulls.
+The patient pulls, a camera reads the force off a PESOLA spring scale thirty times a second,
+and on reaching the prescribed cap the arm starts **moving with the finger**, at whatever speed
+holds the reading there. It is not giving way and it is not letting go: the finger keeps working
+against a force the clinician chose, for as far as it can travel. What the patient feels is set
+by the control law, not by how hard they pull.
+
+That is `active` mode, one of two. In `cpm` the arm drives the whole stroke and the finger goes
+along, for a patient who cannot flex yet.
 
 ## Why this is hard
 
@@ -62,10 +66,12 @@ is what the PESOLA is graduated in and what the clinician sets; everything past 
 in newtons.
 
 Every frame resolves to one of three outcomes. Below the cap the arm **holds**, because it is
-the anchor and the patient is meant to work against it. Above the cap it **yields**, retreating
-at a speed proportional to the excess, `v = min((F - cap) / B, v_max)`, so the spring stops
-stretching. With no reading, a stale one, or one past the hard ceiling, it **releases and
-stops**. There is no fourth branch and no guessed force.
+the anchor and the patient is meant to work against it. Above the cap it **moves away**, at a
+speed proportional to how far over it is, `v = min((F - cap) / B, v_max)`. That proportionality
+is the whole trick: the further the reading drifts past the cap the faster the arm retreats, so
+it settles at exactly the speed the finger is advancing and the reading sits on the cap. With no
+reading, a stale one, or one past the hard ceiling, it **releases and stops**. There is no fourth
+branch and no guessed force.
 
 `arm1/control/safety.py` is the gate, `arm1/control/admittance.py` the law, and
 `arm1/control/loop.py` the only part that touches hardware. The first two are pure and
@@ -107,7 +113,7 @@ are involved.
 
 | Mode | Work beat | Reset beat |
 |---|---|---|
-| `active` | the patient flexes, the arm yields at the cap | the arm walks back to where the rep began |
+| `active` | the patient flexes, the arm moves with them to hold the force at the cap | the arm walks back to where the rep began |
 | `cpm` | the arm takes the finger out to the stretch target | the arm brings it back; the patient is passive throughout |
 
 `cpm` is the only mode where the driver does not flip within a repetition, which is the point of
@@ -219,16 +225,17 @@ clocks have no relation to each other. Four message types, no shell commands, an
 
 ## The dashboard
 
-![The dashboard: a 3D hand with the flexor tendons tinted by estimated recovery, the repetition machine on the left, the patient's record and per-finger recovery curves on the right](docs/images/dashboard.gif)
+![The dashboard, with each region labelled: the tendon legend, the exercise wizard and the chat down the left; the digital twin, a 3D hand with its flexor tendons tinted by estimated recovery, in the middle; the patient's record, the live displacement and force traces, and the per-finger recovery index down the right](docs/images/dashboard.gif)
 
-A 3D MyoHand in MuJoCo WebAssembly with the flexor tendons tinted by estimated recovery, hand
-tracking on the laptop camera, the repetition machine, and a text/voice assistant that answers
-from the results. `NEXT_PUBLIC_DEMO` is the only
-difference between the public build and the one that runs beside the rig: with it set nothing is
-probed, and every panel carries a badge saying where its numbers come from.
+The digital twin in the middle is a 3D MyoHand running in MuJoCo WebAssembly, driven by hand
+tracking on the laptop camera, and the chat answers questions about what is on screen in any
+language. The traces on the right are the same displacement and force the control loop sees.
 
-When a real session is running, `python -m arm1.session.snapshot_server` streams it and the panel
-shows the arm instead of the simulation, badged `live session`.
+The same build runs with nothing attached and beside the rig, and the difference is one
+environment variable. With it set nothing is probed and **every panel carries a badge saying
+where its numbers come from**, because a simulated force that looks like a measured one is the
+one thing a clinical demonstration must not do. When a real session is running, a snapshot
+stream replaces the simulation and the panel is badged `live session`.
 [docs/dashboard-demo.md](./docs/dashboard-demo.md)
 
 ## Setup
@@ -323,12 +330,12 @@ Which physical arm is which, bus serials, voltages:
 
 ## Team
 
-[Guillaume Bonifas](https://www.linkedin.com/in/guillaumebonifas) ·
-[Damien Frechou](https://www.linkedin.com/in/damien-frechou) ·
 [Ana Tissera](https://github.com/anatissera) ·
 [Laurence Liang](https://www.linkedin.com/in/laurence-liang-innovator) ·
+[Justo Valverde](https://www.linkedin.com/in/justodariovalverde) ·
 [Javier Peres](https://www.linkedin.com/in/peresjavier) ·
-[Justo Valverde](https://www.linkedin.com/in/justodariovalverde)
+[Guillaume Bonifas](https://www.linkedin.com/in/guillaumebonifas) ·
+[Damien Frechou](https://www.linkedin.com/in/damien-frechou)
 
 Thanks to the organizers at the Edelweiss Innovation & Intelligence Institute, HerCode, AI Team,
 EuroTech Federation and TUM-XR, and to the hardware partners.
