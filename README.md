@@ -219,16 +219,17 @@ clocks have no relation to each other. Four message types, no shell commands, an
 
 ## The dashboard
 
-![The dashboard: a 3D hand with the flexor tendons tinted by estimated recovery, the repetition machine on the left, the patient's record and per-finger recovery curves on the right](docs/images/dashboard.gif)
+![The dashboard, with each region labelled: the tendon legend, the exercise wizard and the chat down the left; the digital twin, a 3D hand with its flexor tendons tinted by estimated recovery, in the middle; the patient's record, the live displacement and force traces, and the per-finger recovery index down the right](docs/images/dashboard.gif)
 
-A 3D MyoHand in MuJoCo WebAssembly with the flexor tendons tinted by estimated recovery, hand
-tracking on the laptop camera, the repetition machine, and a text/voice assistant that answers
-from the results. `NEXT_PUBLIC_DEMO` is the only
-difference between the public build and the one that runs beside the rig: with it set nothing is
-probed, and every panel carries a badge saying where its numbers come from.
+The digital twin in the middle is a 3D MyoHand running in MuJoCo WebAssembly, driven by hand
+tracking on the laptop camera, and the chat answers questions about what is on screen in any
+language. The traces on the right are the same displacement and force the control loop sees.
 
-When a real session is running, `python -m arm1.session.snapshot_server` streams it and the panel
-shows the arm instead of the simulation, badged `live session`.
+The same build runs with nothing attached and beside the rig, and the difference is one
+environment variable. With it set nothing is probed and **every panel carries a badge saying
+where its numbers come from**, because a simulated force that looks like a measured one is the
+one thing a clinical demonstration must not do. When a real session is running, a snapshot
+stream replaces the simulation and the panel is badged `live session`.
 [docs/dashboard-demo.md](./docs/dashboard-demo.md)
 
 ## Setup
@@ -323,12 +324,12 @@ Which physical arm is which, bus serials, voltages:
 
 ## Team
 
-[Guillaume Bonifas](https://www.linkedin.com/in/guillaumebonifas) ·
-[Damien Frechou](https://www.linkedin.com/in/damien-frechou) ·
 [Ana Tissera](https://github.com/anatissera) ·
 [Laurence Liang](https://www.linkedin.com/in/laurence-liang-innovator) ·
+[Justo Valverde](https://www.linkedin.com/in/justodariovalverde) ·
 [Javier Peres](https://www.linkedin.com/in/peresjavier) ·
-[Justo Valverde](https://www.linkedin.com/in/justodariovalverde)
+[Guillaume Bonifas](https://www.linkedin.com/in/guillaumebonifas) ·
+[Damien Frechou](https://www.linkedin.com/in/damien-frechou)
 
 Thanks to the organizers at the Edelweiss Innovation & Intelligence Institute, HerCode, AI Team,
 EuroTech Federation and TUM-XR, and to the hardware partners.
